@@ -181,7 +181,7 @@ class BuildFlasher(object):
     def FlashUsingCustomBinary(self,
                                device_images,
                                reboot_mode,
-                               arg_flasher,
+                               flasher_args,
                                timeout_secs_for_reboot=900):
         """Flash the customized image to the device.
 
@@ -190,7 +190,8 @@ class BuildFlasher(object):
                            image file path.
             reboot_mode: string, decides which mode device will reboot into.
                          ("bootloader"/"download").
-            arg_flasher: string, argument that will be passed to the flash binary.
+            flasher_args: list of strings, arguments that will be passed to the
+                          flash binary.
             timeout_secs_for_reboot: integer, the maximum timeout value for
                                      reboot to flash-able mode(unit: seconds).
 
@@ -199,6 +200,10 @@ class BuildFlasher(object):
         """
         if not device_images:
             logging.warn("Flash skipped because no device image is given.")
+            return False
+
+        if not flasher_args:
+            logging.error("No arguments.")
             return False
 
         if not self.device.isBootloaderMode:
@@ -215,9 +220,10 @@ class BuildFlasher(object):
                 return False
             time.sleep(1)
 
-        arg = arg_flasher.replace('-', '_')
-        self.device.log.info(
-            getattr(self.device.customflasher, arg)(device_images["img"]))
+        flasher_output = self.device.customflasher.ExecCustomFlasherCmd(
+            flasher_args[0],
+            " ".join(flasher_args[1:] + [device_images["img"]]))
+        self.device.log.info(flasher_output)
 
         return True
 
