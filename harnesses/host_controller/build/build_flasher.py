@@ -195,7 +195,7 @@ class BuildFlasher(object):
                                      reboot to flash-able mode(unit: seconds).
 
         Returns:
-            True if succesful; False otherwise.
+            True if successful; False otherwise.
         """
         if not device_images:
             logging.warn("Flash skipped because no device image is given.")
