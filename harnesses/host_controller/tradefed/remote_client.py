@@ -18,7 +18,7 @@ import logging
 import socket
 import time
 
-from vts.harnesses.host_controller.tradefed import remote_operation
+from host_controller.tradefed import remote_operation
 
 LOCALHOST = "localhost"
 DEFAULT_PORT = 30103

@@ -22,9 +22,9 @@ import uuid
 import httplib2
 from apiclient import errors
 
-from vts.harnesses.host_controller import invocation_thread
-from vts.harnesses.host_controller.tradefed import remote_operation
-from vts.harnesses.host_controller.tfc import command_attempt
+from host_controller import invocation_thread
+from host_controller.tradefed import remote_operation
+from host_controller.tfc import command_attempt
 
 
 class HostController(object):
