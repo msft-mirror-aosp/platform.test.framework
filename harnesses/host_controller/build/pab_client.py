@@ -40,7 +40,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 
-from vts.harnesses.host_controller.build import build_provider
+from host_controller.build import build_provider
 
 # constants for GET and POST endpoints
 GET = 'GET'

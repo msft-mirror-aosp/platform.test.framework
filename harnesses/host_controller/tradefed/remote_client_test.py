@@ -20,8 +20,8 @@ import socket
 import threading
 import unittest
 
-from vts.harnesses.host_controller.tradefed import remote_client
-from vts.harnesses.host_controller.tradefed import remote_operation
+from host_controller.tradefed import remote_client
+from host_controller.tradefed import remote_operation
 
 
 class MockRemoteManagerThread(threading.Thread):

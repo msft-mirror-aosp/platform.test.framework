@@ -15,9 +15,14 @@
 # limitations under the License.
 #
 
+import os
+import sys
 import unittest
 
-from vts.harnesses.host_controller.build import build_flasher
+print(sys.path)
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+
+from host_controller.build import build_flasher
 
 try:
     from unittest import mock
@@ -29,8 +34,8 @@ class BuildFlasherTest(unittest.TestCase):
     """Tests for Build Flasher"""
 
     @mock.patch(
-        "vts.harnesses.host_controller.build.build_flasher.android_device")
-    @mock.patch("vts.harnesses.host_controller.build.build_flasher.os")
+        "host_controller.build.build_flasher.android_device")
+    @mock.patch("host_controller.build.build_flasher.os")
     def testFlashGSIBadPath(self, mock_os, mock_class):
         flasher = build_flasher.BuildFlasher("thisismyserial")
         mock_os.path.exists.return_value = False
@@ -40,8 +45,8 @@ class BuildFlasherTest(unittest.TestCase):
                          str(cm.exception))
 
     @mock.patch(
-        "vts.harnesses.host_controller.build.build_flasher.android_device")
-    @mock.patch("vts.harnesses.host_controller.build.build_flasher.os")
+        "host_controller.build.build_flasher.android_device")
+    @mock.patch("host_controller.build.build_flasher.os")
     def testFlashGSISystemOnly(self, mock_os, mock_class):
         mock_device = mock.Mock()
         mock_class.AndroidDevice.return_value = mock_device
@@ -53,7 +58,7 @@ class BuildFlasherTest(unittest.TestCase):
         mock_device.fastboot.erase.assert_any_call('metadata')
 
     @mock.patch(
-        "vts.harnesses.host_controller.build.build_flasher.android_device")
+        "host_controller.build.build_flasher.android_device")
     def testFlashall(self, mock_class):
         mock_device = mock.Mock()
         mock_class.AndroidDevice.return_value = mock_device
@@ -62,7 +67,7 @@ class BuildFlasherTest(unittest.TestCase):
         mock_device.fastboot.flashall.assert_called_with()
 
     @mock.patch(
-        "vts.harnesses.host_controller.build.build_flasher.android_device")
+        "host_controller.build.build_flasher.android_device")
     def testEmptySerial(self, mock_class):
         mock_class.list_adb_devices.return_value = ['oneserial']
         flasher = build_flasher.BuildFlasher(serial="")
@@ -70,7 +75,7 @@ class BuildFlasherTest(unittest.TestCase):
             "oneserial", device_callback_port=-1)
 
     @mock.patch(
-        "vts.harnesses.host_controller.build.build_flasher.android_device")
+        "host_controller.build.build_flasher.android_device")
     def testFlashUsingCustomBinary(self, mock_class):
         """Test for FlashUsingCustomBinary().
 
@@ -98,14 +103,11 @@ class BuildFlasherTest(unittest.TestCase):
             "my/other/image/path")
 
     @mock.patch(
-        "vts.harnesses.host_controller.build.build_flasher.android_device")
-    @mock.patch("vts.harnesses.host_controller.build.build_flasher.logging")
-    @mock.patch("vts.harnesses.host_controller.build.build_flasher.cmd_utils")
-    @mock.patch("vts.harnesses.host_controller.build.build_flasher.os")
-    @mock.patch(
-        "vts.harnesses.host_controller.build.build_flasher.open",
-        new_callable=mock.mock_open)
-    def testRepackageArtifacts(self, mock_open, mock_os, mock_cmd_utils,
+        "host_controller.build.build_flasher.android_device")
+    @mock.patch("host_controller.build.build_flasher.logging")
+    @mock.patch("host_controller.build.build_flasher.cmd_utils")
+    @mock.patch("host_controller.build.build_flasher.os")
+    def testRepackageArtifacts(self, mock_os, mock_cmd_utils,
                                mock_logger, mock_class):
         """Test for RepackageArtifacts().
 
