@@ -119,6 +119,7 @@ class Console(cmd.Cmd):
         _device_parser: The parser for device command.
         _fetch_parser: The parser for fetch command.
         _flash_parser: The parser for flash command.
+        _info_parser: The parser for info command.
         _lease_parser: The parser for lease command.
         _list_parser: The parser for list command.
         _request_parser: The parser for request command.
@@ -154,6 +155,7 @@ class Console(cmd.Cmd):
         self._InitDeviceParser()
         self._InitFetchParser()
         self._InitFlashParser()
+        self._InitInfoParser()
         self._InitLeaseParser()
         self._InitListParser()
         self._InitRequestParser()
@@ -748,6 +750,21 @@ class Console(cmd.Cmd):
     def help_test(self):
         """Prints help message for test command."""
         self._test_parser.print_help(self._out_file)
+
+    def _InitInfoParser(self):
+        """Initializes the parser for info command."""
+        self._info_parser = ConsoleArgumentParser("info",
+                                                  "Show status.")
+
+    def do_info(self, line):
+        """Shows the console's session status information."""
+        print("device image: %s" % self.device_image_info)
+        print("test suite: %s" % self.test_suite_info)
+        print("fetch info: %s" % self.fetch_info)
+
+    def help_info(self):
+        """Prints help message for info command."""
+        self._info_parser.print_help(self._out_file)
 
     def _PrintTasks(self, tasks):
         """Shows a list of command tasks.
