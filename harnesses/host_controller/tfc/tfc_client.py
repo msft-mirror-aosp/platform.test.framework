@@ -23,7 +23,7 @@ from apiclient import discovery
 from apiclient import http
 from oauth2client.service_account import ServiceAccountCredentials
 
-from vts.harnesses.host_controller.tfc import command_task
+from host_controller.tfc import command_task
 
 API_NAME = "tradefed_cluster"
 API_VERSION = "v1"

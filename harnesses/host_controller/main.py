@@ -23,11 +23,11 @@ import time
 import threading
 import sys
 
-from vts.harnesses.host_controller import console
-from vts.harnesses.host_controller import host_controller
-from vts.harnesses.host_controller.build import pab_client
-from vts.harnesses.host_controller.tfc import tfc_client
-from vts.harnesses.host_controller.tradefed import remote_client
+from host_controller import console
+from host_controller import tfc_host_controller
+from host_controller.build import pab_client
+from host_controller.tfc import tfc_client
+from host_controller.tradefed import remote_client
 from vts.utils.python.os import env_utils
 
 _ANDROID_BUILD_TOP = "ANDROID_BUILD_TOP"
@@ -132,8 +132,8 @@ def main():
         port = host_config.get("port", remote_client.DEFAULT_PORT)
         cluster_ids = host_config["cluster_ids"]
         remote = remote_client.RemoteClient(hostname, port)
-        host = host_controller.HostController(remote, tfc, hostname,
-                                              cluster_ids)
+        host = tfc_host_controller.HostController(remote, tfc, hostname,
+                                                  cluster_ids)
         hosts.append(host)
         if args.poll:
             lease_interval_sec = host_config["lease_interval_sec"]
