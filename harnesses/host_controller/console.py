@@ -737,14 +737,18 @@ class Console(cmd.Cmd):
             serial = ""
 
         if args.test_exec_mode == "subprocess":
-            bin_path = self.test_suite_info["vts"]
-            cmd = [bin_path, "run"]
-            cmd.extend(args.command)
-            if serial:
-                cmd.extend(["-s", serial])
-            print("Command: %s" % cmd)
-            result = subprocess.check_output(cmd)
-            logging.debug("result: %s", result)
+            if "vts" not in self.test_suite_info:
+                 print("test_suite_info doesn't have 'vts': %s" %
+                       self.test_suite_info)
+            else:
+                bin_path = self.test_suite_info["vts"]
+                cmd = [bin_path, "run"]
+                cmd.extend(args.command)
+                if serial:
+                    cmd.extend(["-s", serial])
+                print("Command: %s" % cmd)
+                result = subprocess.check_output(cmd)
+                logging.debug("result: %s", result)
         else:
             print("unsupported exec mode: %s", args.test_exec_mode)
 
