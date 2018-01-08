@@ -16,6 +16,7 @@
 
 import argparse
 import cmd
+import datetime
 import imp  # Python v2 compatibility
 import logging
 import multiprocessing
@@ -38,6 +39,7 @@ from host_controller.build import build_provider_ab
 from host_controller.build import build_provider_gcs
 from host_controller.build import build_provider_local_fs
 from host_controller.tradefed import remote_operation
+from vts.utils.python.common import cmd_utils
 
 # The default Partner Android Build (PAB) public account.
 # To obtain access permission, please reach out to Android partner engineering
@@ -120,6 +122,7 @@ class Console(cmd.Cmd):
         _device_parser: The parser for device command.
         _fetch_parser: The parser for fetch command.
         _flash_parser: The parser for flash command.
+        _gsispl_parser: The parser for gsispl command.
         _info_parser: The parser for info command.
         _lease_parser: The parser for lease command.
         _list_parser: The parser for list command.
@@ -156,6 +159,7 @@ class Console(cmd.Cmd):
         self._InitDeviceParser()
         self._InitFetchParser()
         self._InitFlashParser()
+        self._InitGsiSplParser()
         self._InitInfoParser()
         self._InitLeaseParser()
         self._InitListParser()
@@ -705,6 +709,66 @@ class Console(cmd.Cmd):
     def help_device(self):
         """Prints help message for device command."""
         self._device_parser.print_help(self._out_file)
+
+    def _InitGsiSplParser(self):
+        """Initializes the parser for device command."""
+        self._gsisplParser = ConsoleArgumentParser(
+            "gsispl", "Changes security patch level on a selected GSI file.")
+        self._gsisplParser.add_argument(
+            "--gsi",
+            help="Path to GSI image to change security patch level. "
+            "If path is not given, the most recently fetched system.img "
+            "kept in device_image_info dictionary is used and then "
+            "device_image_info will be updated with the new GSI file.")
+        self._gsisplParser.add_argument(
+            "--version",
+            required=True,
+            help="New version ID. It should be YYYY-mm-dd format.")
+
+    def do_gsispl(self, line):
+        """Changes security patch level on a selected GSI file."""
+        args = self._gsisplParser.ParseLine(line)
+        if args.gsi:
+            if os.path.isfile(args.gsi):
+                gsi_path = args.gsi
+            else:
+                print "Cannot find system image in given path"
+                sys.exit(-1)
+        elif "system.img" in self.device_image_info:
+            gsi_path = self.device_image_info["system.img"]
+        else:
+            print "Cannot find system image."
+            sys.exit(-1)
+
+        if args.version:
+            try:
+                version_date = datetime.datetime.strptime(
+                    args.version, "%Y-%m-%d")
+                version = "{:04d}-{:02d}-{:02d}".format(
+                    version_date.year, version_date.month, version_date.day)
+            except ValueError as e:
+                print "version ID should be YYYY-mm-dd format."
+                sys.exit(-1)
+        else:
+            print "version ID must be given."
+            sys.exit(-1)
+
+        output_path = os.path.join(os.path.dirname(os.path.abspath(gsi_path)),
+            "system-{}.img".format(version))
+        stdout, stderr, err_code = cmd_utils.ExecuteOneShellCommand(
+            "{} {} {} {}".format(
+                "vts/harnesses/host_controller/gsi/change_spl.sh", gsi_path,
+                output_path, version))
+        if err_code is 0:
+            if not args.gsi:
+                self.device_image_info["system.img"] = output_path
+        else:
+            print "gsispl error: {}".format(stderr)
+            sys.exit(-1)
+
+    def help_gsispl(self):
+        """Prints help message for gsispl command."""
+        self._gsisplParser.print_help(self._out_file)
 
     def _InitTestParser(self):
         """Initializes the parser for test command."""
