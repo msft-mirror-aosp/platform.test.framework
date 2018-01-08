@@ -124,6 +124,8 @@ class Console(cmd.Cmd):
         prompt: The prompt string at the beginning of each command line.
         test_suite_info: dict containing info about test suite package files.
         tools_info: dict containing info about custom tool files.
+        build_thread: dict containing threading.Thread instances(s) that
+                      update build info regularly.
         scheduler_thread: dict containing threading.Thread instances(s) that
                           update configs regularly.
         update_thread: threading.Thread that updates device state regularly.
@@ -172,10 +174,12 @@ class Console(cmd.Cmd):
         self.device_image_info = {}
         self.test_suite_info = {}
         self.tools_info = {}
+        self.build_thread = {}
         self.schedule_thread = {}
         self.update_thread = None
         self.fetch_info = {}
 
+        self._InitBuildParser()
         self._InitCopyParser()
         self._InitDeviceParser()
         self._InitFetchParser()
@@ -622,6 +626,154 @@ class Console(cmd.Cmd):
     def help_flash(self):
         """Prints help message for flash command."""
         self._flash_parser.print_help(self._out_file)
+
+    def _InitBuildParser(self):
+        """Initializes the parser for build command."""
+        self._build_parser = ConsoleArgumentParser(
+            "build", "Specifies branches and targets to monitor.")
+        self._build_parser.add_argument(
+            "--update",
+            choices=("single", "start", "stop", "list"),
+            default="start",
+            help="Update build info")
+        self._build_parser.add_argument(
+            "--id",
+            default=None,
+            help="session ID only required for 'stop' update command")
+        self._build_parser.add_argument(
+            "--interval",
+            type=int,
+            default=30,
+            help="Interval (seconds) to repeat build update.")
+        self._build_parser.add_argument(
+            "--artifact-type",
+            choices=("device", "gsi", "test"),
+            default="device",
+            help="The type of an artifact to update")
+        self._build_parser.add_argument(
+            "--branch",
+            required=True,
+            help="Branch to grab the artifact from.")
+        self._build_parser.add_argument(
+            "--target",
+            required=True,
+            help="a comma-separate list of build target product(s).")
+        self._build_parser.add_argument(
+            "--account_id",
+            default=_DEFAULT_ACCOUNT_ID,
+            help="Partner Android Build account_id to use.")
+
+    def UpdateBuild(self, account_id, branch, targets, artifact_type):
+        """Updates the build state.
+
+        Args:
+            account_id: string, Partner Android Build account_id to use.
+            branch: string, branch to grab the artifact from.
+            targets: string, a comma-separate list of build target product(s).
+            artifact_type: string, artifcat type (`device`, 'gsi' or `test').
+        """
+        builds = []
+
+        self._build_provider["pab"].Authenticate()
+        for target in targets.split(","):
+            listed_builds = self._build_provider[
+                "pab"].GetBuildList(
+                    account_id=account_id,
+                    branch=branch,
+                    target=target,
+                    page_token="",
+                    max_results=100,
+                    method="GET")
+
+            for listed_build in listed_builds:
+                if listed_build["successful"]:
+                    build = {}
+                    build["manifest_branch"] = branch
+                    build["build_id"] = listed_build["build_id"]
+                    if "-" in target:
+                        build["build_target"], build["build_type"] = target.split("-")
+                    else:
+                        build["build_target"] = target
+                        build["build_type"] = ""
+                    build["artifact_type"] = artifact_type
+                    build["artifacts"] = []
+                    builds.append(build)
+        self._vti_endpoint_client.UploadBuildInfo(builds)
+
+    def UpdateBuildLoop(self, account_id, branch, target, artifact_type,
+                        update_interval):
+        """Regularly updates the build information.
+
+        Args:
+            account_id: string, Partner Android Build account_id to use.
+            branch: string, branch to grab the artifact from.
+            targets: string, a comma-separate list of build target product(s).
+            artifact_type: string, artifcat type (`device`, 'gsi' or `test).
+            update_interval: int, number of seconds before repeating
+        """
+        thread = threading.currentThread()
+        while getattr(thread, 'keep_running', True):
+            try:
+                self.UpdateBuild(account_id, branch, target, artifact_type)
+            except (socket.error, remote_operation.RemoteOperationException,
+                    httplib2.HttpLib2Error, errors.HttpError) as e:
+                logging.exception(e)
+            time.sleep(update_interval)
+
+    def do_build(self, line):
+        """Updates build info."""
+        args = self._build_parser.ParseLine(line)
+        if args.update == "single":
+            self.UpdateDevice(
+                args.account_id,
+                args.branch,
+                args.target,
+                args.artifact_type)
+        elif args.update == "list":
+            print("Running build update sessions:")
+            for id in self.build_thread:
+                print("  ID %d", id)
+        elif args.update == "start":
+            if args.interval <= 0:
+                raise ConsoleArgumentError(
+                    "update interval must be positive")
+            # do not allow user to create new
+            # thread if one is currently running
+            if args.id is None:
+                if not self.build_thread:
+                  args.id = 1
+                else:
+                  args.id = max(self.build_thread) + 1
+            else:
+                args.id = int(args.id)
+            if args.id in self.build_thread and not hasattr(
+                    self.build_thread[args.id], 'keep_running'):
+                print(
+                    'build update (session ID: %s) already running. '
+                    'run build --update stop first.' % args.id
+                )
+                return
+            self.build_thread[args.id] = threading.Thread(
+                target=self.UpdateBuildLoop,
+                args=(
+                    args.account_id,
+                    args.branch,
+                    args.target,
+                    args.artifact_type,
+                    args.interval, ))
+            self.build_thread[args.id].daemon = True
+            self.build_thread[args.id].start()
+        elif args.update == "stop":
+            if args.id is None:
+                print("--id must be set for stop")
+            else:
+                self.build_thread[int(args.id)].keep_running = False
+
+    def help_build(self):
+        """Prints help message for build command."""
+        self._build_parser.print_help(self._out_file)
+        print("Sample: build --target=aosp_sailfish-userdebug "
+              "--branch=<branch name> --artifact-type=device")
 
     def _InitConfigParser(self):
         """Initializes the parser for config command."""
