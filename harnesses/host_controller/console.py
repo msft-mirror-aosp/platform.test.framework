@@ -249,6 +249,39 @@ class Console(cmd.Cmd):
                 self.onecmd(command)
         return True
 
+    def ProcessConfigurableScript(self, script_file_path, **kwargs):
+        """Processes a .py script file.
+
+        A script file implements a function which emits a list of console
+        commands to execute. That function emits an empty list or None if
+        no more command needs to be processed.
+
+        Args:
+            script_file_path: string, the path of a script file (.py file).
+            kwargs: extra args for the interface function defined in
+                    the script file.
+
+        Returns:
+            True if successful; False otherwise
+        """
+        if not script_file_path.endswith(".py"):
+            print("Script file is not .py file: %s" % script_file_path)
+            return False
+
+        script_module = imp.load_source('script_module', script_file_path)
+
+        commands = script_module.EmitConsoleCommands(
+            branch=kwargs["manifest_branch"],
+            build_target=kwargs["build_target"][0],
+            build_id=kwargs["build_id"],
+            test_name=kwargs["test_name"].split("/")[0],
+            shards=int(kwargs["shards"]),
+            serials=kwargs["serial"])
+        if commands:
+            for command in commands:
+                self.onecmd(command)
+        return True
+
     def do_request(self, line):
         """Sends TFC a request to execute a command."""
         args = self._request_parser.ParseLine(line)
