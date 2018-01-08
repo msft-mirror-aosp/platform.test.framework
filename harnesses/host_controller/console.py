@@ -113,6 +113,8 @@ class Console(cmd.Cmd):
         tools_info: dict containing info about custom tool files.
         update_thread: threading.Thread that updates device state regularly
         _pab_client: The PartnerAndroidBuildClient used to download artifacts
+        _vti_client: VtiEndpoewrClient, used to upload data to a test
+                     scheduling infrastructure.
         _tfc_client: The TfcClient that the host controllers connect to.
         _hosts: A list of HostController objects.
         _in_file: The input file object.
@@ -130,6 +132,7 @@ class Console(cmd.Cmd):
     """
 
     def __init__(self,
+                 vti_endpoint_client,
                  tfc,
                  pab,
                  host_controllers,
@@ -144,6 +147,7 @@ class Console(cmd.Cmd):
             "local_fs"] = build_provider_local_fs.BuildProviderLocalFS()
         self._build_provider["gcs"] = build_provider_gcs.BuildProviderGCS()
         self._build_provider["ab"] = build_provider_ab.BuildProviderAB()
+        self._vti_endpoint_client = vti_endpoint_client
         self._tfc_client = tfc
         self._hosts = host_controllers
         self._in_file = in_file
