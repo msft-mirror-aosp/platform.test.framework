@@ -18,6 +18,7 @@ import argparse
 import cmd
 import imp  # Python v2 compatibility
 import logging
+import multiprocessing
 import os
 import shutil
 import socket
@@ -790,7 +791,22 @@ class Console(cmd.Cmd):
 
     # @Override
     def onecmd(self, line):
-        """Executes a command and prints any exception."""
+        """Executes command(s) and prints any exception.
+
+        Args:
+            line: a list of string or string which keeps the command to run.
+        """
+        if type(line) == list:
+            jobs = []
+            for sub_command in line:
+                p = multiprocessing.Process(
+                    target=self.onecmd, args=(sub_command,))
+                jobs.append(p)
+                p.start()
+            for job in jobs:
+                job.join()
+            return
+
         if line:
             print("Command: %s" % line)
         try:
