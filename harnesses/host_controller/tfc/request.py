@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-from vts.harnesses.host_controller.tfc import api_message
+from host_controller.tfc import api_message
 
 
 class Request(api_message.ApiMessage):

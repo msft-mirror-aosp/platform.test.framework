@@ -17,7 +17,7 @@
 import os
 import zipfile
 
-from vts.harnesses.host_controller.build import build_provider
+from host_controller.build import build_provider
 
 
 class BuildProviderLocalFS(build_provider.BuildProvider):

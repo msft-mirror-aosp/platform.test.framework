@@ -30,13 +30,13 @@ import httplib2
 from apiclient import errors
 import urlparse
 
-from vts.harnesses.host_controller.tfc import request
-from vts.harnesses.host_controller.build import build_flasher
-from vts.harnesses.host_controller.build import build_provider
-from vts.harnesses.host_controller.build import build_provider_ab
-from vts.harnesses.host_controller.build import build_provider_gcs
-from vts.harnesses.host_controller.build import build_provider_local_fs
-from vts.harnesses.host_controller.tradefed import remote_operation
+from host_controller.tfc import request
+from host_controller.build import build_flasher
+from host_controller.build import build_provider
+from host_controller.build import build_provider_ab
+from host_controller.build import build_provider_gcs
+from host_controller.build import build_provider_local_fs
+from host_controller.tradefed import remote_operation
 
 # The default Partner Android Build (PAB) public account.
 # To obtain access permission, please reach out to Android partner engineering

@@ -19,7 +19,7 @@ import os
 import re
 import zipfile
 
-from vts.harnesses.host_controller.build import build_provider
+from host_controller.build import build_provider
 from vts.utils.python.common import cmd_utils
 
 

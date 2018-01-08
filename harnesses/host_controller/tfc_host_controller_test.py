@@ -24,13 +24,13 @@ try:
 except ImportError:
     import mock
 
-from vts.harnesses.host_controller import host_controller
-from vts.harnesses.host_controller.tfc import command_task
-from vts.harnesses.host_controller.tfc import device_info
+from host_controller import tfc_host_controller
+from host_controller.tfc import command_task
+from host_controller.tfc import device_info
 
 
 class HostControllerTest(unittest.TestCase):
-    """A test for host_controller.HostController.
+    """A test for tfc_host_controller.HostController.
 
     Args:
         _remote_client: A mock remote_client.RemoteClient.
@@ -59,10 +59,10 @@ class HostControllerTest(unittest.TestCase):
         """Creates the HostController."""
         self._remote_client = mock.Mock()
         self._tfc_client = mock.Mock()
-        self._host_controller = host_controller.HostController(
+        self._host_controller = tfc_host_controller.HostController(
                 self._remote_client, self._tfc_client, "host1", ["cluster1"])
 
-    @mock.patch("vts.harnesses.host_controller.invocation_thread."
+    @mock.patch("host_controller.invocation_thread."
                 "InvocationThread.run")
     def testDeviceStateDuringInvocation(self, mock_run):
         """Tests LeaseHostTasks and ListAvailableDevices."""
