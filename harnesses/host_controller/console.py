@@ -419,7 +419,7 @@ class Console(cmd.Cmd):
             self.fetch_info["build_id"] = fetch_environment["build_id"]
         else:
             print("ERROR: unknown fetch type %s" % args.type)
-            sys.exit(-1)
+            return
 
         self.fetch_info["branch"] = args.branch
         self.fetch_info["target"] = args.target
@@ -737,12 +737,12 @@ class Console(cmd.Cmd):
                 gsi_path = args.gsi
             else:
                 print "Cannot find system image in given path"
-                sys.exit(-1)
+                return
         elif "system.img" in self.device_image_info:
             gsi_path = self.device_image_info["system.img"]
         else:
             print "Cannot find system image."
-            sys.exit(-1)
+            return
 
         if args.version:
             try:
@@ -752,10 +752,10 @@ class Console(cmd.Cmd):
                     version_date.year, version_date.month, version_date.day)
             except ValueError as e:
                 print "version ID should be YYYY-mm-dd format."
-                sys.exit(-1)
+                return
         else:
             print "version ID must be given."
-            sys.exit(-1)
+            return
 
         output_path = os.path.join(os.path.dirname(os.path.abspath(gsi_path)),
             "system-{}.img".format(version))
@@ -768,7 +768,7 @@ class Console(cmd.Cmd):
                 self.device_image_info["system.img"] = output_path
         else:
             print "gsispl error: {}".format(stderr)
-            sys.exit(-1)
+            return
 
     def help_gsispl(self):
         """Prints help message for gsispl command."""
