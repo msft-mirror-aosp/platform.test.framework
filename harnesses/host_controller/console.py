@@ -544,7 +544,9 @@ class Console(cmd.Cmd):
             choices=("fastboot", "custom"),
             help="Flasher binary type")
         self._flash_parser.add_argument(
-            "--flasher_path", help="Path to flasher binary")
+            "--flasher_path",
+            default=None,
+            help="Path to a flasher binary")
         self._flash_parser.add_argument(
             "--reboot_mode",
             default="bootloader",
@@ -562,10 +564,13 @@ class Console(cmd.Cmd):
         """Flash GSI or build images to a device connected with ADB."""
         args = self._flash_parser.ParseLine(line)
 
-        if self.tools_info is not None:
+        if args.flasher_path:
+            flasher_path = args.flasher_path
+        elif (self.tools_info is not None and
+              args.flasher_path in self.tools_info):
             flasher_path = self.tools_info[args.flasher_path]
         else:
-            flasher_path = args.flasher_path
+            flasher_path = ""
 
         flashers = []
         if args.serial:
