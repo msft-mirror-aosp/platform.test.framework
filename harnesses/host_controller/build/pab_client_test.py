@@ -16,7 +16,7 @@
 #
 
 import unittest
-from vts.harnesses.host_controller.build import pab_client
+from host_controller.build import pab_client
 
 try:
     from unittest import mock

@@ -16,7 +16,7 @@
 
 import json
 
-from vts.harnesses.host_controller.tfc import device_info
+from host_controller.tfc import device_info
 
 
 class RemoteOperationException(Exception):

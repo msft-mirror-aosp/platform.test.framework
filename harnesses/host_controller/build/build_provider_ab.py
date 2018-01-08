@@ -17,7 +17,7 @@
 import os
 import zipfile
 
-from vts.harnesses.host_controller.build import build_provider
+from host_controller.build import build_provider
 from vts.utils.python.build.api import artifact_fetcher
 
 
