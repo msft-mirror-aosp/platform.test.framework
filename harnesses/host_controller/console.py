@@ -781,7 +781,8 @@ class Console(cmd.Cmd):
         self._test_parser.add_argument(
             "--serial",
             default=None,
-            help="The target device serial to run the command.")
+            help=("The target device serial to run the command. "
+                  "A comma-separate list."))
         self._test_parser.add_argument(
             "--test_exec_mode",
             default="subprocess",
@@ -798,11 +799,11 @@ class Console(cmd.Cmd):
         """Executes a command using a VTS-TF instance."""
         args = self._test_parser.ParseLine(line)
         if args.serial:
-            serial = args.serial
+            serials = args.serial.split(",")
         elif self._serials:
-            serial = self._serials[0]
+            serials = self._serials
         else:
-            serial = ""
+            serials = []
 
         if args.test_exec_mode == "subprocess":
             if "vts" not in self.test_suite_info:
@@ -812,8 +813,9 @@ class Console(cmd.Cmd):
                 bin_path = self.test_suite_info["vts"]
                 cmd = [bin_path, "run"]
                 cmd.extend(args.command)
-                if serial:
-                    cmd.extend(["-s", serial])
+                if serials:
+                    for serial in serials:
+                        cmd.extend(["-s", str(serial)])
                 print("Command: %s" % cmd)
                 result = subprocess.check_output(cmd)
                 logging.debug("result: %s", result)
