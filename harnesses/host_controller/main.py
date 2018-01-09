@@ -23,11 +23,12 @@ import time
 import threading
 import sys
 
-from vts.harnesses.host_controller import console
-from vts.harnesses.host_controller import host_controller
-from vts.harnesses.host_controller.build import pab_client
-from vts.harnesses.host_controller.tfc import tfc_client
-from vts.harnesses.host_controller.tradefed import remote_client
+from host_controller import console
+from host_controller import tfc_host_controller
+from host_controller.build import pab_client
+from host_controller.tfc import tfc_client
+from host_controller.vti_interface import vti_endpoint_client
+from host_controller.tradefed import remote_client
 from vts.utils.python.os import env_utils
 
 _ANDROID_BUILD_TOP = "ANDROID_BUILD_TOP"
@@ -76,6 +77,9 @@ def main():
                              "threads polling TFC.")
     parser.add_argument("--use-tfc", action="store_true",
                         help="Enable TFC (TradeFed Cluster).")
+    parser.add_argument("--vti",
+                        default=None,
+                        help="The base address of VTI endpoint APIs")
     parser.add_argument("--script",
                         default=None,
                         help="The path to a script file in .py format")
@@ -109,6 +113,11 @@ def main():
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, config_json["log_level"]))
 
+    if args.vti:
+        vti_endpoint = vti_endpoint_client.VtiEndpointClient(args.vti)
+    else:
+        vti_endpoint = None
+
     tfc = None
     if args.use_tfc:
         if args.config_file:
@@ -132,8 +141,8 @@ def main():
         port = host_config.get("port", remote_client.DEFAULT_PORT)
         cluster_ids = host_config["cluster_ids"]
         remote = remote_client.RemoteClient(hostname, port)
-        host = host_controller.HostController(remote, tfc, hostname,
-                                              cluster_ids)
+        host = tfc_host_controller.HostController(remote, tfc, hostname,
+                                                  cluster_ids)
         hosts.append(host)
         if args.poll:
             lease_interval_sec = host_config["lease_interval_sec"]
@@ -146,7 +155,7 @@ def main():
         while True:
             sys.stdin.readline()
     else:
-        main_console = console.Console(tfc, pab, hosts)
+        main_console = console.Console(vti_endpoint, tfc, pab, hosts)
         if args.script:
             next_start_time = time.time()
             while main_console.ProcessScript(args.script):

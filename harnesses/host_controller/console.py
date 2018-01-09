@@ -16,8 +16,10 @@
 
 import argparse
 import cmd
+import datetime
 import imp  # Python v2 compatibility
 import logging
+import multiprocessing
 import os
 import shutil
 import socket
@@ -30,13 +32,14 @@ import httplib2
 from apiclient import errors
 import urlparse
 
-from vts.harnesses.host_controller.tfc import request
-from vts.harnesses.host_controller.build import build_flasher
-from vts.harnesses.host_controller.build import build_provider
-from vts.harnesses.host_controller.build import build_provider_ab
-from vts.harnesses.host_controller.build import build_provider_gcs
-from vts.harnesses.host_controller.build import build_provider_local_fs
-from vts.harnesses.host_controller.tradefed import remote_operation
+from host_controller.tfc import request
+from host_controller.build import build_flasher
+from host_controller.build import build_provider
+from host_controller.build import build_provider_ab
+from host_controller.build import build_provider_gcs
+from host_controller.build import build_provider_local_fs
+from host_controller.tradefed import remote_operation
+from vts.utils.python.common import cmd_utils
 
 # The default Partner Android Build (PAB) public account.
 # To obtain access permission, please reach out to Android partner engineering
@@ -110,6 +113,8 @@ class Console(cmd.Cmd):
         tools_info: dict containing info about custom tool files.
         update_thread: threading.Thread that updates device state regularly
         _pab_client: The PartnerAndroidBuildClient used to download artifacts
+        _vti_client: VtiEndpoewrClient, used to upload data to a test
+                     scheduling infrastructure.
         _tfc_client: The TfcClient that the host controllers connect to.
         _hosts: A list of HostController objects.
         _in_file: The input file object.
@@ -119,12 +124,15 @@ class Console(cmd.Cmd):
         _device_parser: The parser for device command.
         _fetch_parser: The parser for fetch command.
         _flash_parser: The parser for flash command.
+        _gsispl_parser: The parser for gsispl command.
+        _info_parser: The parser for info command.
         _lease_parser: The parser for lease command.
         _list_parser: The parser for list command.
         _request_parser: The parser for request command.
     """
 
     def __init__(self,
+                 vti_endpoint_client,
                  tfc,
                  pab,
                  host_controllers,
@@ -139,6 +147,7 @@ class Console(cmd.Cmd):
             "local_fs"] = build_provider_local_fs.BuildProviderLocalFS()
         self._build_provider["gcs"] = build_provider_gcs.BuildProviderGCS()
         self._build_provider["ab"] = build_provider_ab.BuildProviderAB()
+        self._vti_endpoint_client = vti_endpoint_client
         self._tfc_client = tfc
         self._hosts = host_controllers
         self._in_file = in_file
@@ -154,6 +163,8 @@ class Console(cmd.Cmd):
         self._InitDeviceParser()
         self._InitFetchParser()
         self._InitFlashParser()
+        self._InitGsiSplParser()
+        self._InitInfoParser()
         self._InitLeaseParser()
         self._InitListParser()
         self._InitRequestParser()
@@ -408,7 +419,7 @@ class Console(cmd.Cmd):
             self.fetch_info["build_id"] = fetch_environment["build_id"]
         else:
             print("ERROR: unknown fetch type %s" % args.type)
-            sys.exit(-1)
+            return
 
         self.fetch_info["branch"] = args.branch
         self.fetch_info["target"] = args.target
@@ -703,6 +714,66 @@ class Console(cmd.Cmd):
         """Prints help message for device command."""
         self._device_parser.print_help(self._out_file)
 
+    def _InitGsiSplParser(self):
+        """Initializes the parser for device command."""
+        self._gsisplParser = ConsoleArgumentParser(
+            "gsispl", "Changes security patch level on a selected GSI file.")
+        self._gsisplParser.add_argument(
+            "--gsi",
+            help="Path to GSI image to change security patch level. "
+            "If path is not given, the most recently fetched system.img "
+            "kept in device_image_info dictionary is used and then "
+            "device_image_info will be updated with the new GSI file.")
+        self._gsisplParser.add_argument(
+            "--version",
+            required=True,
+            help="New version ID. It should be YYYY-mm-dd format.")
+
+    def do_gsispl(self, line):
+        """Changes security patch level on a selected GSI file."""
+        args = self._gsisplParser.ParseLine(line)
+        if args.gsi:
+            if os.path.isfile(args.gsi):
+                gsi_path = args.gsi
+            else:
+                print "Cannot find system image in given path"
+                return
+        elif "system.img" in self.device_image_info:
+            gsi_path = self.device_image_info["system.img"]
+        else:
+            print "Cannot find system image."
+            return
+
+        if args.version:
+            try:
+                version_date = datetime.datetime.strptime(
+                    args.version, "%Y-%m-%d")
+                version = "{:04d}-{:02d}-{:02d}".format(
+                    version_date.year, version_date.month, version_date.day)
+            except ValueError as e:
+                print "version ID should be YYYY-mm-dd format."
+                return
+        else:
+            print "version ID must be given."
+            return
+
+        output_path = os.path.join(os.path.dirname(os.path.abspath(gsi_path)),
+            "system-{}.img".format(version))
+        stdout, stderr, err_code = cmd_utils.ExecuteOneShellCommand(
+            "{} {} {} {}".format(
+                "vts/harnesses/host_controller/gsi/change_spl.sh", gsi_path,
+                output_path, version))
+        if err_code is 0:
+            if not args.gsi:
+                self.device_image_info["system.img"] = output_path
+        else:
+            print "gsispl error: {}".format(stderr)
+            return
+
+    def help_gsispl(self):
+        """Prints help message for gsispl command."""
+        self._gsisplParser.print_help(self._out_file)
+
     def _InitTestParser(self):
         """Initializes the parser for test command."""
         self._test_parser = ConsoleArgumentParser("test",
@@ -710,7 +781,8 @@ class Console(cmd.Cmd):
         self._test_parser.add_argument(
             "--serial",
             default=None,
-            help="The target device serial to run the command.")
+            help=("The target device serial to run the command. "
+                  "A comma-separate list."))
         self._test_parser.add_argument(
             "--test_exec_mode",
             default="subprocess",
@@ -727,27 +799,47 @@ class Console(cmd.Cmd):
         """Executes a command using a VTS-TF instance."""
         args = self._test_parser.ParseLine(line)
         if args.serial:
-            serial = args.serial
+            serials = args.serial.split(",")
         elif self._serials:
-            serial = self._serials[0]
+            serials = self._serials
         else:
-            serial = ""
+            serials = []
 
         if args.test_exec_mode == "subprocess":
-            bin_path = self.test_suite_info["vts"]
-            cmd = [bin_path, "run"]
-            cmd.extend(args.command)
-            if serial:
-                cmd.extend(["-s", serial])
-            print("Command: %s" % cmd)
-            result = subprocess.check_output(cmd)
-            logging.debug("result: %s", result)
+            if "vts" not in self.test_suite_info:
+                 print("test_suite_info doesn't have 'vts': %s" %
+                       self.test_suite_info)
+            else:
+                bin_path = self.test_suite_info["vts"]
+                cmd = [bin_path, "run"]
+                cmd.extend(args.command)
+                if serials:
+                    for serial in serials:
+                        cmd.extend(["-s", str(serial)])
+                print("Command: %s" % cmd)
+                result = subprocess.check_output(cmd)
+                logging.debug("result: %s", result)
         else:
             print("unsupported exec mode: %s", args.test_exec_mode)
 
     def help_test(self):
         """Prints help message for test command."""
         self._test_parser.print_help(self._out_file)
+
+    def _InitInfoParser(self):
+        """Initializes the parser for info command."""
+        self._info_parser = ConsoleArgumentParser("info",
+                                                  "Show status.")
+
+    def do_info(self, line):
+        """Shows the console's session status information."""
+        print("device image: %s" % self.device_image_info)
+        print("test suite: %s" % self.test_suite_info)
+        print("fetch info: %s" % self.fetch_info)
+
+    def help_info(self):
+        """Prints help message for info command."""
+        self._info_parser.print_help(self._out_file)
 
     def _PrintTasks(self, tasks):
         """Shows a list of command tasks.
@@ -773,7 +865,22 @@ class Console(cmd.Cmd):
 
     # @Override
     def onecmd(self, line):
-        """Executes a command and prints any exception."""
+        """Executes command(s) and prints any exception.
+
+        Args:
+            line: a list of string or string which keeps the command to run.
+        """
+        if type(line) == list:
+            jobs = []
+            for sub_command in line:
+                p = multiprocessing.Process(
+                    target=self.onecmd, args=(sub_command,))
+                jobs.append(p)
+                p.start()
+            for job in jobs:
+                job.join()
+            return
+
         if line:
             print("Command: %s" % line)
         try:

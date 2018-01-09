@@ -28,9 +28,9 @@ try:
 except ImportError:
     import io as string_io_module
 
-from vts.harnesses.host_controller.tfc import command_task
-from vts.harnesses.host_controller.tfc import device_info
-from vts.harnesses.host_controller import console
+from host_controller.tfc import command_task
+from host_controller.tfc import device_info
+from host_controller import console
 
 
 class ConsoleTest(unittest.TestCase):
@@ -142,8 +142,7 @@ class ConsoleTest(unittest.TestCase):
         output = self._IssueCommand("lease --host 1")
         self.assertTrue(output.startswith(expected))
 
-    @mock.patch('vts.harnesses.host_controller.'
-                'console.build_flasher.BuildFlasher')
+    @mock.patch('host_controller.console.build_flasher.BuildFlasher')
     def testFetchPOSTAndFlash(self, mock_class):
         """Tests fetching from pab and flashing."""
         self._pab_client.GetArtifact.return_value = ({
@@ -199,24 +198,21 @@ class ConsoleTest(unittest.TestCase):
         expected = expected_fetch_info["build_id"]
         self.assertEqual(build_id_return, expected)
 
-    @mock.patch('vts.harnesses.host_controller.'
-                'console.build_flasher.BuildFlasher')
+    @mock.patch('host_controller.console.build_flasher.BuildFlasher')
     def testFlashGSI(self, mock_class):
         flasher = mock.Mock()
         mock_class.return_value = flasher
         self._IssueCommand("flash --gsi=system.img")
         flasher.FlashGSI.assert_called_with('system.img', None)
 
-    @mock.patch('vts.harnesses.host_controller.'
-                'console.build_flasher.BuildFlasher')
+    @mock.patch('host_controller.console.build_flasher.BuildFlasher')
     def testFlashGSIWithVbmeta(self, mock_class):
         flasher = mock.Mock()
         mock_class.return_value = flasher
         self._IssueCommand("flash --gsi=system.img --vbmeta=vbmeta.img")
         flasher.FlashGSI.assert_called_with('system.img', 'vbmeta.img')
 
-    @mock.patch('vts.harnesses.host_controller.'
-                'console.build_flasher.BuildFlasher')
+    @mock.patch('host_controller.console.build_flasher.BuildFlasher')
     def testFlashall(self, mock_class):
         flasher = mock.Mock()
         mock_class.return_value = flasher

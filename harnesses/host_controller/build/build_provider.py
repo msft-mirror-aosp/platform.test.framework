@@ -32,18 +32,23 @@ class BuildProvider(object):
                                 extensions.
         _BASIC_IMAGE_FILE_NAMES: a list of strings which are the image names in
                                  an artifact zip.
+        _CONFIG_FILE_EXTENSION: string, the config file extension.
+        _configs: dict where the key is config type and value is the config file
+                  path.
         _device_images: dict where the key is image file name and value is the
                         path.
         _test_suites: dict where the key is test suite type and value is the
                       test suite package file path.
         _tmp_dirpath: string, the temp dir path created to keep artifacts.
     """
+    _CONFIG_FILE_EXTENSION = ".zip"
     _IMAGE_FILE_EXTENSIONS = [".img", ".bin"]
     _BASIC_IMAGE_FILE_NAMES = ["boot.img", "system.img", "vendor.img"]
 
     def __init__(self):
         self._device_images = {}
         self._test_suites = {}
+        self._configs = {}
         tempdir_base = os.path.join(os.getcwd(), "tmp")
         if not os.path.exists(tempdir_base):
             os.mkdir(tempdir_base)
@@ -144,6 +149,30 @@ class BuildProvider(object):
         if type is None:
             return self._test_suites
         return self._test_suites[type]
+
+    def SetConfigPackage(self, config_type, path):
+        """Sets test suite package `path` for the specified `type`.
+
+        All valid config files have .zip extension.
+
+        Args:
+            config_type: string, config type such as 'prod' or 'test'.
+            path: string, the path of a config file.
+        """
+        if path.endswith(self._CONFIG_FILE_EXTENSION):
+            dest_path = os.path.join(self.tmp_dirpath, os.path.basename(path))
+            with zipfile.ZipFile(path, 'r') as zip_ref:
+                zip_ref.extractall(dest_path)
+                path = dest_path
+        else:
+            print("unsupported config package file %s" % path)
+        self._configs[config_type] = path
+
+    def GetConfigPackage(self, config_type=None):
+        """Returns config package info."""
+        if config_type is None:
+            return self._configs
+        return self._configs[config_type]
 
     def PrintDeviceImageInfo(self):
         """Prints device image info."""

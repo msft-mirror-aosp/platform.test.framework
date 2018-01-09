@@ -22,10 +22,10 @@ try:
 except ImportError:
     import mock
 
-from vts.harnesses.host_controller.tfc import tfc_client
-from vts.harnesses.host_controller.tfc import command_attempt
-from vts.harnesses.host_controller.tfc import device_info
-from vts.harnesses.host_controller.tfc import request
+from host_controller.tfc import tfc_client
+from host_controller.tfc import command_attempt
+from host_controller.tfc import device_info
+from host_controller.tfc import request
 
 
 class TfcClientTest(unittest.TestCase):

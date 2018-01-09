@@ -22,9 +22,9 @@ try:
 except ImportError:
     import mock
 
-from vts.harnesses.host_controller import invocation_thread
-from vts.harnesses.host_controller.tfc import command_attempt
-from vts.harnesses.host_controller.tradefed import remote_operation
+from host_controller import invocation_thread
+from host_controller.tfc import command_attempt
+from host_controller.tradefed import remote_operation
 
 
 class InvocationThreadTest(unittest.TestCase):

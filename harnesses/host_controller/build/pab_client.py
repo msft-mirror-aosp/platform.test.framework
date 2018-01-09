@@ -40,7 +40,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 
-from vts.harnesses.host_controller.build import build_provider
+from host_controller.build import build_provider
 
 # constants for GET and POST endpoints
 GET = 'GET'
@@ -428,7 +428,6 @@ class PartnerAndroidBuildClient(build_provider.BuildProvider):
         Returns:
             boolean, whether the file was successfully downloaded
         """
-
         headers = {}
         self._credentials.apply(headers)
 
@@ -439,7 +438,6 @@ class PartnerAndroidBuildClient(build_provider.BuildProvider):
         with open(filename, 'wb') as handle:
             for block in response.iter_content(self.DEFAULT_CHUNK_SIZE):
                 handle.write(block)
-
         return True
 
     def GetArtifact(self,
@@ -516,8 +514,13 @@ class PartnerAndroidBuildClient(build_provider.BuildProvider):
         self.DownloadArtifact(url, artifact_path)
         dirname = os.path.dirname(artifact_path)
         if unzip and artifact_path.endswith(".zip"):
+            artifact_basename = os.path.basename(artifact_path)
             if artifact_path.endswith("android-vts.zip"):
                 self.SetTestSuitePackage("vts", artifact_path)
+            elif artifact_basename.startswith("vti-global-config"):
+                self.SetConfigPackage(
+                    "prod" if "prod" in artifact_basename else "test",
+                    artifact_path)
             else:
                 self.SetDeviceImageZip(artifact_path)
         return self.GetDeviceImage(), self.GetTestSuitePackage(), artifact_info
