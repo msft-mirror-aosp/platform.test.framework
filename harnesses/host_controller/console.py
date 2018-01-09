@@ -1032,14 +1032,20 @@ class Console(cmd.Cmd):
             choices=("vti", "tfc"),
             default="vti",
             help="The type of a cloud-based test scheduler server.")
+        self._device_parser.add_argument(
+            "--lease",
+            default=False,
+            type=bool,
+            help="Whether to lease jobs and execute them.")
         self._serials = []
 
-    def UpdateDevice(self, server_type, host):
+    def UpdateDevice(self, server_type, host, lease):
         """Updates the device state of all devices on a given host.
 
         Args:
             server_type: string, the type of a test secheduling server.
             host: HostController object
+            lease: boolean, True to lease and execute jobs.
         """
         if server_type == "vti":
             devices = []
@@ -1074,6 +1080,12 @@ class Console(cmd.Cmd):
 
             self._vti_endpoint_client.UploadDeviceInfo(
                 host.hostname, devices)
+
+            if lease:
+                filepath, kwargs = self._vti_endpoint_client.LeaseJob(
+                    socket.gethostname())
+                if filepath:
+                    self.ProcessConfigurableScript(filepath, **kwargs)
         elif server_type == "tfc":
             devices = host.ListDevices()
             for device in devices:
@@ -1084,18 +1096,19 @@ class Console(cmd.Cmd):
         else:
             print "Error: unknown server_type %s for UpdateDevice" % server_type
 
-    def UpdateDeviceRepeat(self, server_type, host, update_interval):
+    def UpdateDeviceRepeat(self, server_type, host, lease, update_interval):
         """Regularly updates the device state of devices on a given host.
 
         Args:
             server_type: string, the type of a test secheduling server.
             host: HostController object
+            lease: boolean, True to lease and execute jobs.
             update_interval: int, number of seconds before repeating
         """
         thread = threading.currentThread()
         while getattr(thread, 'keep_running', True):
             try:
-                self.UpdateDevice(server_type, host)
+                self.UpdateDevice(server_type, host, lease)
             except (socket.error, remote_operation.RemoteOperationException,
                     httplib2.HttpLib2Error, errors.HttpError) as e:
                 logging.exception(e)
@@ -1114,7 +1127,7 @@ class Console(cmd.Cmd):
                 args.host = 0
             host = self._hosts[args.host]
             if args.update == "single":
-                self.UpdateDevice(args.server_type, host)
+                self.UpdateDevice(args.server_type, host, args.lease)
             elif args.update == "start":
                 if args.interval <= 0:
                     raise ConsoleArgumentError(
@@ -1131,6 +1144,7 @@ class Console(cmd.Cmd):
                     args=(
                         args.server_type,
                         host,
+                        args.lease,
                         args.interval,
                     ))
                 self.update_thread.daemon = True
