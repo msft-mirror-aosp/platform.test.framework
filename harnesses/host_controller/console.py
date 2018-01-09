@@ -32,6 +32,11 @@ import httplib2
 from apiclient import errors
 import urlparse
 
+from google.protobuf import text_format
+
+from vti.test_serving.proto import TestLabConfigMessage_pb2 as LabCfgMsg
+from vti.test_serving.proto import TestScheduleConfigMessage_pb2 as SchedCfgMsg
+
 from host_controller.tfc import request
 from host_controller.build import build_flasher
 from host_controller.build import build_provider
@@ -119,8 +124,10 @@ class Console(cmd.Cmd):
         prompt: The prompt string at the beginning of each command line.
         test_suite_info: dict containing info about test suite package files.
         tools_info: dict containing info about custom tool files.
-        update_thread: threading.Thread that updates device state regularly
-        _pab_client: The PartnerAndroidBuildClient used to download artifacts
+        scheduler_thread: dict containing threading.Thread instances(s) that
+                          update configs regularly.
+        update_thread: threading.Thread that updates device state regularly.
+        _pab_client: The PartnerAndroidBuildClient used to download artifacts.
         _vti_client: VtiEndpoewrClient, used to upload data to a test
                      scheduling infrastructure.
         _tfc_client: The TfcClient that the host controllers connect to.
@@ -128,6 +135,7 @@ class Console(cmd.Cmd):
         _in_file: The input file object.
         _out_file: The output file object.
         _serials: A list of string where each string is a device serial.
+        _config_parser: The parser for config command.
         _copy_parser: The parser for copy command.
         _device_parser: The parser for device command.
         _fetch_parser: The parser for fetch command.
@@ -164,6 +172,7 @@ class Console(cmd.Cmd):
         self.device_image_info = {}
         self.test_suite_info = {}
         self.tools_info = {}
+        self.schedule_thread = {}
         self.update_thread = None
         self.fetch_info = {}
 
@@ -176,6 +185,7 @@ class Console(cmd.Cmd):
         self._InitLeaseParser()
         self._InitListParser()
         self._InitRequestParser()
+        self._InitConfigParser()
         self._InitTestParser()
 
     def _InitRequestParser(self):
@@ -612,6 +622,179 @@ class Console(cmd.Cmd):
     def help_flash(self):
         """Prints help message for flash command."""
         self._flash_parser.print_help(self._out_file)
+
+    def _InitConfigParser(self):
+        """Initializes the parser for config command."""
+        self._config_parser = ConsoleArgumentParser(
+            "config", "Specifies a global config type to monitor.")
+        self._config_parser.add_argument(
+            "--update",
+            choices=("single", "start", "stop", "list"),
+            default="start",
+            help="Update build info")
+        self._config_parser.add_argument(
+            "--id",
+            default=None,
+            help="session ID only required for 'stop' update command")
+        self._config_parser.add_argument(
+            "--interval",
+            type=int,
+            default=60,
+            help="Interval (seconds) to repeat build update.")
+        self._config_parser.add_argument(
+            "--config-type",
+            choices=("prod", "test"),
+            default="prod",
+            help="Whether it's for prod")
+        self._config_parser.add_argument(
+            "--branch",
+            required=True,
+            help="Branch to grab the artifact from.")
+        self._config_parser.add_argument(
+            "--target",
+            required=True,
+            help="a comma-separate list of build target product(s).")
+        self._config_parser.add_argument(
+            "--account_id",
+            default=_DEFAULT_ACCOUNT_ID,
+            help="Partner Android Build account_id to use.")
+        self._config_parser.add_argument(
+            '--method',
+            default='GET',
+            choices=('GET', 'POST'),
+            help='Method for fetching')
+
+    def UpdateConfig(self, account_id, branch, targets, config_type, method):
+        """Updates the global configuration data.
+
+        Args:
+            account_id: string, Partner Android Build account_id to use.
+            branch: string, branch to grab the artifact from.
+            targets: string, a comma-separate list of build target product(s).
+            config_type: string, config type (`prod` or `test').
+            method: string, HTTP method for fetching.
+        """
+
+        self._build_provider["pab"].Authenticate()
+        for target in targets.split(","):
+            listed_builds = self._build_provider[
+                "pab"].GetBuildList(
+                    account_id=account_id,
+                    branch=branch,
+                    target=target,
+                    page_token="",
+                    max_results=1,
+                    method="GET")
+
+            if listed_builds and len(listed_builds) > 0:
+                listed_build = listed_builds[0]
+                if listed_build["successful"]:
+                    device_images, test_suites, artifacts, configs = self._build_provider[
+                        "pab"].GetArtifact(
+                            account_id=account_id,
+                            branch=branch,
+                            target=target,
+                            artifact_name=("vti-global-config-%s.zip" % config_type),
+                            build_id=listed_build["build_id"],
+                            method=method)
+                    base_path = os.path.dirname(configs[config_type])
+                    schedules_pbs = []
+                    lab_pbs = []
+                    for root, dirs, files in os.walk(base_path):
+                        for config_file in files:
+                            full_path = os.path.join(root, config_file)
+                            if file.endswith(".schedule_config"):
+                                with open(full_path, "r") as fd:
+                                  context = fd.read()
+                                  sched_cfg_msg = SchedCfgMsg.ScheduleConfigMessage()
+                                  text_format.Merge(context, sched_cfg_msg)
+                                  schedules_pbs.append(sched_cfg_msg)
+                                  print sched_cfg_msg.manifest_branch
+                            elif config_file.endswith(".lab_config"):
+                                with open(full_path, "r") as fd:
+                                  context = fd.read()
+                                  lab_cfg_msg = LabCfgMsg.LabConfigMessage()
+                                  text_format.Merge(context, lab_cfg_msg)
+                                  lab_pbs.append(lab_cfg_msg)
+                    self._vti_endpoint_client.UploadScheduleInfo(schedules_pbs)
+                    self._vti_endpoint_client.UploadLabInfo(lab_pbs)
+
+    def UpdateConfigLoop(self, account_id, branch, target, config_type, method, update_interval):
+        """Regularly updates the global configuration.
+
+        Args:
+            account_id: string, Partner Android Build account_id to use.
+            branch: string, branch to grab the artifact from.
+            targets: string, a comma-separate list of build target product(s).
+            config_type: string, config type (`prod` or `test').
+            method: string, HTTP method for fetching.
+            update_interval: int, number of seconds before repeating
+        """
+        thread = threading.currentThread()
+        while getattr(thread, 'keep_running', True):
+            try:
+                self.UpdateConfig(account_id, branch, target, config_type, method)
+            except (socket.error, remote_operation.RemoteOperationException,
+                    httplib2.HttpLib2Error, errors.HttpError) as e:
+                logging.exception(e)
+            time.sleep(update_interval)
+
+    def do_config(self, line):
+        """Updates global config."""
+        args = self._config_parser.ParseLine(line)
+        if args.update == "single":
+            self.UpdateConfig(
+                args.account_id,
+                args.branch,
+                args.target,
+                args.config_type,
+                args.method)
+        elif args.update == "list":
+            print("Running config update sessions:")
+            for id in self.schedule_thread:
+                print("  ID %d", id)
+        elif args.update == "start":
+            if args.interval <= 0:
+                raise ConsoleArgumentError(
+                    "update interval must be positive")
+            # do not allow user to create new
+            # thread if one is currently running
+            if args.id is None:
+                if not self.schedule_thread:
+                  args.id = 1
+                else:
+                  args.id = max(self.schedule_thread) + 1
+            else:
+                args.id = int(args.id)
+            if args.id in self.schedule_thread and not hasattr(
+                    self.schedule_thread[args.id], 'keep_running'):
+                print(
+                    'config update already running. '
+                    'run config --update=stop --id=%s first.' % args.id
+                )
+                return
+            self.schedule_thread[args.id] = threading.Thread(
+                target=self.UpdateConfigLoop,
+                args=(
+                    args.account_id,
+                    args.branch,
+                    args.target,
+                    args.config_type,
+                    args.method,
+                    args.interval, ))
+            self.schedule_thread[args.id].daemon = True
+            self.schedule_thread[args.id].start()
+        elif args.update == "stop":
+            if args.id is None:
+                print("--id must be set for stop")
+            else:
+                self.schedule_thread[int(args.id)].keep_running = False
+
+    def help_config(self):
+        """Prints help message for config command."""
+        self._config_parser.print_help(self._out_file)
+        print("Sample: schedule --target=aosp_sailfish-userdebug "
+              "--branch=git_oc-release")
 
     def _InitCopyParser(self):
         """Initializes the parser for copy command."""
