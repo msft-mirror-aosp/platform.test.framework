@@ -60,6 +60,14 @@ _DEFAULT_FLASH_IMAGES = [
 # The environment variable for default serial numbers.
 _ANDROID_SERIAL = "ANDROID_SERIAL"
 
+DEVICE_STATUS_DICT = {
+    "unknown": 0,
+    "fastboot": 1,
+    "online": 2,
+    "ready": 3,
+    "use": 4,
+    "error": 5}
+
 
 class ConsoleArgumentError(Exception):
     """Raised when the console fails to parse commands."""
@@ -634,8 +642,8 @@ class Console(cmd.Cmd):
         self._device_parser.add_argument(
             "--update",
             choices=("single", "start", "stop"),
-            default="",
-            help="Update device info on TradeFed cluster")
+            default="start",
+            help="Update device info on cloud scheduler")
         self._device_parser.add_argument(
             "--interval",
             type=int,
@@ -643,32 +651,75 @@ class Console(cmd.Cmd):
             help="Interval (seconds) to repeat device update.")
         self._device_parser.add_argument(
             "--host", type=int, help="The index of the host.")
+        self._device_parser.add_argument(
+            "--server_type",
+            choices=("vti", "tfc"),
+            default="vti",
+            help="The type of a cloud-based test scheduler server.")
         self._serials = []
 
-    def UpdateDevice(self, host):
+    def UpdateDevice(self, server_type, host):
         """Updates the device state of all devices on a given host.
 
         Args:
+            server_type: string, the type of a test secheduling server.
             host: HostController object
         """
-        devices = host.ListDevices()
-        for device in devices:
-            device.Extend(['sim_state', 'sim_operator', 'mac_address'])
-        snapshots = self._tfc_client.CreateDeviceSnapshot(
-            host._cluster_ids[0], host.hostname, devices)
-        self._tfc_client.SubmitHostEvents([snapshots])
+        if server_type == "vti":
+            devices = []
 
-    def UpdateDeviceRepeat(self, host, update_interval):
+            stdout, stderr, returncode = cmd_utils.ExecuteOneShellCommand(
+                "adb devices")
+
+            lines = stdout.split("\n")[1:]
+            for line in lines:
+                if len(line.strip()):
+                    device = {}
+                    device["serial"] = line.split()[0]
+                    stdout, _, retcode = cmd_utils.ExecuteOneShellCommand(
+                        "adb -s %s shell getprop ro.product.board" % device["serial"])
+                    if retcode == 0:
+                        device["product"] = stdout.strip()
+                    else:
+                        device["product"] = "error"
+                    device["status"] = DEVICE_STATUS_DICT["online"]
+                    devices.append(device)
+
+            stdout, stderr, returncode = cmd_utils.ExecuteOneShellCommand(
+                "fastboot devices")
+            lines = stdout.split("\n")
+            for line in lines:
+                if len(line.strip()):
+                    device = {}
+                    device["serial"] = line.split()[0]
+                    device["product"] = "unknown"
+                    device["status"] = DEVICE_STATUS_DICT["fastboot"]
+                    devices.append(device)
+
+            self._vti_endpoint_client.UploadDeviceInfo(
+                host.hostname, devices)
+        elif server_type == "tfc":
+            devices = host.ListDevices()
+            for device in devices:
+                device.Extend(['sim_state', 'sim_operator', 'mac_address'])
+            snapshots = self._tfc_client.CreateDeviceSnapshot(
+                host._cluster_ids[0], host.hostname, devices)
+            self._tfc_client.SubmitHostEvents([snapshots])
+        else:
+            print "Error: unknown server_type %s for UpdateDevice" % server_type
+
+    def UpdateDeviceRepeat(self, server_type, host, update_interval):
         """Regularly updates the device state of devices on a given host.
 
         Args:
+            server_type: string, the type of a test secheduling server.
             host: HostController object
-            update_internval: int, number of seconds before repeating
+            update_interval: int, number of seconds before repeating
         """
         thread = threading.currentThread()
         while getattr(thread, 'keep_running', True):
             try:
-                self.UpdateDevice(host)
+                self.UpdateDevice(server_type, host)
             except (socket.error, remote_operation.RemoteOperationException,
                     httplib2.HttpLib2Error, errors.HttpError) as e:
                 logging.exception(e)
@@ -687,7 +738,7 @@ class Console(cmd.Cmd):
                 args.host = 0
             host = self._hosts[args.host]
             if args.update == "single":
-                self.UpdateDevice(host)
+                self.UpdateDevice(args.server_type, host)
             elif args.update == "start":
                 if args.interval <= 0:
                     raise ConsoleArgumentError(
@@ -702,6 +753,7 @@ class Console(cmd.Cmd):
                 self.update_thread = threading.Thread(
                     target=self.UpdateDeviceRepeat,
                     args=(
+                        args.server_type,
                         host,
                         args.interval,
                     ))
