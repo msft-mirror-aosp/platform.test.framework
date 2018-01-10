@@ -765,7 +765,7 @@ class Console(cmd.Cmd):
         """Updates build info."""
         args = self._build_parser.ParseLine(line)
         if args.update == "single":
-            self.UpdateDevice(
+            self.UpdateBuild(
                 args.account_id,
                 args.branch,
                 args.target,
