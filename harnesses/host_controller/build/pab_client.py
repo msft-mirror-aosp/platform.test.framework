@@ -466,6 +466,7 @@ class PartnerAndroidBuildClient(build_provider.BuildProvider):
             a dict containing the device image info.
             a dict containing the test suite package info.
             a dict containing the artifact info.
+            a dict containing the global config info.
         """
         artifact_info = {}
         if build_id == 'latest':
@@ -523,4 +524,6 @@ class PartnerAndroidBuildClient(build_provider.BuildProvider):
                     artifact_path)
             else:
                 self.SetDeviceImageZip(artifact_path)
-        return self.GetDeviceImage(), self.GetTestSuitePackage(), artifact_info
+        return (self.GetDeviceImage(), self.GetTestSuitePackage(),
+                artifact_info, self.GetConfigPackage())
+

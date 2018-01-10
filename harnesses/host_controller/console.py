@@ -448,7 +448,8 @@ class Console(cmd.Cmd):
         if args.type == "pab":
             # do we want this somewhere else? No harm in doing multiple times
             self._build_provider[args.type].Authenticate(args.userinfo_file)
-            device_images, test_suites, fetch_environment = self._build_provider[
+            (device_images, test_suites,
+             fetch_environment, _) = self._build_provider[
                 args.type].GetArtifact(
                     account_id=args.account_id,
                     branch=args.branch,
