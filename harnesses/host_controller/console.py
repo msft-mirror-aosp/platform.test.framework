@@ -147,6 +147,7 @@ class Console(cmd.Cmd):
         _lease_parser: The parser for lease command.
         _list_parser: The parser for list command.
         _request_parser: The parser for request command.
+        _upload_parser: The parser for upload command.
     """
 
     def __init__(self,
@@ -191,6 +192,7 @@ class Console(cmd.Cmd):
         self._InitRequestParser()
         self._InitConfigParser()
         self._InitTestParser()
+        self._InitUploadParser()
 
     def _InitRequestParser(self):
         """Initializes the parser for request command."""
@@ -1287,6 +1289,64 @@ class Console(cmd.Cmd):
     def help_exit(self):
         """Prints help message for exit command."""
         self._Print("Terminate the console.")
+
+    def _InitUploadParser(self):
+        """Initializes the parser for upload command."""
+        self._upload_parser = ConsoleArgumentParser("upload",
+            "Upload <src> file to <dest> Google Cloud Storage.")
+        self._upload_parser.add_argument(
+            "--src",
+            required=True,
+            default="latest-system.img"
+            help="Path to a source file to upload. Only single file can be "
+                "uploaded per once. Use 'latest- prefix to upload the latest "
+                "fetch images. e.g. --src=latest-system.img  If argument "
+                "value is not given, the recently fetched system.img will be "
+                "uploaded.")
+        self._upload_parser.add_argument(
+            "--dest",
+            required=True,
+            help="Google Cloud Storage URL. {build-id} will be "
+                "replaced with the most recently fetched build id.")
+
+    def do_upload(self, line):
+        """Upload args.src file to args.dest Google Cloud Storage."""
+        args = self._upload_parser.ParseLine(line)
+
+        gsutil_path = build_provider_gcs.BuildProviderGCS.GetGsutilPath()
+        if not gsutil_path:
+            print("Please check gsutil is installed and on your PATH")
+            return
+
+        if args.src.startswith("latest-"):
+            src_name = args.src[7:]
+            if src_name in self.device_image_info:
+                src_path = self.device_image_info[src_name]
+            else:
+                print("Unable to find {} in device_image_info".format(
+                    src_name))
+                return
+        elif os.path.isfile(args.src):
+            src_path = args.src
+        else:
+            print("Cannot find a file: {}".format(args.src))
+            return
+
+        if not args.dest.startswith("gs://"):
+            print("{} is not correct GCS url.".format(args.dest))
+            return
+        """ TODO(jongmok) : Before upload, login status, authorization,
+                            and dest check are required. """
+        copy_command = "{} cp {} {}".format(gsutil_path, src_path, args.dest)
+        _, stderr, err_code = cmd_utils.ExecuteOneShellCommand(
+            copy_command)
+
+        if err_code:
+            print stderr
+
+    def help_upload(self):
+        """Prints help message for upload command."""
+        self._upload_parser.print_help(self._out_file)
 
     # @Override
     def onecmd(self, line):
