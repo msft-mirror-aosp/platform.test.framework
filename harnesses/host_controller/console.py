@@ -32,6 +32,11 @@ import httplib2
 from apiclient import errors
 import urlparse
 
+from google.protobuf import text_format
+
+from vti.test_serving.proto import TestLabConfigMessage_pb2 as LabCfgMsg
+from vti.test_serving.proto import TestScheduleConfigMessage_pb2 as SchedCfgMsg
+
 from host_controller.tfc import request
 from host_controller.build import build_flasher
 from host_controller.build import build_provider
@@ -59,6 +64,14 @@ _DEFAULT_FLASH_IMAGES = [
 
 # The environment variable for default serial numbers.
 _ANDROID_SERIAL = "ANDROID_SERIAL"
+
+DEVICE_STATUS_DICT = {
+    "unknown": 0,
+    "fastboot": 1,
+    "online": 2,
+    "ready": 3,
+    "use": 4,
+    "error": 5}
 
 
 class ConsoleArgumentError(Exception):
@@ -111,8 +124,12 @@ class Console(cmd.Cmd):
         prompt: The prompt string at the beginning of each command line.
         test_suite_info: dict containing info about test suite package files.
         tools_info: dict containing info about custom tool files.
-        update_thread: threading.Thread that updates device state regularly
-        _pab_client: The PartnerAndroidBuildClient used to download artifacts
+        build_thread: dict containing threading.Thread instances(s) that
+                      update build info regularly.
+        scheduler_thread: dict containing threading.Thread instances(s) that
+                          update configs regularly.
+        update_thread: threading.Thread that updates device state regularly.
+        _pab_client: The PartnerAndroidBuildClient used to download artifacts.
         _vti_client: VtiEndpoewrClient, used to upload data to a test
                      scheduling infrastructure.
         _tfc_client: The TfcClient that the host controllers connect to.
@@ -120,6 +137,7 @@ class Console(cmd.Cmd):
         _in_file: The input file object.
         _out_file: The output file object.
         _serials: A list of string where each string is a device serial.
+        _config_parser: The parser for config command.
         _copy_parser: The parser for copy command.
         _device_parser: The parser for device command.
         _fetch_parser: The parser for fetch command.
@@ -156,9 +174,12 @@ class Console(cmd.Cmd):
         self.device_image_info = {}
         self.test_suite_info = {}
         self.tools_info = {}
+        self.build_thread = {}
+        self.schedule_thread = {}
         self.update_thread = None
         self.fetch_info = {}
 
+        self._InitBuildParser()
         self._InitCopyParser()
         self._InitDeviceParser()
         self._InitFetchParser()
@@ -168,6 +189,7 @@ class Console(cmd.Cmd):
         self._InitLeaseParser()
         self._InitListParser()
         self._InitRequestParser()
+        self._InitConfigParser()
         self._InitTestParser()
 
     def _InitRequestParser(self):
@@ -222,6 +244,39 @@ class Console(cmd.Cmd):
             self.onecmd("device --set_serial=%s" % serial)
 
         commands = script_module.EmitConsoleCommands()
+        if commands:
+            for command in commands:
+                self.onecmd(command)
+        return True
+
+    def ProcessConfigurableScript(self, script_file_path, **kwargs):
+        """Processes a .py script file.
+
+        A script file implements a function which emits a list of console
+        commands to execute. That function emits an empty list or None if
+        no more command needs to be processed.
+
+        Args:
+            script_file_path: string, the path of a script file (.py file).
+            kwargs: extra args for the interface function defined in
+                    the script file.
+
+        Returns:
+            True if successful; False otherwise
+        """
+        if not script_file_path.endswith(".py"):
+            print("Script file is not .py file: %s" % script_file_path)
+            return False
+
+        script_module = imp.load_source('script_module', script_file_path)
+
+        commands = script_module.EmitConsoleCommands(
+            branch=kwargs["manifest_branch"],
+            build_target=kwargs["build_target"][0],
+            build_id=kwargs["build_id"],
+            test_name=kwargs["test_name"].split("/")[0],
+            shards=int(kwargs["shards"]),
+            serials=kwargs["serial"])
         if commands:
             for command in commands:
                 self.onecmd(command)
@@ -522,7 +577,9 @@ class Console(cmd.Cmd):
             choices=("fastboot", "custom"),
             help="Flasher binary type")
         self._flash_parser.add_argument(
-            "--flasher_path", help="Path to flasher binary")
+            "--flasher_path",
+            default=None,
+            help="Path to a flasher binary")
         self._flash_parser.add_argument(
             "--reboot_mode",
             default="bootloader",
@@ -540,10 +597,13 @@ class Console(cmd.Cmd):
         """Flash GSI or build images to a device connected with ADB."""
         args = self._flash_parser.ParseLine(line)
 
-        if self.tools_info is not None:
+        if args.flasher_path:
+            flasher_path = args.flasher_path
+        elif (self.tools_info is not None and
+              args.flasher_path in self.tools_info):
             flasher_path = self.tools_info[args.flasher_path]
         else:
-            flasher_path = args.flasher_path
+            flasher_path = ""
 
         flashers = []
         if args.serial:
@@ -605,6 +665,327 @@ class Console(cmd.Cmd):
         """Prints help message for flash command."""
         self._flash_parser.print_help(self._out_file)
 
+    def _InitBuildParser(self):
+        """Initializes the parser for build command."""
+        self._build_parser = ConsoleArgumentParser(
+            "build", "Specifies branches and targets to monitor.")
+        self._build_parser.add_argument(
+            "--update",
+            choices=("single", "start", "stop", "list"),
+            default="start",
+            help="Update build info")
+        self._build_parser.add_argument(
+            "--id",
+            default=None,
+            help="session ID only required for 'stop' update command")
+        self._build_parser.add_argument(
+            "--interval",
+            type=int,
+            default=30,
+            help="Interval (seconds) to repeat build update.")
+        self._build_parser.add_argument(
+            "--artifact-type",
+            choices=("device", "gsi", "test"),
+            default="device",
+            help="The type of an artifact to update")
+        self._build_parser.add_argument(
+            "--branch",
+            required=True,
+            help="Branch to grab the artifact from.")
+        self._build_parser.add_argument(
+            "--target",
+            required=True,
+            help="a comma-separate list of build target product(s).")
+        self._build_parser.add_argument(
+            "--account_id",
+            default=_DEFAULT_ACCOUNT_ID,
+            help="Partner Android Build account_id to use.")
+
+    def UpdateBuild(self, account_id, branch, targets, artifact_type):
+        """Updates the build state.
+
+        Args:
+            account_id: string, Partner Android Build account_id to use.
+            branch: string, branch to grab the artifact from.
+            targets: string, a comma-separate list of build target product(s).
+            artifact_type: string, artifcat type (`device`, 'gsi' or `test').
+        """
+        builds = []
+
+        self._build_provider["pab"].Authenticate()
+        for target in targets.split(","):
+            listed_builds = self._build_provider[
+                "pab"].GetBuildList(
+                    account_id=account_id,
+                    branch=branch,
+                    target=target,
+                    page_token="",
+                    max_results=100,
+                    method="GET")
+
+            for listed_build in listed_builds:
+                if listed_build["successful"]:
+                    build = {}
+                    build["manifest_branch"] = branch
+                    build["build_id"] = listed_build["build_id"]
+                    if "-" in target:
+                        build["build_target"], build["build_type"] = target.split("-")
+                    else:
+                        build["build_target"] = target
+                        build["build_type"] = ""
+                    build["artifact_type"] = artifact_type
+                    build["artifacts"] = []
+                    builds.append(build)
+        self._vti_endpoint_client.UploadBuildInfo(builds)
+
+    def UpdateBuildLoop(self, account_id, branch, target, artifact_type,
+                        update_interval):
+        """Regularly updates the build information.
+
+        Args:
+            account_id: string, Partner Android Build account_id to use.
+            branch: string, branch to grab the artifact from.
+            targets: string, a comma-separate list of build target product(s).
+            artifact_type: string, artifcat type (`device`, 'gsi' or `test).
+            update_interval: int, number of seconds before repeating
+        """
+        thread = threading.currentThread()
+        while getattr(thread, 'keep_running', True):
+            try:
+                self.UpdateBuild(account_id, branch, target, artifact_type)
+            except (socket.error, remote_operation.RemoteOperationException,
+                    httplib2.HttpLib2Error, errors.HttpError) as e:
+                logging.exception(e)
+            time.sleep(update_interval)
+
+    def do_build(self, line):
+        """Updates build info."""
+        args = self._build_parser.ParseLine(line)
+        if args.update == "single":
+            self.UpdateDevice(
+                args.account_id,
+                args.branch,
+                args.target,
+                args.artifact_type)
+        elif args.update == "list":
+            print("Running build update sessions:")
+            for id in self.build_thread:
+                print("  ID %d", id)
+        elif args.update == "start":
+            if args.interval <= 0:
+                raise ConsoleArgumentError(
+                    "update interval must be positive")
+            # do not allow user to create new
+            # thread if one is currently running
+            if args.id is None:
+                if not self.build_thread:
+                  args.id = 1
+                else:
+                  args.id = max(self.build_thread) + 1
+            else:
+                args.id = int(args.id)
+            if args.id in self.build_thread and not hasattr(
+                    self.build_thread[args.id], 'keep_running'):
+                print(
+                    'build update (session ID: %s) already running. '
+                    'run build --update stop first.' % args.id
+                )
+                return
+            self.build_thread[args.id] = threading.Thread(
+                target=self.UpdateBuildLoop,
+                args=(
+                    args.account_id,
+                    args.branch,
+                    args.target,
+                    args.artifact_type,
+                    args.interval, ))
+            self.build_thread[args.id].daemon = True
+            self.build_thread[args.id].start()
+        elif args.update == "stop":
+            if args.id is None:
+                print("--id must be set for stop")
+            else:
+                self.build_thread[int(args.id)].keep_running = False
+
+    def help_build(self):
+        """Prints help message for build command."""
+        self._build_parser.print_help(self._out_file)
+        print("Sample: build --target=aosp_sailfish-userdebug "
+              "--branch=<branch name> --artifact-type=device")
+
+    def _InitConfigParser(self):
+        """Initializes the parser for config command."""
+        self._config_parser = ConsoleArgumentParser(
+            "config", "Specifies a global config type to monitor.")
+        self._config_parser.add_argument(
+            "--update",
+            choices=("single", "start", "stop", "list"),
+            default="start",
+            help="Update build info")
+        self._config_parser.add_argument(
+            "--id",
+            default=None,
+            help="session ID only required for 'stop' update command")
+        self._config_parser.add_argument(
+            "--interval",
+            type=int,
+            default=60,
+            help="Interval (seconds) to repeat build update.")
+        self._config_parser.add_argument(
+            "--config-type",
+            choices=("prod", "test"),
+            default="prod",
+            help="Whether it's for prod")
+        self._config_parser.add_argument(
+            "--branch",
+            required=True,
+            help="Branch to grab the artifact from.")
+        self._config_parser.add_argument(
+            "--target",
+            required=True,
+            help="a comma-separate list of build target product(s).")
+        self._config_parser.add_argument(
+            "--account_id",
+            default=_DEFAULT_ACCOUNT_ID,
+            help="Partner Android Build account_id to use.")
+        self._config_parser.add_argument(
+            '--method',
+            default='GET',
+            choices=('GET', 'POST'),
+            help='Method for fetching')
+
+    def UpdateConfig(self, account_id, branch, targets, config_type, method):
+        """Updates the global configuration data.
+
+        Args:
+            account_id: string, Partner Android Build account_id to use.
+            branch: string, branch to grab the artifact from.
+            targets: string, a comma-separate list of build target product(s).
+            config_type: string, config type (`prod` or `test').
+            method: string, HTTP method for fetching.
+        """
+
+        self._build_provider["pab"].Authenticate()
+        for target in targets.split(","):
+            listed_builds = self._build_provider[
+                "pab"].GetBuildList(
+                    account_id=account_id,
+                    branch=branch,
+                    target=target,
+                    page_token="",
+                    max_results=1,
+                    method="GET")
+
+            if listed_builds and len(listed_builds) > 0:
+                listed_build = listed_builds[0]
+                if listed_build["successful"]:
+                    device_images, test_suites, artifacts, configs = self._build_provider[
+                        "pab"].GetArtifact(
+                            account_id=account_id,
+                            branch=branch,
+                            target=target,
+                            artifact_name=("vti-global-config-%s.zip" % config_type),
+                            build_id=listed_build["build_id"],
+                            method=method)
+                    base_path = os.path.dirname(configs[config_type])
+                    schedules_pbs = []
+                    lab_pbs = []
+                    for root, dirs, files in os.walk(base_path):
+                        for config_file in files:
+                            full_path = os.path.join(root, config_file)
+                            if file.endswith(".schedule_config"):
+                                with open(full_path, "r") as fd:
+                                  context = fd.read()
+                                  sched_cfg_msg = SchedCfgMsg.ScheduleConfigMessage()
+                                  text_format.Merge(context, sched_cfg_msg)
+                                  schedules_pbs.append(sched_cfg_msg)
+                                  print sched_cfg_msg.manifest_branch
+                            elif config_file.endswith(".lab_config"):
+                                with open(full_path, "r") as fd:
+                                  context = fd.read()
+                                  lab_cfg_msg = LabCfgMsg.LabConfigMessage()
+                                  text_format.Merge(context, lab_cfg_msg)
+                                  lab_pbs.append(lab_cfg_msg)
+                    self._vti_endpoint_client.UploadScheduleInfo(schedules_pbs)
+                    self._vti_endpoint_client.UploadLabInfo(lab_pbs)
+
+    def UpdateConfigLoop(self, account_id, branch, target, config_type, method, update_interval):
+        """Regularly updates the global configuration.
+
+        Args:
+            account_id: string, Partner Android Build account_id to use.
+            branch: string, branch to grab the artifact from.
+            targets: string, a comma-separate list of build target product(s).
+            config_type: string, config type (`prod` or `test').
+            method: string, HTTP method for fetching.
+            update_interval: int, number of seconds before repeating
+        """
+        thread = threading.currentThread()
+        while getattr(thread, 'keep_running', True):
+            try:
+                self.UpdateConfig(account_id, branch, target, config_type, method)
+            except (socket.error, remote_operation.RemoteOperationException,
+                    httplib2.HttpLib2Error, errors.HttpError) as e:
+                logging.exception(e)
+            time.sleep(update_interval)
+
+    def do_config(self, line):
+        """Updates global config."""
+        args = self._config_parser.ParseLine(line)
+        if args.update == "single":
+            self.UpdateConfig(
+                args.account_id,
+                args.branch,
+                args.target,
+                args.config_type,
+                args.method)
+        elif args.update == "list":
+            print("Running config update sessions:")
+            for id in self.schedule_thread:
+                print("  ID %d", id)
+        elif args.update == "start":
+            if args.interval <= 0:
+                raise ConsoleArgumentError(
+                    "update interval must be positive")
+            # do not allow user to create new
+            # thread if one is currently running
+            if args.id is None:
+                if not self.schedule_thread:
+                  args.id = 1
+                else:
+                  args.id = max(self.schedule_thread) + 1
+            else:
+                args.id = int(args.id)
+            if args.id in self.schedule_thread and not hasattr(
+                    self.schedule_thread[args.id], 'keep_running'):
+                print(
+                    'config update already running. '
+                    'run config --update=stop --id=%s first.' % args.id
+                )
+                return
+            self.schedule_thread[args.id] = threading.Thread(
+                target=self.UpdateConfigLoop,
+                args=(
+                    args.account_id,
+                    args.branch,
+                    args.target,
+                    args.config_type,
+                    args.method,
+                    args.interval, ))
+            self.schedule_thread[args.id].daemon = True
+            self.schedule_thread[args.id].start()
+        elif args.update == "stop":
+            if args.id is None:
+                print("--id must be set for stop")
+            else:
+                self.schedule_thread[int(args.id)].keep_running = False
+
+    def help_config(self):
+        """Prints help message for config command."""
+        self._config_parser.print_help(self._out_file)
+        print("Sample: schedule --target=aosp_sailfish-userdebug "
+              "--branch=git_oc-release")
+
     def _InitCopyParser(self):
         """Initializes the parser for copy command."""
         self._copy_parser = ConsoleArgumentParser("copy", "Copy a file.")
@@ -634,8 +1015,8 @@ class Console(cmd.Cmd):
         self._device_parser.add_argument(
             "--update",
             choices=("single", "start", "stop"),
-            default="",
-            help="Update device info on TradeFed cluster")
+            default="start",
+            help="Update device info on cloud scheduler")
         self._device_parser.add_argument(
             "--interval",
             type=int,
@@ -643,32 +1024,75 @@ class Console(cmd.Cmd):
             help="Interval (seconds) to repeat device update.")
         self._device_parser.add_argument(
             "--host", type=int, help="The index of the host.")
+        self._device_parser.add_argument(
+            "--server_type",
+            choices=("vti", "tfc"),
+            default="vti",
+            help="The type of a cloud-based test scheduler server.")
         self._serials = []
 
-    def UpdateDevice(self, host):
+    def UpdateDevice(self, server_type, host):
         """Updates the device state of all devices on a given host.
 
         Args:
+            server_type: string, the type of a test secheduling server.
             host: HostController object
         """
-        devices = host.ListDevices()
-        for device in devices:
-            device.Extend(['sim_state', 'sim_operator', 'mac_address'])
-        snapshots = self._tfc_client.CreateDeviceSnapshot(
-            host._cluster_ids[0], host.hostname, devices)
-        self._tfc_client.SubmitHostEvents([snapshots])
+        if server_type == "vti":
+            devices = []
 
-    def UpdateDeviceRepeat(self, host, update_interval):
+            stdout, stderr, returncode = cmd_utils.ExecuteOneShellCommand(
+                "adb devices")
+
+            lines = stdout.split("\n")[1:]
+            for line in lines:
+                if len(line.strip()):
+                    device = {}
+                    device["serial"] = line.split()[0]
+                    stdout, _, retcode = cmd_utils.ExecuteOneShellCommand(
+                        "adb -s %s shell getprop ro.product.board" % device["serial"])
+                    if retcode == 0:
+                        device["product"] = stdout.strip()
+                    else:
+                        device["product"] = "error"
+                    device["status"] = DEVICE_STATUS_DICT["online"]
+                    devices.append(device)
+
+            stdout, stderr, returncode = cmd_utils.ExecuteOneShellCommand(
+                "fastboot devices")
+            lines = stdout.split("\n")
+            for line in lines:
+                if len(line.strip()):
+                    device = {}
+                    device["serial"] = line.split()[0]
+                    device["product"] = "unknown"
+                    device["status"] = DEVICE_STATUS_DICT["fastboot"]
+                    devices.append(device)
+
+            self._vti_endpoint_client.UploadDeviceInfo(
+                host.hostname, devices)
+        elif server_type == "tfc":
+            devices = host.ListDevices()
+            for device in devices:
+                device.Extend(['sim_state', 'sim_operator', 'mac_address'])
+            snapshots = self._tfc_client.CreateDeviceSnapshot(
+                host._cluster_ids[0], host.hostname, devices)
+            self._tfc_client.SubmitHostEvents([snapshots])
+        else:
+            print "Error: unknown server_type %s for UpdateDevice" % server_type
+
+    def UpdateDeviceRepeat(self, server_type, host, update_interval):
         """Regularly updates the device state of devices on a given host.
 
         Args:
+            server_type: string, the type of a test secheduling server.
             host: HostController object
-            update_internval: int, number of seconds before repeating
+            update_interval: int, number of seconds before repeating
         """
         thread = threading.currentThread()
         while getattr(thread, 'keep_running', True):
             try:
-                self.UpdateDevice(host)
+                self.UpdateDevice(server_type, host)
             except (socket.error, remote_operation.RemoteOperationException,
                     httplib2.HttpLib2Error, errors.HttpError) as e:
                 logging.exception(e)
@@ -687,7 +1111,7 @@ class Console(cmd.Cmd):
                 args.host = 0
             host = self._hosts[args.host]
             if args.update == "single":
-                self.UpdateDevice(host)
+                self.UpdateDevice(args.server_type, host)
             elif args.update == "start":
                 if args.interval <= 0:
                     raise ConsoleArgumentError(
@@ -702,6 +1126,7 @@ class Console(cmd.Cmd):
                 self.update_thread = threading.Thread(
                     target=self.UpdateDeviceRepeat,
                     args=(
+                        args.server_type,
                         host,
                         args.interval,
                     ))
