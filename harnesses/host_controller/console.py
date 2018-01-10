@@ -1254,7 +1254,7 @@ class Console(cmd.Cmd):
             else:
                 bin_path = self.test_suite_info["vts"]
                 cmd = [bin_path, "run"]
-                cmd.extend(args.command)
+                cmd.extend(str(c) for c in args.command)
                 if serials:
                     for serial in serials:
                         cmd.extend(["-s", str(serial)])
