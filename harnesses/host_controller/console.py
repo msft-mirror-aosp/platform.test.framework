@@ -1199,14 +1199,17 @@ class Console(cmd.Cmd):
             print "version ID must be given."
             return
 
-        output_path = os.path.join(os.path.dirname(os.path.abspath(gsi_path)),
+        output_path = os.path.join(
+            os.path.dirname(os.path.abspath(gsi_path)),
             "system-{}.img".format(version))
-        stdout, stderr, err_code = cmd_utils.ExecuteOneShellCommand(
+        _, stderr, err_code = cmd_utils.ExecuteOneShellCommand(
             "{} {} {} {}".format(
-                "vts/harnesses/host_controller/gsi/change_spl.sh", gsi_path,
+                os.path.join(os.getcwd(), "host_controller", "gsi",
+                             "change_security_patch_ver.sh"), gsi_path,
                 output_path, version))
         if err_code is 0:
             if not args.gsi:
+                print("system.img path is updated to : {}".format(output_path))
                 self.device_image_info["system.img"] = output_path
         else:
             print "gsispl error: {}".format(stderr)
@@ -1312,7 +1315,7 @@ class Console(cmd.Cmd):
         self._upload_parser.add_argument(
             "--src",
             required=True,
-            default="latest-system.img"
+            default="latest-system.img",
             help="Path to a source file to upload. Only single file can be "
                 "uploaded per once. Use 'latest- prefix to upload the latest "
                 "fetch images. e.g. --src=latest-system.img  If argument "
