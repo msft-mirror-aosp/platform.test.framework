@@ -44,6 +44,7 @@ from host_controller.build import build_provider_ab
 from host_controller.build import build_provider_gcs
 from host_controller.build import build_provider_local_fs
 from host_controller.tradefed import remote_operation
+from host_controller.utils.gsi import img_utils
 from vts.utils.python.common import cmd_utils
 
 # The default Partner Android Build (PAB) public account.
@@ -72,6 +73,8 @@ DEVICE_STATUS_DICT = {
     "ready": 3,
     "use": 4,
     "error": 5}
+
+_SPL_DEFAULT_DAY = 5
 
 
 class ConsoleArgumentError(Exception):
@@ -1167,9 +1170,12 @@ class Console(cmd.Cmd):
             "kept in device_image_info dictionary is used and then "
             "device_image_info will be updated with the new GSI file.")
         self._gsisplParser.add_argument(
-            "--version",
-            required=True,
-            help="New version ID. It should be YYYY-mm-dd format.")
+            "--version", help="New version ID. It should be YYYY-mm-dd format")
+        self._gsisplParser.add_argument(
+            "--version_from_path",
+            help="Path to vendor provided image file to retrieve SPL version. "
+            "If just a file name is given, the most recently fetched .img "
+            "file will be used.")
 
     def do_gsispl(self, line):
         """Changes security patch level on a selected GSI file."""
@@ -1195,8 +1201,26 @@ class Console(cmd.Cmd):
             except ValueError as e:
                 print "version ID should be YYYY-mm-dd format."
                 return
+        elif args.version_from_path:
+            if os.path.isabs(args.version_from_path) and os.path.exists(
+                    args.version_from_path):
+                img_path = args.version_from_path
+            elif args.version_from_path in self.device_image_info:
+                img_path = self.device_image_info[args.version_from_path]
+            else:
+                print("Cannot find %s file." % args.version_from_path)
+                return
+
+            version_dict = img_utils.GetSPLVersionFromBootImg(img_path)
+            if "year" in version_dict and "month" in version_dict:
+                version = "{:04d}-{:02d}-{:02d}".format(
+                    version_dict["year"], version_dict["month"],
+                    _SPL_DEFAULT_DAY)
+            else:
+                print("Failed to fetch SPL version from %s file." % img_path)
+                return
         else:
-            print "version ID must be given."
+            print("version ID or path of .img file must be given.")
             return
 
         output_path = os.path.join(
