@@ -26,9 +26,15 @@ if (("$#" >= 3)) && ((${#NEW_VERSION} != 10)); then
   exit
 fi
 
-if [ "$ANDROID_BUILD_TOP" == "" ]; then
-  echo "Need 'lunch'"
-  exit
+BIN_PATH="${PWD}/../../host/bin"
+if [ ! -d "${BIN_PATH}" ]; then
+  # probably running from aosp root
+  if [ -d "${ANDROID_HOST_OUT}" ]; then
+    BIN_PATH="${ANDROID_HOST_OUT}/bin"
+  else
+    echo "Need lunch"
+    exit 1
+  fi
 fi
 
 UNSPARSED_SYSTEM_IMG="${SYSTEM_IMG}.raw"
@@ -36,7 +42,7 @@ MOUNT_POINT="${PWD}/temp_mnt"
 PROPERTY_NAME="ro.build.version.security_patch"
 
 echo "Unsparsing ${SYSTEM_IMG}..."
-simg2img "$SYSTEM_IMG" "$UNSPARSED_SYSTEM_IMG"
+$BIN_PATH/simg2img "$SYSTEM_IMG" "$UNSPARSED_SYSTEM_IMG"
 IMG_SIZE=$(stat -c%s "$UNSPARSED_SYSTEM_IMG")
 
 echo "Mounting..."
@@ -97,7 +103,7 @@ if [ "$OUTPUT_SYSTEM_IMG" != "" ]; then
     unmount
 
     echo "Writing ${OUTPUT_SYSTEM_IMG}..."
-    img2simg "$UNSPARSED_SYSTEM_IMG" "$OUTPUT_SYSTEM_IMG"
+    $BIN_PATH/img2simg "$UNSPARSED_SYSTEM_IMG" "$OUTPUT_SYSTEM_IMG"
   fi
 else
   unmount
