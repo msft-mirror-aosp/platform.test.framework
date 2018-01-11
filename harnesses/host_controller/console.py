@@ -183,19 +183,15 @@ class Console(cmd.Cmd):
         self.update_thread = None
         self.fetch_info = {}
 
-        self._InitBuildParser()
-        self._InitCopyParser()
-        self._InitDeviceParser()
-        self._InitFetchParser()
-        self._InitFlashParser()
-        self._InitGsiSplParser()
-        self._InitInfoParser()
-        self._InitLeaseParser()
-        self._InitListParser()
-        self._InitRequestParser()
-        self._InitConfigParser()
-        self._InitTestParser()
-        self._InitUploadParser()
+        self.InitCommandModuleParsers()
+
+    def InitCommandModuleParsers(self):
+        """Init all console command modules"""
+        for name in dir(self):
+            if name.startswith('_Init') and name.endswith('Parser'):
+                attr_func = getattr(self, name)
+                if hasattr(attr_func, '__call__'):
+                    attr_func()
 
     def _InitRequestParser(self):
         """Initializes the parser for request command."""
