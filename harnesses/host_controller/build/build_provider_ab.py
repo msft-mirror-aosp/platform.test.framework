@@ -48,6 +48,7 @@ class BuildProviderAB(build_provider.BuildProvider):
             a dict containing the artifact info.
         """
         fetch_info = {}
+        fetch_info["build_id"] = None
 
         if not self._artifact_fetcher:
             return self.GetDeviceImage(), self.GetTestSuitePackage(), fetch_info
