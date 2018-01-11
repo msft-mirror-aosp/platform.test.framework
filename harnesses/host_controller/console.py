@@ -147,6 +147,7 @@ class Console(cmd.Cmd):
         _lease_parser: The parser for lease command.
         _list_parser: The parser for list command.
         _request_parser: The parser for request command.
+        _upload_parser: The parser for upload command.
     """
 
     def __init__(self,
@@ -191,6 +192,7 @@ class Console(cmd.Cmd):
         self._InitRequestParser()
         self._InitConfigParser()
         self._InitTestParser()
+        self._InitUploadParser()
 
     def _InitRequestParser(self):
         """Initializes the parser for request command."""
@@ -446,7 +448,8 @@ class Console(cmd.Cmd):
         if args.type == "pab":
             # do we want this somewhere else? No harm in doing multiple times
             self._build_provider[args.type].Authenticate(args.userinfo_file)
-            device_images, test_suites, fetch_environment = self._build_provider[
+            (device_images, test_suites,
+             fetch_environment, _) = self._build_provider[
                 args.type].GetArtifact(
                     account_id=args.account_id,
                     branch=args.branch,
@@ -762,7 +765,7 @@ class Console(cmd.Cmd):
         """Updates build info."""
         args = self._build_parser.ParseLine(line)
         if args.update == "single":
-            self.UpdateDevice(
+            self.UpdateBuild(
                 args.account_id,
                 args.branch,
                 args.target,
@@ -1029,14 +1032,20 @@ class Console(cmd.Cmd):
             choices=("vti", "tfc"),
             default="vti",
             help="The type of a cloud-based test scheduler server.")
+        self._device_parser.add_argument(
+            "--lease",
+            default=False,
+            type=bool,
+            help="Whether to lease jobs and execute them.")
         self._serials = []
 
-    def UpdateDevice(self, server_type, host):
+    def UpdateDevice(self, server_type, host, lease):
         """Updates the device state of all devices on a given host.
 
         Args:
             server_type: string, the type of a test secheduling server.
             host: HostController object
+            lease: boolean, True to lease and execute jobs.
         """
         if server_type == "vti":
             devices = []
@@ -1071,6 +1080,12 @@ class Console(cmd.Cmd):
 
             self._vti_endpoint_client.UploadDeviceInfo(
                 host.hostname, devices)
+
+            if lease:
+                filepath, kwargs = self._vti_endpoint_client.LeaseJob(
+                    socket.gethostname())
+                if filepath:
+                    self.ProcessConfigurableScript(filepath, **kwargs)
         elif server_type == "tfc":
             devices = host.ListDevices()
             for device in devices:
@@ -1081,18 +1096,19 @@ class Console(cmd.Cmd):
         else:
             print "Error: unknown server_type %s for UpdateDevice" % server_type
 
-    def UpdateDeviceRepeat(self, server_type, host, update_interval):
+    def UpdateDeviceRepeat(self, server_type, host, lease, update_interval):
         """Regularly updates the device state of devices on a given host.
 
         Args:
             server_type: string, the type of a test secheduling server.
             host: HostController object
+            lease: boolean, True to lease and execute jobs.
             update_interval: int, number of seconds before repeating
         """
         thread = threading.currentThread()
         while getattr(thread, 'keep_running', True):
             try:
-                self.UpdateDevice(server_type, host)
+                self.UpdateDevice(server_type, host, lease)
             except (socket.error, remote_operation.RemoteOperationException,
                     httplib2.HttpLib2Error, errors.HttpError) as e:
                 logging.exception(e)
@@ -1111,7 +1127,7 @@ class Console(cmd.Cmd):
                 args.host = 0
             host = self._hosts[args.host]
             if args.update == "single":
-                self.UpdateDevice(args.server_type, host)
+                self.UpdateDevice(args.server_type, host, args.lease)
             elif args.update == "start":
                 if args.interval <= 0:
                     raise ConsoleArgumentError(
@@ -1128,6 +1144,7 @@ class Console(cmd.Cmd):
                     args=(
                         args.server_type,
                         host,
+                        args.lease,
                         args.interval,
                     ))
                 self.update_thread.daemon = True
@@ -1237,7 +1254,7 @@ class Console(cmd.Cmd):
             else:
                 bin_path = self.test_suite_info["vts"]
                 cmd = [bin_path, "run"]
-                cmd.extend(args.command)
+                cmd.extend(str(c) for c in args.command)
                 if serials:
                     for serial in serials:
                         cmd.extend(["-s", str(serial)])
@@ -1287,6 +1304,64 @@ class Console(cmd.Cmd):
     def help_exit(self):
         """Prints help message for exit command."""
         self._Print("Terminate the console.")
+
+    def _InitUploadParser(self):
+        """Initializes the parser for upload command."""
+        self._upload_parser = ConsoleArgumentParser("upload",
+            "Upload <src> file to <dest> Google Cloud Storage.")
+        self._upload_parser.add_argument(
+            "--src",
+            required=True,
+            default="latest-system.img"
+            help="Path to a source file to upload. Only single file can be "
+                "uploaded per once. Use 'latest- prefix to upload the latest "
+                "fetch images. e.g. --src=latest-system.img  If argument "
+                "value is not given, the recently fetched system.img will be "
+                "uploaded.")
+        self._upload_parser.add_argument(
+            "--dest",
+            required=True,
+            help="Google Cloud Storage URL. {build-id} will be "
+                "replaced with the most recently fetched build id.")
+
+    def do_upload(self, line):
+        """Upload args.src file to args.dest Google Cloud Storage."""
+        args = self._upload_parser.ParseLine(line)
+
+        gsutil_path = build_provider_gcs.BuildProviderGCS.GetGsutilPath()
+        if not gsutil_path:
+            print("Please check gsutil is installed and on your PATH")
+            return
+
+        if args.src.startswith("latest-"):
+            src_name = args.src[7:]
+            if src_name in self.device_image_info:
+                src_path = self.device_image_info[src_name]
+            else:
+                print("Unable to find {} in device_image_info".format(
+                    src_name))
+                return
+        elif os.path.isfile(args.src):
+            src_path = args.src
+        else:
+            print("Cannot find a file: {}".format(args.src))
+            return
+
+        if not args.dest.startswith("gs://"):
+            print("{} is not correct GCS url.".format(args.dest))
+            return
+        """ TODO(jongmok) : Before upload, login status, authorization,
+                            and dest check are required. """
+        copy_command = "{} cp {} {}".format(gsutil_path, src_path, args.dest)
+        _, stderr, err_code = cmd_utils.ExecuteOneShellCommand(
+            copy_command)
+
+        if err_code:
+            print stderr
+
+    def help_upload(self):
+        """Prints help message for upload command."""
+        self._upload_parser.print_help(self._out_file)
 
     # @Override
     def onecmd(self, line):
