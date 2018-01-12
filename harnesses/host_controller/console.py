@@ -132,7 +132,7 @@ class Console(cmd.Cmd):
         scheduler_thread: dict containing threading.Thread instances(s) that
                           update configs regularly.
         update_thread: threading.Thread that updates device state regularly.
-        _pab_client: The PartnerAndroidBuildClient used to download artifacts.
+        _build_provider_pab: The BuildProviderPAB used to download artifacts.
         _vti_client: VtiEndpoewrClient, used to upload data to a test
                      scheduling infrastructure.
         _tfc_client: The TfcClient that the host controllers connect to.
@@ -265,6 +265,9 @@ class Console(cmd.Cmd):
         Returns:
             True if successful; False otherwise
         """
+        if script_file_path and "." not in script_file_path:
+            script_file_path += ".py"
+
         if not script_file_path.endswith(".py"):
             print("Script file is not .py file: %s" % script_file_path)
             return False
@@ -516,7 +519,6 @@ class Console(cmd.Cmd):
         """
         parsed = urlparse.urlparse(url)
         path = (parsed.netloc + parsed.path).split('/')
-        # pab://5346564/oc-release/marlin-userdebug/4329875/artifact.img
         if parsed.scheme == "pab":
             if len(path) != 5:
                 print("Invalid pab resource locator: %s" % url)
@@ -531,7 +533,6 @@ class Console(cmd.Cmd):
                    " --artifact_name=%s") % (account_id, branch, target,
                                              build_id, artifact_name)
             self.onecmd(cmd)
-        # ab://oc-release/marlin-userdebug/4329875/artifact.img
         elif parsed.scheme == "ab":
             if len(path) != 4:
                 print("Invalid ab resource locator: %s" % url)
@@ -1084,7 +1085,9 @@ class Console(cmd.Cmd):
                 filepath, kwargs = self._vti_endpoint_client.LeaseJob(
                     socket.gethostname())
                 if filepath:
-                    self.ProcessConfigurableScript(filepath, **kwargs)
+                    self.ProcessConfigurableScript(
+                        os.path.join("host_controller", "campaigns", filepath),
+                        **kwargs)
         elif server_type == "tfc":
             devices = host.ListDevices()
             for device in devices:

@@ -39,7 +39,7 @@ class ConsoleTest(unittest.TestCase):
     Attribute:
         _out_file: The console output buffer.
         _host_controller: A mock host_controller.HostController.
-        _pab_client: A mock pab_client.PartnerAndroidBuildClient.
+        _build_provider_pab: A mock build_provider_pab.BuildProviderPAB.
         _tfc_client: A mock tfc_client.TfcClient.
         _console: The console being tested.
     """
@@ -64,9 +64,10 @@ class ConsoleTest(unittest.TestCase):
         """Creates the console."""
         self._out_file = string_io_module.StringIO()
         self._host_controller = mock.Mock()
-        self._pab_client = mock.Mock()
+        self._build_provider_pab = mock.Mock()
         self._tfc_client = mock.Mock()
-        self._console = console.Console(self._tfc_client, self._pab_client,
+        self._console = console.Console(self._tfc_client,
+                                        self._build_provider_pab,
                                         [self._host_controller], None,
                                         self._out_file)
 
@@ -145,7 +146,7 @@ class ConsoleTest(unittest.TestCase):
     @mock.patch('host_controller.console.build_flasher.BuildFlasher')
     def testFetchPOSTAndFlash(self, mock_class):
         """Tests fetching from pab and flashing."""
-        self._pab_client.GetArtifact.return_value = ({
+        self._build_provider_pab.GetArtifact.return_value = ({
             "system.img":
             "/mock/system.img",
             "odm.img":
@@ -155,7 +156,7 @@ class ConsoleTest(unittest.TestCase):
             "fetch --branch=aosp-master-ndk --target=darwin_mac "
             "--account_id=100621237 "
             "--artifact_name=foo-{id}.tar.bz2 --method=POST")
-        self._pab_client.GetArtifact.assert_called_with(
+        self._build_provider_pab.GetArtifact.assert_called_with(
             account_id='100621237',
             branch='aosp-master-ndk',
             target='darwin_mac',
@@ -177,7 +178,7 @@ class ConsoleTest(unittest.TestCase):
         target_return = "darwin_mac"
         expected_fetch_info = {"build_id":build_id_return}
 
-        self._pab_client.GetArtifact.return_value = ({
+        self._build_provider_pab.GetArtifact.return_value = ({
             "system.img":
             "/mock/system.img",
             "odm.img":
@@ -187,7 +188,7 @@ class ConsoleTest(unittest.TestCase):
                            "--account_id=100621237 "
                            "--artifact_name=foo-{id}.tar.bz2 --method=POST"
                            % target_return)
-        self._pab_client.GetArtifact.assert_called_with(
+        self._build_provider_pab.GetArtifact.assert_called_with(
             account_id='100621237',
             branch='aosp-master-ndk',
             target='darwin_mac',
