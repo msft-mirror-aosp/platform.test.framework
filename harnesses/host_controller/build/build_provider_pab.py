@@ -13,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""Class to fetch artifacts from Partner Android Build server
-"""
+"""Module to fetch artifacts from Partner Android Build server."""
 
 import argparse
 import getpass
@@ -47,7 +46,7 @@ GET = 'GET'
 POST = 'POST'
 
 
-class PartnerAndroidBuildClient(build_provider.BuildProvider):
+class BuildProviderPAB(build_provider.BuildProvider):
     """Client that manages Partner Android Build downloading.
 
     Attributes:
@@ -109,7 +108,7 @@ class PartnerAndroidBuildClient(build_provider.BuildProvider):
 
     def __init__(self):
         """Creates a temp dir."""
-        super(PartnerAndroidBuildClient, self).__init__()
+        super(BuildProviderPAB, self).__init__()
 
     def Authenticate(self, userinfo_file=None):
         """Authenticate using OAuth2."""
