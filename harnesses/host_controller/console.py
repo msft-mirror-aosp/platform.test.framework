@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-import argparse
 import cmd
 import datetime
 import imp  # Python v2 compatibility
@@ -37,6 +36,8 @@ from google.protobuf import text_format
 from vti.test_serving.proto import TestLabConfigMessage_pb2 as LabCfgMsg
 from vti.test_serving.proto import TestScheduleConfigMessage_pb2 as SchedCfgMsg
 
+from host_controller.console_argument_parser import ConsoleArgumentError
+from host_controller.console_argument_parser import ConsoleArgumentParser
 from host_controller.tfc import request
 from host_controller.build import build_flasher
 from host_controller.build import build_provider
@@ -75,48 +76,6 @@ DEVICE_STATUS_DICT = {
     "error": 5}
 
 _SPL_DEFAULT_DAY = 5
-
-
-class ConsoleArgumentError(Exception):
-    """Raised when the console fails to parse commands."""
-    pass
-
-
-class ConsoleArgumentParser(argparse.ArgumentParser):
-    """The argument parser for a console command."""
-
-    def __init__(self, command_name, description):
-        """Initializes the ArgumentParser without --help option.
-
-        Args:
-            command_name: A string, the first argument of the command.
-            description: The help message about the command.
-        """
-        super(ConsoleArgumentParser, self).__init__(
-            prog=command_name, description=description, add_help=False)
-
-    def ParseLine(self, line):
-        """Parses a command line.
-
-        Args:
-            line: A string, the command line.
-
-        Returns:
-            An argparse.Namespace object.
-        """
-        return self.parse_args(line.split())
-
-    # @Override
-    def error(self, message):
-        """Raises an exception when failing to parse the command.
-
-        Args:
-            message: The error message.
-
-        Raises:
-            ConsoleArgumentError.
-        """
-        raise ConsoleArgumentError(message)
 
 
 class Console(cmd.Cmd):
