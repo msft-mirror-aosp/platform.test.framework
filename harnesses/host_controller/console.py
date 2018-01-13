@@ -158,24 +158,35 @@ class Console(cmd.Cmd):
         self._acloud_parser = ConsoleArgumentParser("acloud",
                                                    "Start acloud instances.")
         self._acloud_parser.add_argument(
-            '--build_id',
-            help='Build ID to use.')
+            "--build_id",
+            help="Build ID to use.")
         self._acloud_parser.add_argument(
-            '--provider',
-            default='ab',
-            choices=('local_fs', 'gcs', 'pab', 'ab'),
-            help='Build provider type')
+            "--provider",
+            default="ab",
+            choices=("local_fs", "gcs", "pab", "ab"),
+            help="Build provider type")
         self._acloud_parser.add_argument(
-            '--config_path',
+            "--branch",  # not required for local_fs
+            help="Branch to grab the artifact from.")
+        self._acloud_parser.add_argument(
+            "--target",  # not required for local_fs
+            help="Target product to grab the artifact from.")
+        self._acloud_parser.add_argument(
+            "--config_path",
             required=True,
-            help='Acloud config path.')
+            help="Acloud config path.")
 
     def do_acloud(self, line):
         """Creates an acloud instance and connects to it via adb."""
         args = self._acloud_parser.ParseLine(line)
 
-        # TODO(yuexima): support more provider types.
-        if args.provider != "ab":
+        if args.provider == "ab":
+            if args.build_id.lower() == "latest":
+                build_id = self._build_provider["ab"].GetLatestBuildId(
+                    args.branch,
+                    args.target)
+        else:
+            # TODO(yuexima): support more provider types.
             logging.error("Provider %s not supported yet." % args.provider)
             return
 
