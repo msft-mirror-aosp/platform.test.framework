@@ -50,17 +50,26 @@ class ACloudClient(object):
 
     def GetCreateCmd(self,
                      build_id,
-                     branch=DEFAULT_BRANCH,
-                     build_target=DEFAULT_BUILD_TARGET,
+                     branch=None,
+                     build_target=None,
                      num=1):
         '''Get acould create command with given build id.
 
         Args:
             build_id: string, build_id.
+            branch: string, build branch
+            build_target: string, build target
+            num: int, number of instances to build
 
         Returns:
             string, acloud create command.
         '''
+        if not branch:
+            branch = DEFAULT_BRANCH
+
+        if not build_target:
+            build_target = DEFAULT_BUILD_TARGET
+
         #TODO latest build id (in the caller class of this function).
         #TODO use unique log and tmp file location
         cmd = ('create '
