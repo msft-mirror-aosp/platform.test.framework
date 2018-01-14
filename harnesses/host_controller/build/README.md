@@ -9,4 +9,4 @@
  and save the resulting file at client_secrets.json
 
 # Running unit tests
-    python pab_client_test.py
+    python build_provider_pab_test.py

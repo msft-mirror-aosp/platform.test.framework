@@ -33,11 +33,29 @@ class BuildProviderAB(build_provider.BuildProvider):
         else:
             self._artifact_fetcher = None
 
+    def GetLatestBuildId(self, branch, target):
+        """Get the latest build id.
+
+        Args:
+            branch: string, android branch to pull resource from.
+            target: string, build target name.
+
+        Returns:
+            string, latest build id. None if _artifact_fetcher is not initialized.
+        """
+        if not self._artifact_fetcher:
+            return None
+
+        recent_build_ids = self._artifact_fetcher.ListBuildIds(
+            branch, target)
+
+        return recent_build_ids[0]
+
     def Fetch(self, branch, target, artifact_name, build_id="latest"):
         """Fetches Android device artifact file(s) from Android Build.
 
         Args:
-            branch: string, androidbranch to pull resource from .
+            branch: string, android branch to pull resource from.
             target: string, build target name.
             artifact_name: string, file name.
             build_id: string, ID of the build or latest.
@@ -54,9 +72,7 @@ class BuildProviderAB(build_provider.BuildProvider):
             return self.GetDeviceImage(), self.GetTestSuitePackage(), fetch_info
 
         if build_id == "latest":
-            recent_build_ids = self._artifact_fetcher.ListBuildIds(
-                branch, target)
-            build_id = recent_build_ids[0]
+            build_id = self.GetLatestBuildId(branch, target)
         fetch_info["build_id"] = build_id
 
         if "{build_id}" in artifact_name:

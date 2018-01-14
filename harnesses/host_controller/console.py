@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-import argparse
 import cmd
 import datetime
 import imp  # Python v2 compatibility
@@ -37,6 +36,9 @@ from google.protobuf import text_format
 from vti.test_serving.proto import TestLabConfigMessage_pb2 as LabCfgMsg
 from vti.test_serving.proto import TestScheduleConfigMessage_pb2 as SchedCfgMsg
 
+from host_controller.acloud import acloud_client
+from host_controller.console_argument_parser import ConsoleArgumentError
+from host_controller.console_argument_parser import ConsoleArgumentParser
 from host_controller.tfc import request
 from host_controller.build import build_flasher
 from host_controller.build import build_provider
@@ -44,6 +46,7 @@ from host_controller.build import build_provider_ab
 from host_controller.build import build_provider_gcs
 from host_controller.build import build_provider_local_fs
 from host_controller.tradefed import remote_operation
+from host_controller.utils.gsi import img_utils
 from vts.utils.python.common import cmd_utils
 
 # The default Partner Android Build (PAB) public account.
@@ -73,47 +76,7 @@ DEVICE_STATUS_DICT = {
     "use": 4,
     "error": 5}
 
-
-class ConsoleArgumentError(Exception):
-    """Raised when the console fails to parse commands."""
-    pass
-
-
-class ConsoleArgumentParser(argparse.ArgumentParser):
-    """The argument parser for a console command."""
-
-    def __init__(self, command_name, description):
-        """Initializes the ArgumentParser without --help option.
-
-        Args:
-            command_name: A string, the first argument of the command.
-            description: The help message about the command.
-        """
-        super(ConsoleArgumentParser, self).__init__(
-            prog=command_name, description=description, add_help=False)
-
-    def ParseLine(self, line):
-        """Parses a command line.
-
-        Args:
-            line: A string, the command line.
-
-        Returns:
-            An argparse.Namespace object.
-        """
-        return self.parse_args(line.split())
-
-    # @Override
-    def error(self, message):
-        """Raises an exception when failing to parse the command.
-
-        Args:
-            message: The error message.
-
-        Raises:
-            ConsoleArgumentError.
-        """
-        raise ConsoleArgumentError(message)
+_SPL_DEFAULT_DAY = 5
 
 
 class Console(cmd.Cmd):
@@ -129,7 +92,7 @@ class Console(cmd.Cmd):
         scheduler_thread: dict containing threading.Thread instances(s) that
                           update configs regularly.
         update_thread: threading.Thread that updates device state regularly.
-        _pab_client: The PartnerAndroidBuildClient used to download artifacts.
+        _build_provider_pab: The BuildProviderPAB used to download artifacts.
         _vti_client: VtiEndpoewrClient, used to upload data to a test
                      scheduling infrastructure.
         _tfc_client: The TfcClient that the host controllers connect to.
@@ -180,19 +143,61 @@ class Console(cmd.Cmd):
         self.update_thread = None
         self.fetch_info = {}
 
-        self._InitBuildParser()
-        self._InitCopyParser()
-        self._InitDeviceParser()
-        self._InitFetchParser()
-        self._InitFlashParser()
-        self._InitGsiSplParser()
-        self._InitInfoParser()
-        self._InitLeaseParser()
-        self._InitListParser()
-        self._InitRequestParser()
-        self._InitConfigParser()
-        self._InitTestParser()
-        self._InitUploadParser()
+        self.InitCommandModuleParsers()
+
+    def InitCommandModuleParsers(self):
+        """Init all console command modules"""
+        for name in dir(self):
+            if name.startswith('_Init') and name.endswith('Parser'):
+                attr_func = getattr(self, name)
+                if hasattr(attr_func, '__call__'):
+                    attr_func()
+
+    def _InitAcloudParser(self):
+        """Initializes the parser for acloud command."""
+        self._acloud_parser = ConsoleArgumentParser("acloud",
+                                                   "Start acloud instances.")
+        self._acloud_parser.add_argument(
+            "--build_id",
+            help="Build ID to use.")
+        self._acloud_parser.add_argument(
+            "--provider",
+            default="ab",
+            choices=("local_fs", "gcs", "pab", "ab"),
+            help="Build provider type")
+        self._acloud_parser.add_argument(
+            "--branch",  # not required for local_fs
+            help="Branch to grab the artifact from.")
+        self._acloud_parser.add_argument(
+            "--target",  # not required for local_fs
+            help="Target product to grab the artifact from.")
+        self._acloud_parser.add_argument(
+            "--config_path",
+            required=True,
+            help="Acloud config path.")
+
+    def do_acloud(self, line):
+        """Creates an acloud instance and connects to it via adb."""
+        args = self._acloud_parser.ParseLine(line)
+
+        if args.provider == "ab":
+            if args.build_id.lower() == "latest":
+                build_id = self._build_provider["ab"].GetLatestBuildId(
+                    args.branch,
+                    args.target)
+        else:
+            # TODO(yuexima): support more provider types.
+            logging.error("Provider %s not supported yet." % args.provider)
+            return
+
+        ac = acloud_client.ACloudClient()
+        ac.PrepareConfig(args.config_path)
+        ac.CreateInstance(args.build_id)
+        ac.ConnectInstanceToAdb(ah.GetInstanceIP())
+
+    def help_acloud(self):
+        """Prints help message for acloud command."""
+        self._acloud_parser.print_help(self._out_file)
 
     def _InitRequestParser(self):
         """Initializes the parser for request command."""
@@ -266,6 +271,9 @@ class Console(cmd.Cmd):
         Returns:
             True if successful; False otherwise
         """
+        if script_file_path and "." not in script_file_path:
+            script_file_path += ".py"
+
         if not script_file_path.endswith(".py"):
             print("Script file is not .py file: %s" % script_file_path)
             return False
@@ -517,7 +525,6 @@ class Console(cmd.Cmd):
         """
         parsed = urlparse.urlparse(url)
         path = (parsed.netloc + parsed.path).split('/')
-        # pab://5346564/oc-release/marlin-userdebug/4329875/artifact.img
         if parsed.scheme == "pab":
             if len(path) != 5:
                 print("Invalid pab resource locator: %s" % url)
@@ -532,7 +539,6 @@ class Console(cmd.Cmd):
                    " --artifact_name=%s") % (account_id, branch, target,
                                              build_id, artifact_name)
             self.onecmd(cmd)
-        # ab://oc-release/marlin-userdebug/4329875/artifact.img
         elif parsed.scheme == "ab":
             if len(path) != 4:
                 print("Invalid ab resource locator: %s" % url)
@@ -1085,7 +1091,9 @@ class Console(cmd.Cmd):
                 filepath, kwargs = self._vti_endpoint_client.LeaseJob(
                     socket.gethostname())
                 if filepath:
-                    self.ProcessConfigurableScript(filepath, **kwargs)
+                    self.ProcessConfigurableScript(
+                        os.path.join("host_controller", "campaigns", filepath),
+                        **kwargs)
         elif server_type == "tfc":
             devices = host.ListDevices()
             for device in devices:
@@ -1167,9 +1175,12 @@ class Console(cmd.Cmd):
             "kept in device_image_info dictionary is used and then "
             "device_image_info will be updated with the new GSI file.")
         self._gsisplParser.add_argument(
-            "--version",
-            required=True,
-            help="New version ID. It should be YYYY-mm-dd format.")
+            "--version", help="New version ID. It should be YYYY-mm-dd format")
+        self._gsisplParser.add_argument(
+            "--version_from_path",
+            help="Path to vendor provided image file to retrieve SPL version. "
+            "If just a file name is given, the most recently fetched .img "
+            "file will be used.")
 
     def do_gsispl(self, line):
         """Changes security patch level on a selected GSI file."""
@@ -1195,18 +1206,39 @@ class Console(cmd.Cmd):
             except ValueError as e:
                 print "version ID should be YYYY-mm-dd format."
                 return
+        elif args.version_from_path:
+            if os.path.isabs(args.version_from_path) and os.path.exists(
+                    args.version_from_path):
+                img_path = args.version_from_path
+            elif args.version_from_path in self.device_image_info:
+                img_path = self.device_image_info[args.version_from_path]
+            else:
+                print("Cannot find %s file." % args.version_from_path)
+                return
+
+            version_dict = img_utils.GetSPLVersionFromBootImg(img_path)
+            if "year" in version_dict and "month" in version_dict:
+                version = "{:04d}-{:02d}-{:02d}".format(
+                    version_dict["year"], version_dict["month"],
+                    _SPL_DEFAULT_DAY)
+            else:
+                print("Failed to fetch SPL version from %s file." % img_path)
+                return
         else:
-            print "version ID must be given."
+            print("version ID or path of .img file must be given.")
             return
 
-        output_path = os.path.join(os.path.dirname(os.path.abspath(gsi_path)),
+        output_path = os.path.join(
+            os.path.dirname(os.path.abspath(gsi_path)),
             "system-{}.img".format(version))
-        stdout, stderr, err_code = cmd_utils.ExecuteOneShellCommand(
+        _, stderr, err_code = cmd_utils.ExecuteOneShellCommand(
             "{} {} {} {}".format(
-                "vts/harnesses/host_controller/gsi/change_spl.sh", gsi_path,
+                os.path.join(os.getcwd(), "host_controller", "gsi",
+                             "change_security_patch_ver.sh"), gsi_path,
                 output_path, version))
         if err_code is 0:
             if not args.gsi:
+                print("system.img path is updated to : {}".format(output_path))
                 self.device_image_info["system.img"] = output_path
         else:
             print "gsispl error: {}".format(stderr)
@@ -1312,7 +1344,7 @@ class Console(cmd.Cmd):
         self._upload_parser.add_argument(
             "--src",
             required=True,
-            default="latest-system.img"
+            default="latest-system.img",
             help="Path to a source file to upload. Only single file can be "
                 "uploaded per once. Use 'latest- prefix to upload the latest "
                 "fetch images. e.g. --src=latest-system.img  If argument "

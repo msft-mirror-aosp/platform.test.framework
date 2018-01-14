@@ -25,7 +25,7 @@ import sys
 
 from host_controller import console
 from host_controller import tfc_host_controller
-from host_controller.build import pab_client
+from host_controller.build import build_provider_pab
 from host_controller.tfc import tfc_client
 from host_controller.vti_interface import vti_endpoint_client
 from host_controller.tradefed import remote_client
@@ -131,7 +131,7 @@ def main():
             print("WARN: If --use_tfc is set, --config_file argument value "
                   "must be provided. Starting without TFC.")
 
-    pab = pab_client.PartnerAndroidBuildClient()
+    pab = build_provider_pab.BuildProviderPAB()
 
     hosts = []
     for host_config in config_json["hosts"]:
