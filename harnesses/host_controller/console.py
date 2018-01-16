@@ -39,6 +39,7 @@ from vti.test_serving.proto import TestScheduleConfigMessage_pb2 as SchedCfgMsg
 from host_controller.acloud import acloud_client
 from host_controller.console_argument_parser import ConsoleArgumentError
 from host_controller.console_argument_parser import ConsoleArgumentParser
+from host_controller.command_processor import command_info
 from host_controller.tfc import request
 from host_controller.build import build_flasher
 from host_controller.build import build_provider
@@ -79,10 +80,17 @@ DEVICE_STATUS_DICT = {
 _SPL_DEFAULT_DAY = 5
 
 
+COMMAND_PROCESSORS = [
+    command_info.CommandInfo,
+]
+
+
 class Console(cmd.Cmd):
     """The console for host controllers.
 
     Attributes:
+        command_processors: dict of string:BaseCommandProcessor,
+                            map between command string and command processors.
         device_image_info: dict containing info about device image files.
         prompt: The prompt string at the beginning of each command line.
         test_suite_info: dict containing info about test suite package files.
@@ -106,7 +114,6 @@ class Console(cmd.Cmd):
         _fetch_parser: The parser for fetch command.
         _flash_parser: The parser for flash command.
         _gsispl_parser: The parser for gsispl command.
-        _info_parser: The parser for info command.
         _lease_parser: The parser for lease command.
         _list_parser: The parser for list command.
         _request_parser: The parser for request command.
@@ -144,6 +151,7 @@ class Console(cmd.Cmd):
         self.fetch_info = {}
 
         self.InitCommandModuleParsers()
+        self.SetupCommandProcessors()
 
     def InitCommandModuleParsers(self):
         """Init all console command modules"""
@@ -198,6 +206,18 @@ class Console(cmd.Cmd):
     def help_acloud(self):
         """Prints help message for acloud command."""
         self._acloud_parser.print_help(self._out_file)
+
+    def SetupCommandProcessors(self):
+        """Setup all command processors"""
+        self.command_processors = {}
+        for command_processor in COMMAND_PROCESSORS:
+            cp = command_processor()
+            cp._SetUp(self)
+            do_text = "do_%s" % cp.command
+            help_text = "help_%s" % cp.command
+            setattr(self, do_text, cp._Run)
+            setattr(self, help_text, cp._Help)
+            self.command_processors[cp.command] = cp
 
     def _InitRequestParser(self):
         """Initializes the parser for request command."""
@@ -1299,21 +1319,6 @@ class Console(cmd.Cmd):
     def help_test(self):
         """Prints help message for test command."""
         self._test_parser.print_help(self._out_file)
-
-    def _InitInfoParser(self):
-        """Initializes the parser for info command."""
-        self._info_parser = ConsoleArgumentParser("info",
-                                                  "Show status.")
-
-    def do_info(self, line):
-        """Shows the console's session status information."""
-        print("device image: %s" % self.device_image_info)
-        print("test suite: %s" % self.test_suite_info)
-        print("fetch info: %s" % self.fetch_info)
-
-    def help_info(self):
-        """Prints help message for info command."""
-        self._info_parser.print_help(self._out_file)
 
     def _PrintTasks(self, tasks):
         """Shows a list of command tasks.
