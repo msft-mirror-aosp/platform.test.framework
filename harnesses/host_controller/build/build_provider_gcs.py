@@ -22,12 +22,38 @@ import zipfile
 from host_controller.build import build_provider
 from vts.utils.python.common import cmd_utils
 
+_GCLOUD_AUTH_ENV_KEY = "run_gcs_key"
+
 
 class BuildProviderGCS(build_provider.BuildProvider):
     """A build provider for GCS (Google Cloud Storage)."""
 
     def __init__(self):
         super(BuildProviderGCS, self).__init__()
+        if _GCLOUD_AUTH_ENV_KEY in os.environ:
+            gcloud_path = BuildProviderGCS.GetGcloudPath()
+            if gcloud_path is not None:
+                auth_cmd = "%s auth activate-service-account --key-file=%s" % (
+                    gcloud_path, os.environ[_GCLOUD_AUTH_ENV_KEY])
+                _, stderr, ret_code = cmd_utils.ExecuteOneShellCommand(
+                    auth_cmd)
+                if ret_code == 0:
+                    logging.info(stderr)
+                else:
+                    print(stderr)
+                    logging.error(stderr)
+
+    @staticmethod
+    def GetGcloudPath():
+        """Returns the gcloud file path if found; None otherwise."""
+        sh_stdout, _, ret_code = cmd_utils.ExecuteOneShellCommand(
+            "which gcloud")
+        if ret_code == 0:
+            return sh_stdout.strip()
+        else:
+            logging.error("`gcloud` doesn't exist on the host; "
+                          "please install Google Cloud SDK before retrying.")
+            return None
 
     @staticmethod
     def GetGsutilPath():
