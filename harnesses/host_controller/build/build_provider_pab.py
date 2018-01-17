@@ -23,7 +23,6 @@ import logging
 import os
 import requests
 import urlparse
-import zipfile
 from posixpath import join as path_urljoin
 
 from oauth2client.client import flow_from_clientsecrets
@@ -512,17 +511,9 @@ class BuildProviderPAB(build_provider.BuildProvider):
         else:
             artifact_path = artifact_name
         self.DownloadArtifact(url, artifact_path)
-        dirname = os.path.dirname(artifact_path)
+
         if unzip and artifact_path.endswith(".zip"):
-            artifact_basename = os.path.basename(artifact_path)
-            if artifact_path.endswith("android-vts.zip"):
-                self.SetTestSuitePackage("vts", artifact_path)
-            elif artifact_basename.startswith("vti-global-config"):
-                self.SetConfigPackage(
-                    "prod" if "prod" in artifact_basename else "test",
-                    artifact_path)
-            else:
-                self.SetDeviceImageZip(artifact_path)
+            self.SetFetchedFile(artifact_path)
+
         return (self.GetDeviceImage(), self.GetTestSuitePackage(),
                 artifact_info, self.GetConfigPackage())
-
