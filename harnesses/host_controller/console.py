@@ -943,7 +943,7 @@ class Console(cmd.Cmd):
                     for root, dirs, files in os.walk(base_path):
                         for config_file in files:
                             full_path = os.path.join(root, config_file)
-                            if file.endswith(".schedule_config"):
+                            if config_file.endswith(".schedule_config"):
                                 with open(full_path, "r") as fd:
                                   context = fd.read()
                                   sched_cfg_msg = SchedCfgMsg.ScheduleConfigMessage()
