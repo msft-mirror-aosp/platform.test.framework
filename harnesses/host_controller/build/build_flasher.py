@@ -249,6 +249,11 @@ class BuildFlasher(object):
             tmp_file_name = next(tempfile._get_candidate_names()) + ".tar"
             tmp_dir_path = os.path.dirname(
                 device_images[device_images.keys()[0]])
+            for img in device_images:
+                if os.path.dirname(device_images[img]) != tmp_dir_path:
+                    os.rename(device_images[img],
+                              os.path.join(tmp_dir_path, img))
+                    device_images[img] = os.path.join(tmp_dir_path, img)
 
             current_dir = os.getcwd()
             os.chdir(tmp_dir_path)
