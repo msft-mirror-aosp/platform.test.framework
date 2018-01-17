@@ -468,41 +468,40 @@ class Console(cmd.Cmd):
             "--userinfo_file",
             help=
             "Location of file containing email and password, if using POST.")
-        self._fetch_parser.add_argument(
-            "--tool", help="The path of custom tool to be fetched from GCS.")
 
     def do_fetch(self, line):
         """Makes the host download a build artifact from PAB."""
         args = self._fetch_parser.ParseLine(line)
+
+        if args.type not in self._build_provider:
+            print("ERROR: uninitialized fetch type %s" % args.type)
+            return
+
+        provider = self._build_provider[args.type]
         if args.type == "pab":
             # do we want this somewhere else? No harm in doing multiple times
-            self._build_provider[args.type].Authenticate(args.userinfo_file)
+            provider.Authenticate(args.userinfo_file)
             (device_images, test_suites,
-             fetch_environment, _) = self._build_provider[
-                args.type].GetArtifact(
-                    account_id=args.account_id,
-                    branch=args.branch,
-                    target=args.target,
-                    artifact_name=args.artifact_name,
-                    build_id=args.build_id,
-                    method=args.method)
+             fetch_environment, _) = provider.GetArtifact(
+                account_id=args.account_id,
+                branch=args.branch,
+                target=args.target,
+                artifact_name=args.artifact_name,
+                build_id=args.build_id,
+                method=args.method)
             self.fetch_info["build_id"] = fetch_environment["build_id"]
         elif args.type == "local_fs":
-            device_images, test_suites = self._build_provider[args.type].Fetch(
-                args.path)
+            device_images, test_suites = provider.Fetch(args.path)
             self.fetch_info["build_id"] = None
         elif args.type == "gcs":
-            device_images, test_suites, tools = self._build_provider[
-                args.type].Fetch(args.path, args.tool)
-            self.tools_info.update(tools)
+            device_images, test_suites, tools = provider.Fetch(args.path)
             self.fetch_info["build_id"] = None
         elif args.type == "ab":
-            device_images, test_suites, fetch_environment = self._build_provider[
-                args.type].Fetch(
-                    branch=args.branch,
-                    target=args.target,
-                    artifact_name=args.artifact_name,
-                    build_id=args.build_id)
+            device_images, test_suites, fetch_environment = provider.Fetch(
+                branch=args.branch,
+                target=args.target,
+                artifact_name=args.artifact_name,
+                build_id=args.build_id)
             self.fetch_info["build_id"] = fetch_environment["build_id"]
         else:
             print("ERROR: unknown fetch type %s" % args.type)
@@ -513,6 +512,7 @@ class Console(cmd.Cmd):
 
         self.device_image_info.update(device_images)
         self.test_suite_info.update(test_suites)
+        self.tools_info.update(provider.GetAdditionalFile())
 
         if self.device_image_info:
             logging.info("device images:\n%s", "\n".join(
@@ -522,6 +522,10 @@ class Console(cmd.Cmd):
             logging.info("test suites:\n%s", "\n".join(
                 suite + ": " + path
                 for suite, path in self.test_suite_info.iteritems()))
+        if self.tools_info:
+            logging.info("additional files:\n%s", "\n".join(
+                rel_path + ": " + full_path
+                for rel_path, full_path in self.tools_info.iteritems()))
 
     def help_fetch(self):
         """Prints help message for fetch command."""
