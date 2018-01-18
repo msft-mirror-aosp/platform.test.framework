@@ -17,6 +17,7 @@
 import cmd
 import datetime
 import imp  # Python v2 compatibility
+import importlib
 import logging
 import multiprocessing
 import os
@@ -467,41 +468,40 @@ class Console(cmd.Cmd):
             "--userinfo_file",
             help=
             "Location of file containing email and password, if using POST.")
-        self._fetch_parser.add_argument(
-            "--tool", help="The path of custom tool to be fetched from GCS.")
 
     def do_fetch(self, line):
         """Makes the host download a build artifact from PAB."""
         args = self._fetch_parser.ParseLine(line)
+
+        if args.type not in self._build_provider:
+            print("ERROR: uninitialized fetch type %s" % args.type)
+            return
+
+        provider = self._build_provider[args.type]
         if args.type == "pab":
             # do we want this somewhere else? No harm in doing multiple times
-            self._build_provider[args.type].Authenticate(args.userinfo_file)
+            provider.Authenticate(args.userinfo_file)
             (device_images, test_suites,
-             fetch_environment, _) = self._build_provider[
-                args.type].GetArtifact(
-                    account_id=args.account_id,
-                    branch=args.branch,
-                    target=args.target,
-                    artifact_name=args.artifact_name,
-                    build_id=args.build_id,
-                    method=args.method)
+             fetch_environment, _) = provider.GetArtifact(
+                account_id=args.account_id,
+                branch=args.branch,
+                target=args.target,
+                artifact_name=args.artifact_name,
+                build_id=args.build_id,
+                method=args.method)
             self.fetch_info["build_id"] = fetch_environment["build_id"]
         elif args.type == "local_fs":
-            device_images, test_suites = self._build_provider[args.type].Fetch(
-                args.path)
+            device_images, test_suites = provider.Fetch(args.path)
             self.fetch_info["build_id"] = None
         elif args.type == "gcs":
-            device_images, test_suites, tools = self._build_provider[
-                args.type].Fetch(args.path, args.tool)
-            self.tools_info.update(tools)
+            device_images, test_suites, tools = provider.Fetch(args.path)
             self.fetch_info["build_id"] = None
         elif args.type == "ab":
-            device_images, test_suites, fetch_environment = self._build_provider[
-                args.type].Fetch(
-                    branch=args.branch,
-                    target=args.target,
-                    artifact_name=args.artifact_name,
-                    build_id=args.build_id)
+            device_images, test_suites, fetch_environment = provider.Fetch(
+                branch=args.branch,
+                target=args.target,
+                artifact_name=args.artifact_name,
+                build_id=args.build_id)
             self.fetch_info["build_id"] = fetch_environment["build_id"]
         else:
             print("ERROR: unknown fetch type %s" % args.type)
@@ -512,6 +512,7 @@ class Console(cmd.Cmd):
 
         self.device_image_info.update(device_images)
         self.test_suite_info.update(test_suites)
+        self.tools_info.update(provider.GetAdditionalFile())
 
         if self.device_image_info:
             logging.info("device images:\n%s", "\n".join(
@@ -521,6 +522,10 @@ class Console(cmd.Cmd):
             logging.info("test suites:\n%s", "\n".join(
                 suite + ": " + path
                 for suite, path in self.test_suite_info.iteritems()))
+        if self.tools_info:
+            logging.info("additional files:\n%s", "\n".join(
+                rel_path + ": " + full_path
+                for rel_path, full_path in self.tools_info.iteritems()))
 
     def help_fetch(self):
         """Prints help message for fetch command."""
@@ -603,19 +608,27 @@ class Console(cmd.Cmd):
         self._flash_parser.add_argument(
             "--flasher_type",
             default="fastboot",
-            choices=("fastboot", "custom"),
-            help="Flasher binary type")
+            help="Flasher type. Valid arguments are \"fastboot\", \"custom\", "
+            "and full module name followed by class name. The class must "
+            "inherit build_flasher.BuildFlasher, and implement "
+            "__init__(serial, flasher_path) and "
+            "Flash(device_images, additional_files, *flasher_args).")
         self._flash_parser.add_argument(
             "--flasher_path",
             default=None,
             help="Path to a flasher binary")
         self._flash_parser.add_argument(
+            "flasher_args",
+            metavar="ARGUMENTS",
+            nargs="*",
+            help="The arguments passed to the flasher binary. If any argument "
+            "starts with \"-\", place all of them after \"--\" at end of "
+            "line.")
+        self._flash_parser.add_argument(
             "--reboot_mode",
             default="bootloader",
             choices=("bootloader", "download"),
             help="Reboot device to bootloader/download mode")
-        self._flash_parser.add_argument(
-            "--arg_flasher", help="Argument passed to the custom binary")
         self._flash_parser.add_argument(
             "--repackage",
             default="tar.md5",
@@ -626,26 +639,24 @@ class Console(cmd.Cmd):
         """Flash GSI or build images to a device connected with ADB."""
         args = self._flash_parser.ParseLine(line)
 
-        if args.flasher_path:
-            flasher_path = args.flasher_path
-        elif (self.tools_info is not None and
-              args.flasher_path in self.tools_info):
+        # path
+        if (self.tools_info is not None and
+                args.flasher_path in self.tools_info):
             flasher_path = self.tools_info[args.flasher_path]
+        elif args.flasher_path:
+            flasher_path = args.flasher_path
         else:
             flasher_path = ""
 
-        flashers = []
+        # serial numbers
         if args.serial:
-            flasher = build_flasher.BuildFlasher(args.serial, flasher_path)
-            flashers.append(flasher)
+            flasher_serials = [args.serial]
         elif self._serials:
-            for serial in self._serials:
-                flasher = build_flasher.BuildFlasher(serial, flasher_path)
-                flashers.append(flasher)
+            flasher_serials = self._serials
         else:
-            flasher = build_flasher.BuildFlasher("", flasher_path)
-            flashers.append(flasher)
+            flasher_serials = [""]
 
+        # images
         if args.current:
             partition_image = dict((partition, self.device_image_info[image])
                                    for partition, image in args.current)
@@ -655,40 +666,50 @@ class Console(cmd.Cmd):
                                    for image in _DEFAULT_FLASH_IMAGES
                                    if image in self.device_image_info)
 
-        if flashers:
-            # Can be parallelized as long as that's proven reliable.
-            for flasher in flashers:
+        # type
+        if args.flasher_type in ("fastboot", "custom"):
+            flasher_class = build_flasher.BuildFlasher
+        else:
+            class_path = args.flasher_type.rsplit(".", 1)
+            flasher_module = importlib.import_module(class_path[0])
+            flasher_class = getattr(flasher_module, class_path[1])
+            if not issubclass(flasher_class, build_flasher.BuildFlasher):
+                raise TypeError("%s is not a subclass of BuildFlasher." %
+                                class_path[1])
+
+        flashers = [flasher_class(s, flasher_path) for s in flasher_serials]
+
+        # Can be parallelized as long as that's proven reliable.
+        for flasher in flashers:
+            if args.flasher_type == "fastboot":
                 if args.current is not None:
                     flasher.Flash(partition_image)
                 else:
-                    if args.flasher_type is None or args.flasher_type == "fastboot":
-                        if args.gsi is None and args.build_dir is None:
-                            self._flash_parser.error(
-                                "Nothing requested: specify --gsi or --build_dir"
-                            )
-                        if args.build_dir is not None:
-                            flasher.Flashall(args.build_dir)
-                        if args.gsi is not None:
-                            flasher.FlashGSI(args.gsi, args.vbmeta)
-                    elif args.flasher_type == "custom":
-                        if flasher_path is not None:
-                            if args.repackage is not None:
-                                flasher.RepackageArtifacts(
-                                    self.device_image_info, args.repackage)
-                            flasher.FlashUsingCustomBinary(
-                                self.device_image_info, args.reboot_mode,
-                                args.arg_flasher, 300)
-                        else:
-                            self._flash_parser.error(
-                                "Please specify the path to custom flash tool."
-                            )
-                    else:
+                    if args.gsi is None and args.build_dir is None:
                         self._flash_parser.error(
-                            "Wrong flasher type requested: --flasher_type=%s" %
-                            args.flasher_type)
+                            "Nothing requested: "
+                            "specify --gsi or --build_dir")
+                    if args.build_dir is not None:
+                        flasher.Flashall(args.build_dir)
+                    if args.gsi is not None:
+                        flasher.FlashGSI(args.gsi, args.vbmeta)
+            elif args.flasher_type == "custom":
+                if flasher_path is not None:
+                    if args.repackage is not None:
+                        flasher.RepackageArtifacts(
+                            self.device_image_info, args.repackage)
+                    flasher.FlashUsingCustomBinary(
+                        self.device_image_info, args.reboot_mode,
+                        args.flasher_args, 300)
+                else:
+                    self._flash_parser.error(
+                        "Please specify the path to custom flash tool.")
+            else:
+                flasher.Flash(
+                    partition_image, self.tools_info, *args.flasher_args)
 
-            for flasher in flashers:
-                flasher.WaitForDevice()
+        for flasher in flashers:
+            flasher.WaitForDevice()
 
     def help_flash(self):
         """Prints help message for flash command."""
@@ -922,7 +943,7 @@ class Console(cmd.Cmd):
                     for root, dirs, files in os.walk(base_path):
                         for config_file in files:
                             full_path = os.path.join(root, config_file)
-                            if file.endswith(".schedule_config"):
+                            if config_file.endswith(".schedule_config"):
                                 with open(full_path, "r") as fd:
                                   context = fd.read()
                                   sched_cfg_msg = SchedCfgMsg.ScheduleConfigMessage()
