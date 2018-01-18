@@ -1121,7 +1121,13 @@ class Console(cmd.Cmd):
                 if len(line.strip()):
                     device = {}
                     device["serial"] = line.split()[0]
-                    device["product"] = "unknown"
+                    _, stderr, retcode = cmd_utils.ExecuteOneShellCommand(
+                        "fastboot -s %s getvar product" % device["serial"])
+                    if retcode == 0:
+                        res = stderr.splitlines()[0].rstrip()
+                        device["product"] = res.split(":")[1].strip()
+                    else:
+                        device["product"] = "error"
                     device["status"] = DEVICE_STATUS_DICT["fastboot"]
                     devices.append(device)
 
