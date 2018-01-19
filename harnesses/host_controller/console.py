@@ -37,7 +37,6 @@ from google.protobuf import text_format
 from vti.test_serving.proto import TestLabConfigMessage_pb2 as LabCfgMsg
 from vti.test_serving.proto import TestScheduleConfigMessage_pb2 as SchedCfgMsg
 
-from host_controller.acloud import acloud_client
 from host_controller.console_argument_parser import ConsoleArgumentError
 from host_controller.console_argument_parser import ConsoleArgumentParser
 from host_controller.command_processor import command_info
@@ -179,52 +178,6 @@ class Console(cmd.Cmd):
         for command_processor in self.command_processors.itervalues():
             command_processor._TearDown()
         self.command_processors.clear()
-
-    def _InitAcloudParser(self):
-        """Initializes the parser for acloud command."""
-        self._acloud_parser = ConsoleArgumentParser("acloud",
-                                                   "Start acloud instances.")
-        self._acloud_parser.add_argument(
-            "--build_id",
-            help="Build ID to use.")
-        self._acloud_parser.add_argument(
-            "--provider",
-            default="ab",
-            choices=("local_fs", "gcs", "pab", "ab"),
-            help="Build provider type")
-        self._acloud_parser.add_argument(
-            "--branch",  # not required for local_fs
-            help="Branch to grab the artifact from.")
-        self._acloud_parser.add_argument(
-            "--target",  # not required for local_fs
-            help="Target product to grab the artifact from.")
-        self._acloud_parser.add_argument(
-            "--config_path",
-            required=True,
-            help="Acloud config path.")
-
-    def do_acloud(self, line):
-        """Creates an acloud instance and connects to it via adb."""
-        args = self._acloud_parser.ParseLine(line)
-
-        if args.provider == "ab":
-            if args.build_id.lower() == "latest":
-                build_id = self._build_provider["ab"].GetLatestBuildId(
-                    args.branch,
-                    args.target)
-        else:
-            # TODO(yuexima): support more provider types.
-            logging.error("Provider %s not supported yet." % args.provider)
-            return
-
-        ac = acloud_client.ACloudClient()
-        ac.PrepareConfig(args.config_path)
-        ac.CreateInstance(args.build_id)
-        ac.ConnectInstanceToAdb(ah.GetInstanceIP())
-
-    def help_acloud(self):
-        """Prints help message for acloud command."""
-        self._acloud_parser.print_help(self._out_file)
 
     def _InitRequestParser(self):
         """Initializes the parser for request command."""
