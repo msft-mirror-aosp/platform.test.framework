@@ -143,6 +143,7 @@ class Console(cmd.Cmd):
         self._in_file = in_file
         self._out_file = out_file
         self.prompt = "> "
+        self.command_processors = {}
         self.device_image_info = {}
         self.test_suite_info = {}
         self.tools_info = {}
@@ -152,7 +153,7 @@ class Console(cmd.Cmd):
         self.fetch_info = {}
 
         self.InitCommandModuleParsers()
-        self.SetupCommandProcessors()
+        self.SetUpCommandProcessors()
 
     def InitCommandModuleParsers(self):
         """Init all console command modules"""
@@ -161,6 +162,23 @@ class Console(cmd.Cmd):
                 attr_func = getattr(self, name)
                 if hasattr(attr_func, '__call__'):
                     attr_func()
+
+    def SetUpCommandProcessors(self):
+        """Sets up all command processors."""
+        for command_processor in COMMAND_PROCESSORS:
+            cp = command_processor()
+            cp._SetUp(self)
+            do_text = "do_%s" % cp.command
+            help_text = "help_%s" % cp.command
+            setattr(self, do_text, cp._Run)
+            setattr(self, help_text, cp._Help)
+            self.command_processors[cp.command] = cp
+
+    def TearDown(self):
+        """Removes all command processors."""
+        for command_processor in self.command_processors.itervalues():
+            command_processor._TearDown()
+        self.command_processors.clear()
 
     def _InitAcloudParser(self):
         """Initializes the parser for acloud command."""
@@ -207,18 +225,6 @@ class Console(cmd.Cmd):
     def help_acloud(self):
         """Prints help message for acloud command."""
         self._acloud_parser.print_help(self._out_file)
-
-    def SetupCommandProcessors(self):
-        """Setup all command processors"""
-        self.command_processors = {}
-        for command_processor in COMMAND_PROCESSORS:
-            cp = command_processor()
-            cp._SetUp(self)
-            do_text = "do_%s" % cp.command
-            help_text = "help_%s" % cp.command
-            setattr(self, do_text, cp._Run)
-            setattr(self, help_text, cp._Help)
-            self.command_processors[cp.command] = cp
 
     def _InitRequestParser(self):
         """Initializes the parser for request command."""
