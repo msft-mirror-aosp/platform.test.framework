@@ -53,7 +53,7 @@ class BaseCommandProcessor(object):
         Args:
             arg_line: string, line of command arguments
         '''
-        self.Run(line)
+        self.Run(arg_line)
 
     def Run(self, arg_line):
         '''Run method to perform action when invoked from console.
