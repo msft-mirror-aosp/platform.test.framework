@@ -29,7 +29,7 @@ import threading
 import time
 
 import httplib2
-from apiclient import errors
+from googleapiclient import errors
 import urlparse
 
 from google.protobuf import text_format
