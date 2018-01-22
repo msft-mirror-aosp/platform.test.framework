@@ -1098,7 +1098,8 @@ class Console(cmd.Cmd):
                     socket.gethostname())
                 if filepath:
                     self.ProcessConfigurableScript(
-                        os.path.join("host_controller", "campaigns", filepath),
+                        os.path.join(os.getcwd(), "host_controller", "campaigns",
+                                     filepath),
                         **kwargs)
         elif server_type == "tfc":
             devices = host.ListDevices()
