@@ -709,6 +709,11 @@ class Console(cmd.Cmd):
             "--account_id",
             default=_DEFAULT_ACCOUNT_ID,
             help="Partner Android Build account_id to use.")
+        self._build_parser.add_argument(
+            "--noauth_local_webserver",
+            default=False,
+            type=bool,
+            help="True to not use a local webserver for authentication.")
 
     def UpdateBuild(self, account_id, branch, targets, artifact_type):
         """Updates the build state.
