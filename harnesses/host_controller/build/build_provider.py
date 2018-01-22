@@ -154,7 +154,8 @@ class BuildProvider(object):
             path: string, the path of a config file.
         """
         if path.endswith(self._CONFIG_FILE_EXTENSION):
-            dest_path = os.path.join(self.tmp_dirpath, os.path.basename(path))
+            dest_path = os.path.join(
+                self.tmp_dirpath, os.path.basename(path) + ".dir")
             with zipfile.ZipFile(path, 'r') as zip_ref:
                 zip_ref.extractall(dest_path)
                 path = dest_path
