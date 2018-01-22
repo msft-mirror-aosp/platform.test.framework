@@ -427,6 +427,11 @@ class Console(cmd.Cmd):
             "--userinfo-file",
             help=
             "Location of file containing email and password, if using POST.")
+        self._fetch_parser.add_argument(
+            "--noauth_local_webserver",
+            default=False,
+            type=bool,
+            help="True to not use a local webserver for authentication.")
 
     def do_fetch(self, line):
         """Makes the host download a build artifact from PAB."""
@@ -439,7 +444,8 @@ class Console(cmd.Cmd):
         provider = self._build_provider[args.type]
         if args.type == "pab":
             # do we want this somewhere else? No harm in doing multiple times
-            provider.Authenticate(args.userinfo_file)
+            provider.Authenticate(args.userinfo_file,
+                                  args.noauth_local_webserver)
             (device_images, test_suites,
              fetch_environment, _) = provider.GetArtifact(
                 account_id=args.account_id,
@@ -715,18 +721,21 @@ class Console(cmd.Cmd):
             type=bool,
             help="True to not use a local webserver for authentication.")
 
-    def UpdateBuild(self, account_id, branch, targets, artifact_type):
+    def UpdateBuild(self, account_id, branch, targets, artifact_type,
+                    noauth_local_webserver):
         """Updates the build state.
 
         Args:
             account_id: string, Partner Android Build account_id to use.
             branch: string, branch to grab the artifact from.
             targets: string, a comma-separate list of build target product(s).
-            artifact_type: string, artifcat type (`device`, 'gsi' or `test').
+            artifact_type: string, artifact type (`device`, 'gsi' or `test').
+            noauth_local_webserver: boolean, True to not use a local websever.
         """
         builds = []
 
-        self._build_provider["pab"].Authenticate()
+        self._build_provider["pab"].Authenticate(
+            noauth_local_webserver=noauth_local_webserver)
         for target in targets.split(","):
             listed_builds = self._build_provider[
                 "pab"].GetBuildList(
@@ -753,7 +762,7 @@ class Console(cmd.Cmd):
         self._vti_endpoint_client.UploadBuildInfo(builds)
 
     def UpdateBuildLoop(self, account_id, branch, target, artifact_type,
-                        update_interval):
+                        noauth_local_webserver, update_interval):
         """Regularly updates the build information.
 
         Args:
@@ -761,12 +770,14 @@ class Console(cmd.Cmd):
             branch: string, branch to grab the artifact from.
             targets: string, a comma-separate list of build target product(s).
             artifact_type: string, artifcat type (`device`, 'gsi' or `test).
+            noauth_local_webserver: boolean, True to not use a local websever.
             update_interval: int, number of seconds before repeating
         """
         thread = threading.currentThread()
         while getattr(thread, 'keep_running', True):
             try:
-                self.UpdateBuild(account_id, branch, target, artifact_type)
+                self.UpdateBuild(account_id, branch, target,
+                                 artifact_type, noauth_local_webserver)
             except (socket.error, remote_operation.RemoteOperationException,
                     httplib2.HttpLib2Error, errors.HttpError) as e:
                 logging.exception(e)
@@ -780,7 +791,8 @@ class Console(cmd.Cmd):
                 args.account_id,
                 args.branch,
                 args.target,
-                args.artifact_type)
+                args.artifact_type,
+                args.noauth_local_webserver)
         elif args.update == "list":
             print("Running build update sessions:")
             for id in self.build_thread:
@@ -812,6 +824,7 @@ class Console(cmd.Cmd):
                     args.branch,
                     args.target,
                     args.artifact_type,
+                    args.noauth_local_webserver,
                     args.interval, ))
             self.build_thread[args.id].daemon = True
             self.build_thread[args.id].start()
