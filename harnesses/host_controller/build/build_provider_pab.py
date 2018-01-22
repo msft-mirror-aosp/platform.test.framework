@@ -450,8 +450,7 @@ class BuildProviderPAB(build_provider.BuildProvider):
                     target,
                     artifact_name,
                     build_id='latest',
-                    method=GET,
-                    unzip=True):
+                    method=GET):
         """Get an artifact for an account, branch, target and name and build id.
 
         If build_id not given, get latest.
@@ -463,8 +462,7 @@ class BuildProviderPAB(build_provider.BuildProvider):
             artifact_name: name of artifact, e.g. aosp_arm64_ab-img-4353141.zip
                 ({id} will automatically get replaced with build ID)
             build_id: string, build ID of an artifact to fetch (or 'latest').
-            method: 'GET' or 'POST', which endpoint to query
-            unzip: boolean, True to unzip the artifact if that's a zip file.
+            method: 'GET' or 'POST', which endpoint to query.
 
         Returns:
             a dict containing the device image info.
@@ -518,8 +516,7 @@ class BuildProviderPAB(build_provider.BuildProvider):
             artifact_path = artifact_name
         self.DownloadArtifact(url, artifact_path)
 
-        if unzip and artifact_path.endswith(".zip"):
-            self.SetFetchedFile(artifact_path)
+        self.SetFetchedFile(artifact_path)
 
         return (self.GetDeviceImage(), self.GetTestSuitePackage(),
                 artifact_info, self.GetConfigPackage())
