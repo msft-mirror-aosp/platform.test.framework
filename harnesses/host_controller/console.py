@@ -160,6 +160,11 @@ class Console(cmd.Cmd):
         self.update_thread = None
         self.fetch_info = {}
 
+        if _ANDROID_SERIAL in os.environ:
+            self._serials = [os.environ[_ANDROID_SERIAL]]
+        else:
+            self._serials = []
+
         self.InitCommandModuleParsers()
         self.SetUpCommandProcessors()
 
@@ -230,14 +235,6 @@ class Console(cmd.Cmd):
             return False
 
         script_module = imp.load_source('script_module', script_file_path)
-
-        if _ANDROID_SERIAL in os.environ:
-            serial = os.environ[_ANDROID_SERIAL]
-        else:
-            serial = None
-
-        if serial:
-            self.onecmd("device --set_serial=%s" % serial)
 
         commands = script_module.EmitConsoleCommands()
         if commands:
@@ -1108,7 +1105,14 @@ class Console(cmd.Cmd):
             default=False,
             type=bool,
             help="Whether to lease jobs and execute them.")
-        self._serials = []
+
+    def SetSerials(self, serials):
+        """Sets the default serial numbers for flashing and testing.
+
+        Args:
+            serials: A list of strings, the serial numbers.
+        """
+        self._serials = serials
 
     def GetSerials(self):
         """Returns the serial numbers saved in the console.
@@ -1210,7 +1214,7 @@ class Console(cmd.Cmd):
         """Sets device info such as serial number."""
         args = self._device_parser.ParseLine(line)
         if args.set_serial:
-            self._serials = args.set_serial.split(",")
+            self.SetSerials(args.set_serial.split(","))
             print("serials: %s" % self._serials)
         if args.update:
             if args.host is None:
