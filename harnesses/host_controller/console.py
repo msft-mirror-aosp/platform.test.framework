@@ -424,7 +424,7 @@ class Console(cmd.Cmd):
             help=
             "Name of the artifact to be fetched. {id} replaced with build id.")
         self._fetch_parser.add_argument(
-            "--userinfo_file",
+            "--userinfo-file",
             help=
             "Location of file containing email and password, if using POST.")
 
