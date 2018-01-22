@@ -158,10 +158,8 @@ class BuildProviderPAB(build_provider.BuildProvider):
 
         chrome_options = Options()
         chrome_options.add_argument("--headless")
-        chrome_options.binary_location = self.CHROME_LOCATION
 
         driver = webdriver.Chrome(
-            executable_path=os.path.abspath(self.CHROME_DRIVER_LOCATION),
             chrome_options=chrome_options)
 
         driver.set_window_size(1080, 800)
