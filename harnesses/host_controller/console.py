@@ -1388,22 +1388,28 @@ class Console(cmd.Cmd):
         self._upload_parser.print_help(self._out_file)
 
     # @Override
-    def onecmd(self, line):
+    def onecmd(self, line, depth=1):
         """Executes command(s) and prints any exception.
+
+        Parallel execution only for 2nd-level list element.
 
         Args:
             line: a list of string or string which keeps the command to run.
         """
         if type(line) == list:
-            jobs = []
-            for sub_command in line:
-                p = multiprocessing.Process(
-                    target=self.onecmd, args=(sub_command,))
-                jobs.append(p)
-                p.start()
-            for job in jobs:
-                job.join()
-            return
+            if depth == 1:  # 1 to use multi-threading
+                jobs = []
+                for sub_command in line:
+                    p = multiprocessing.Process(
+                        target=self.onecmd, args=(sub_command, depth + 1,))
+                    jobs.append(p)
+                    p.start()
+                for job in jobs:
+                    job.join()
+                return
+            else:
+                for sub_command in line:
+                    self.onecmd(sub_command, depth + 1)
 
         if line:
             print("Command: %s" % line)
