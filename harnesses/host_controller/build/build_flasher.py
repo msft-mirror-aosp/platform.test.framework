@@ -47,7 +47,8 @@ class BuildFlasher(object):
                                 binary to flash a device
         """
         if serial != "":
-            self.device = android_device.AndroidDevice(serial)
+          self.device = android_device.AndroidDevice(
+                serial, device_callback_port=-1)
         else:
             serials = android_device.list_adb_devices()
             if len(serials) == 0:
@@ -76,7 +77,8 @@ class BuildFlasher(object):
             print("no serial is given to BuildFlasher.SetSerial.")
             return False
 
-        self.device = android_device.AndroidDevice(serial)
+        self.device = android_device.AndroidDevice(
+            serial, device_callback_port=-1)
         return True
 
     def FlashGSI(self, system_img, vbmeta_img=None, skip_check=False):
