@@ -26,7 +26,9 @@ import socket
 import subprocess
 import sys
 import threading
+import tempfile
 import time
+import zipfile
 
 import httplib2
 from googleapiclient import errors
@@ -58,8 +60,10 @@ _DEFAULT_ACCOUNT_ID = '543365459'
 # The default value for "flash --current".
 _DEFAULT_FLASH_IMAGES = [
     build_provider.FULL_ZIPFILE,
+    "bootloader.img",
     "boot.img",
     "cache.img",
+    "radio.img",
     "system.img",
     "userdata.img",
     "vbmeta.img",
@@ -1237,6 +1241,16 @@ class Console(cmd.Cmd):
                 img_path = args.version_from_path
             elif args.version_from_path in self.device_image_info:
                 img_path = self.device_image_info[args.version_from_path]
+            elif (args.version_from_path == "boot.img" and
+                  "full-zipfile" in self.device_image_info):
+                tempdir_base = os.path.join(os.getcwd(), "tmp")
+                if not os.path.exists(tempdir_base):
+                    os.mkdir(tempdir_base)
+                dest_path = tempfile.mkdtemp(dir=tempdir_base)
+
+                with zipfile.ZipFile(self.device_image_info["full-zipfile"], 'r') as zip_ref:
+                    zip_ref.extractall(dest_path)
+                    img_path = os.path.join(dest_path, "boot.img")
             else:
                 print("Cannot find %s file." % args.version_from_path)
                 return
