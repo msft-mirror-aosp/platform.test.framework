@@ -720,13 +720,22 @@ class Console(cmd.Cmd):
             default=_DEFAULT_ACCOUNT_ID,
             help="Partner Android Build account_id to use.")
         self._build_parser.add_argument(
+            "--method",
+            default="GET",
+            choices=("GET", "POST"),
+            help="Method for getting build information")
+        self._build_parser.add_argument(
+            "--userinfo-file",
+            help=
+            "Location of file containing email and password, if using POST.")
+        self._build_parser.add_argument(
             "--noauth_local_webserver",
             default=False,
             type=bool,
             help="True to not use a local webserver for authentication.")
 
-    def UpdateBuild(self, account_id, branch, targets, artifact_type,
-                    noauth_local_webserver):
+    def UpdateBuild(self, account_id, branch, targets, artifact_type, method,
+                    userinfo_file, noauth_local_webserver):
         """Updates the build state.
 
         Args:
@@ -734,11 +743,15 @@ class Console(cmd.Cmd):
             branch: string, branch to grab the artifact from.
             targets: string, a comma-separate list of build target product(s).
             artifact_type: string, artifact type (`device`, 'gsi' or `test').
+            method: string,  method for getting build information.
+            userinfo_file: string, the path of a file containing email and
+                           password (if method == POST).
             noauth_local_webserver: boolean, True to not use a local websever.
         """
         builds = []
 
         self._build_provider["pab"].Authenticate(
+            userinfo_file=userinfo_file,
             noauth_local_webserver=noauth_local_webserver)
         for target in targets.split(","):
             listed_builds = self._build_provider[
@@ -748,15 +761,32 @@ class Console(cmd.Cmd):
                     target=target,
                     page_token="",
                     max_results=100,
-                    method="GET")
+                    method=method)
 
             for listed_build in listed_builds:
-                if listed_build["successful"]:
+                if method == "GET":
+                    if "successful" in listed_build:
+                        if listed_build["successful"]:
+                            build = {}
+                            build["manifest_branch"] = branch
+                            build["build_id"] = listed_build["build_id"]
+                            if "-" in target:
+                                build["build_target"], build["build_type"] = target.split("-")
+                            else:
+                                build["build_target"] = target
+                                build["build_type"] = ""
+                            build["artifact_type"] = artifact_type
+                            build["artifacts"] = []
+                            builds.append(build)
+                    else:
+                        print("Error: listed_build %s" % listed_build)
+                else:  # POST
                     build = {}
                     build["manifest_branch"] = branch
-                    build["build_id"] = listed_build["build_id"]
+                    build["build_id"] = listed_build[u"1"]
                     if "-" in target:
-                        build["build_target"], build["build_type"] = target.split("-")
+                        (build["build_target"],
+                         build["build_type"]) = target.split("-")
                     else:
                         build["build_target"] = target
                         build["build_type"] = ""
@@ -765,8 +795,8 @@ class Console(cmd.Cmd):
                     builds.append(build)
         self._vti_endpoint_client.UploadBuildInfo(builds)
 
-    def UpdateBuildLoop(self, account_id, branch, target, artifact_type,
-                        noauth_local_webserver, update_interval):
+    def UpdateBuildLoop(self, account_id, branch, target, artifact_type, method,
+                        userinfo_file, noauth_local_webserver, update_interval):
         """Regularly updates the build information.
 
         Args:
@@ -774,6 +804,9 @@ class Console(cmd.Cmd):
             branch: string, branch to grab the artifact from.
             targets: string, a comma-separate list of build target product(s).
             artifact_type: string, artifcat type (`device`, 'gsi' or `test).
+            method: string,  method for getting build information.
+            userinfo_file: string, the path of a file containing email and
+                           password (if method == POST).
             noauth_local_webserver: boolean, True to not use a local websever.
             update_interval: int, number of seconds before repeating
         """
@@ -781,7 +814,8 @@ class Console(cmd.Cmd):
         while getattr(thread, 'keep_running', True):
             try:
                 self.UpdateBuild(account_id, branch, target,
-                                 artifact_type, noauth_local_webserver)
+                                 artifact_type, method, userinfo_file,
+                                 noauth_local_webserver)
             except (socket.error, remote_operation.RemoteOperationException,
                     httplib2.HttpLib2Error, errors.HttpError) as e:
                 logging.exception(e)
@@ -796,6 +830,8 @@ class Console(cmd.Cmd):
                 args.branch,
                 args.target,
                 args.artifact_type,
+                args.method,
+                args.userinfo_file,
                 args.noauth_local_webserver)
         elif args.update == "list":
             print("Running build update sessions:")
@@ -828,6 +864,8 @@ class Console(cmd.Cmd):
                     args.branch,
                     args.target,
                     args.artifact_type,
+                    args.method,
+                    args.userinfo_file,
                     args.noauth_local_webserver,
                     args.interval, ))
             self.build_thread[args.id].daemon = True
