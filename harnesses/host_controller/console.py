@@ -26,10 +26,12 @@ import socket
 import subprocess
 import sys
 import threading
+import tempfile
 import time
+import zipfile
 
 import httplib2
-from apiclient import errors
+from googleapiclient import errors
 import urlparse
 
 from google.protobuf import text_format
@@ -58,8 +60,10 @@ _DEFAULT_ACCOUNT_ID = '543365459'
 # The default value for "flash --current".
 _DEFAULT_FLASH_IMAGES = [
     build_provider.FULL_ZIPFILE,
+    "bootloader.img",
     "boot.img",
     "cache.img",
+    "radio.img",
     "system.img",
     "userdata.img",
     "vbmeta.img",
@@ -424,9 +428,14 @@ class Console(cmd.Cmd):
             help=
             "Name of the artifact to be fetched. {id} replaced with build id.")
         self._fetch_parser.add_argument(
-            "--userinfo_file",
+            "--userinfo-file",
             help=
             "Location of file containing email and password, if using POST.")
+        self._fetch_parser.add_argument(
+            "--noauth_local_webserver",
+            default=False,
+            type=bool,
+            help="True to not use a local webserver for authentication.")
 
     def do_fetch(self, line):
         """Makes the host download a build artifact from PAB."""
@@ -439,7 +448,8 @@ class Console(cmd.Cmd):
         provider = self._build_provider[args.type]
         if args.type == "pab":
             # do we want this somewhere else? No harm in doing multiple times
-            provider.Authenticate(args.userinfo_file)
+            provider.Authenticate(args.userinfo_file,
+                                  args.noauth_local_webserver)
             (device_images, test_suites,
              fetch_environment, _) = provider.GetArtifact(
                 account_id=args.account_id,
@@ -709,19 +719,27 @@ class Console(cmd.Cmd):
             "--account_id",
             default=_DEFAULT_ACCOUNT_ID,
             help="Partner Android Build account_id to use.")
+        self._build_parser.add_argument(
+            "--noauth_local_webserver",
+            default=False,
+            type=bool,
+            help="True to not use a local webserver for authentication.")
 
-    def UpdateBuild(self, account_id, branch, targets, artifact_type):
+    def UpdateBuild(self, account_id, branch, targets, artifact_type,
+                    noauth_local_webserver):
         """Updates the build state.
 
         Args:
             account_id: string, Partner Android Build account_id to use.
             branch: string, branch to grab the artifact from.
             targets: string, a comma-separate list of build target product(s).
-            artifact_type: string, artifcat type (`device`, 'gsi' or `test').
+            artifact_type: string, artifact type (`device`, 'gsi' or `test').
+            noauth_local_webserver: boolean, True to not use a local websever.
         """
         builds = []
 
-        self._build_provider["pab"].Authenticate()
+        self._build_provider["pab"].Authenticate(
+            noauth_local_webserver=noauth_local_webserver)
         for target in targets.split(","):
             listed_builds = self._build_provider[
                 "pab"].GetBuildList(
@@ -748,7 +766,7 @@ class Console(cmd.Cmd):
         self._vti_endpoint_client.UploadBuildInfo(builds)
 
     def UpdateBuildLoop(self, account_id, branch, target, artifact_type,
-                        update_interval):
+                        noauth_local_webserver, update_interval):
         """Regularly updates the build information.
 
         Args:
@@ -756,12 +774,14 @@ class Console(cmd.Cmd):
             branch: string, branch to grab the artifact from.
             targets: string, a comma-separate list of build target product(s).
             artifact_type: string, artifcat type (`device`, 'gsi' or `test).
+            noauth_local_webserver: boolean, True to not use a local websever.
             update_interval: int, number of seconds before repeating
         """
         thread = threading.currentThread()
         while getattr(thread, 'keep_running', True):
             try:
-                self.UpdateBuild(account_id, branch, target, artifact_type)
+                self.UpdateBuild(account_id, branch, target,
+                                 artifact_type, noauth_local_webserver)
             except (socket.error, remote_operation.RemoteOperationException,
                     httplib2.HttpLib2Error, errors.HttpError) as e:
                 logging.exception(e)
@@ -775,7 +795,8 @@ class Console(cmd.Cmd):
                 args.account_id,
                 args.branch,
                 args.target,
-                args.artifact_type)
+                args.artifact_type,
+                args.noauth_local_webserver)
         elif args.update == "list":
             print("Running build update sessions:")
             for id in self.build_thread:
@@ -807,6 +828,7 @@ class Console(cmd.Cmd):
                     args.branch,
                     args.target,
                     args.artifact_type,
+                    args.noauth_local_webserver,
                     args.interval, ))
             self.build_thread[args.id].daemon = True
             self.build_thread[args.id].start()
@@ -1098,7 +1120,8 @@ class Console(cmd.Cmd):
                     socket.gethostname())
                 if filepath:
                     self.ProcessConfigurableScript(
-                        os.path.join("host_controller", "campaigns", filepath),
+                        os.path.join(os.getcwd(), "host_controller", "campaigns",
+                                     filepath),
                         **kwargs)
         elif server_type == "tfc":
             devices = host.ListDevices()
@@ -1218,6 +1241,16 @@ class Console(cmd.Cmd):
                 img_path = args.version_from_path
             elif args.version_from_path in self.device_image_info:
                 img_path = self.device_image_info[args.version_from_path]
+            elif (args.version_from_path == "boot.img" and
+                  "full-zipfile" in self.device_image_info):
+                tempdir_base = os.path.join(os.getcwd(), "tmp")
+                if not os.path.exists(tempdir_base):
+                    os.mkdir(tempdir_base)
+                dest_path = tempfile.mkdtemp(dir=tempdir_base)
+
+                with zipfile.ZipFile(self.device_image_info["full-zipfile"], 'r') as zip_ref:
+                    zip_ref.extractall(dest_path)
+                    img_path = os.path.join(dest_path, "boot.img")
             else:
                 print("Cannot find %s file." % args.version_from_path)
                 return
@@ -1387,22 +1420,28 @@ class Console(cmd.Cmd):
         self._upload_parser.print_help(self._out_file)
 
     # @Override
-    def onecmd(self, line):
+    def onecmd(self, line, depth=1):
         """Executes command(s) and prints any exception.
+
+        Parallel execution only for 2nd-level list element.
 
         Args:
             line: a list of string or string which keeps the command to run.
         """
         if type(line) == list:
-            jobs = []
-            for sub_command in line:
-                p = multiprocessing.Process(
-                    target=self.onecmd, args=(sub_command,))
-                jobs.append(p)
-                p.start()
-            for job in jobs:
-                job.join()
-            return
+            if depth == 1:  # 1 to use multi-threading
+                jobs = []
+                for sub_command in line:
+                    p = multiprocessing.Process(
+                        target=self.onecmd, args=(sub_command, depth + 1,))
+                    jobs.append(p)
+                    p.start()
+                for job in jobs:
+                    job.join()
+                return
+            else:
+                for sub_command in line:
+                    self.onecmd(sub_command, depth + 1)
 
         if line:
             print("Command: %s" % line)

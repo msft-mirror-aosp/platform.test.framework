@@ -47,7 +47,8 @@ class BuildFlasher(object):
                                 binary to flash a device
         """
         if serial != "":
-            self.device = android_device.AndroidDevice(serial)
+          self.device = android_device.AndroidDevice(
+                serial, device_callback_port=-1)
         else:
             serials = android_device.list_adb_devices()
             if len(serials) == 0:
@@ -76,7 +77,8 @@ class BuildFlasher(object):
             print("no serial is given to BuildFlasher.SetSerial.")
             return False
 
-        self.device = android_device.AndroidDevice(serial)
+        self.device = android_device.AndroidDevice(
+            serial, device_callback_port=-1)
         return True
 
     def FlashGSI(self, system_img, vbmeta_img=None, skip_check=False):
@@ -136,6 +138,17 @@ class BuildFlasher(object):
             print("rebooting to bootloader")
             self.device.log.info(self.device.adb.reboot_bootloader())
 
+        print("checking to flash bootloader.img and radio.img")
+        for partition in ["bootloader", "radio"]:
+            if partition in device_images:
+                image_path = device_images[partition]
+                self.device.log.info("fastboot flash %s %s",
+                                     partition, image_path)
+                self.device.log.info(
+                    self.device.fastboot.flash(partition, image_path))
+                self.device.log.info("fastboot reboot_bootloader")
+                self.device.log.info(self.device.fastboot.reboot_bootloader())
+
         print("starting to flash vendor and other images...")
         if build_provider.FULL_ZIPFILE in device_images:
             print("fastboot update %s --skip-reboot" %
@@ -146,7 +159,8 @@ class BuildFlasher(object):
                     "--skip-reboot"))
 
         for partition, image_path in device_images.iteritems():
-            if partition in (build_provider.FULL_ZIPFILE, "system", "vbmeta"):
+            if partition in (build_provider.FULL_ZIPFILE, "system", "vbmeta",
+                             "bootloader", "radio"):
                 continue
             if not image_path:
                 self.device.log.warning("%s image is empty", partition)
