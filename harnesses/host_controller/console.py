@@ -1157,10 +1157,14 @@ class Console(cmd.Cmd):
                 filepath, kwargs = self._vti_endpoint_client.LeaseJob(
                     socket.gethostname())
                 if filepath:
-                    self.ProcessConfigurableScript(
+                    ret = self.ProcessConfigurableScript(
                         os.path.join(os.getcwd(), "host_controller", "campaigns",
                                      filepath),
                         **kwargs)
+                    if ret:
+                        self._vti_endpoint_client.StopHeartbeat("COMPLETE")
+                    else:
+                        self._vti_endpoint_client.StopHeartbeat("INFRA_ERROR")
         elif server_type == "tfc":
             devices = host.ListDevices()
             for device in devices:
