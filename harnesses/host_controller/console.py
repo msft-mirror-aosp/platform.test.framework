@@ -42,6 +42,7 @@ from vti.test_serving.proto import TestScheduleConfigMessage_pb2 as SchedCfgMsg
 from host_controller.console_argument_parser import ConsoleArgumentError
 from host_controller.console_argument_parser import ConsoleArgumentParser
 from host_controller.command_processor import command_info
+from host_controller.command_processor import command_test
 from host_controller.tfc import request
 from host_controller.build import build_flasher
 from host_controller.build import build_provider
@@ -86,6 +87,7 @@ _SPL_DEFAULT_DAY = 5
 
 COMMAND_PROCESSORS = [
     command_info.CommandInfo,
+    command_test.CommandTest,
 ]
 
 
@@ -97,6 +99,8 @@ class Console(cmd.Cmd):
                             map between command string and command processors.
         device_image_info: dict containing info about device image files.
         prompt: The prompt string at the beginning of each command line.
+        test_results: dict where the key is the name of the test suite and the
+                      value is the path to the result.
         test_suite_info: dict containing info about test suite package files.
         tools_info: dict containing info about custom tool files.
         build_thread: dict containing threading.Thread instances(s) that
@@ -148,6 +152,7 @@ class Console(cmd.Cmd):
         self.prompt = "> "
         self.command_processors = {}
         self.device_image_info = {}
+        self.test_results = {}
         self.test_suite_info = {}
         self.tools_info = {}
         self.build_thread = {}
@@ -1105,6 +1110,14 @@ class Console(cmd.Cmd):
             help="Whether to lease jobs and execute them.")
         self._serials = []
 
+    def GetSerials(self):
+        """Returns the serial numbers saved in the console.
+
+        Returns:
+            A list of strings, the serial numbers.
+        """
+        return self._serials
+
     def UpdateDevice(self, server_type, host, lease):
         """Updates the device state of all devices on a given host.
 
@@ -1329,58 +1342,6 @@ class Console(cmd.Cmd):
         """Prints help message for gsispl command."""
         self._gsisplParser.print_help(self._out_file)
 
-    def _InitTestParser(self):
-        """Initializes the parser for test command."""
-        self._test_parser = ConsoleArgumentParser("test",
-                                                  "Executes a command on TF.")
-        self._test_parser.add_argument(
-            "--serial",
-            default=None,
-            help=("The target device serial to run the command. "
-                  "A comma-separate list."))
-        self._test_parser.add_argument(
-            "--test_exec_mode",
-            default="subprocess",
-            help="The target exec model.")
-        self._test_parser.add_argument(
-            "command",
-            metavar="COMMAND",
-            nargs="+",
-            help='The command to be executed. If the command contains '
-            'arguments starting with "-", place the command after '
-            '"--" at end of line. format: plan -m module -t testcase')
-
-    def do_test(self, line):
-        """Executes a command using a VTS-TF instance."""
-        args = self._test_parser.ParseLine(line)
-        if args.serial:
-            serials = args.serial.split(",")
-        elif self._serials:
-            serials = self._serials
-        else:
-            serials = []
-
-        if args.test_exec_mode == "subprocess":
-            if "vts" not in self.test_suite_info:
-                 print("test_suite_info doesn't have 'vts': %s" %
-                       self.test_suite_info)
-            else:
-                bin_path = self.test_suite_info["vts"]
-                cmd = [bin_path, "run"]
-                cmd.extend(str(c) for c in args.command)
-                if serials:
-                    for serial in serials:
-                        cmd.extend(["-s", str(serial)])
-                print("Command: %s" % cmd)
-                result = subprocess.check_output(cmd)
-                logging.debug("result: %s", result)
-        else:
-            print("unsupported exec mode: %s", args.test_exec_mode)
-
-    def help_test(self):
-        """Prints help message for test command."""
-        self._test_parser.print_help(self._out_file)
-
     def _PrintTasks(self, tasks):
         """Shows a list of command tasks.
 
@@ -1407,6 +1368,14 @@ class Console(cmd.Cmd):
         """Initializes the parser for upload command."""
         self._upload_parser = ConsoleArgumentParser("upload",
             "Upload <src> file to <dest> Google Cloud Storage.")
+        self._upload_parser.add_argument(
+            "--type",
+            choices=("image", "result"),
+            default=None,
+            help="The dictionary where the source file is. The console finds "
+                "and uploads the file whose key matches --src. If this "
+                "argument is not specified, --src is the path to the source "
+                "file.")
         self._upload_parser.add_argument(
             "--src",
             required=True,
@@ -1439,6 +1408,18 @@ class Console(cmd.Cmd):
                 print("Unable to find {} in device_image_info".format(
                     src_name))
                 return
+        elif args.type:
+            if args.type == "image":
+                file_dict = self.device_image_info
+            elif args.type == "result":
+                file_dict = self.test_results
+            else:
+                print("ERROR: unknown type %s" % args.type)
+                return
+            if args.src not in file_dict:
+                print("ERROR: cannot find %s" % args.src)
+                return
+            src_path = file_dict[args.src]
         elif os.path.isfile(args.src):
             src_path = args.src
         else:
