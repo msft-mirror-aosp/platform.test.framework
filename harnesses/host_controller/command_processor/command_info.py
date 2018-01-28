@@ -40,4 +40,5 @@ class CommandInfo(base_command_processor.BaseCommandProcessor):
         '''
         print('device image: %s' % self.console.device_image_info)
         print('test suite: %s' % self.console.test_suite_info)
+        print('test result: %s' % self.console.test_results)
         print('fetch info: %s' % self.console.fetch_info)
