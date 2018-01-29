@@ -108,6 +108,11 @@ def main():
     parser.add_argument("--script",
                         default=None,
                         help="The path to a script file in .py format")
+    parser.add_argument("--serial",
+                        default=None,
+                        help="The default serial numbers for flashing and "
+                             "testing in the console. Multiple serial numbers "
+                             "are separated by comma.")
     parser.add_argument("--loop",
                         default=None,
                         metavar="INTERVAL",
@@ -182,6 +187,8 @@ def main():
     else:
         main_console = console.Console(vti_endpoint, tfc, pab, hosts)
         try:
+            if args.serial:
+                main_console.SetSerials(args.serial.split(","))
             if args.script:
                 if args.loop is None:
                     main_console.ProcessScript(args.script)
