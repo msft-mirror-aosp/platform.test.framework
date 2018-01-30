@@ -1329,7 +1329,7 @@ class Console(cmd.Cmd):
         output_path = os.path.join(
             os.path.dirname(os.path.abspath(gsi_path)),
             "system-{}.img".format(version))
-        _, stderr, err_code = cmd_utils.ExecuteOneShellCommand(
+        stdout, _, err_code = cmd_utils.ExecuteOneShellCommand(
             "{} {} {} {}".format(
                 os.path.join(os.getcwd(), "host_controller", "gsi",
                              "change_security_patch_ver.sh"), gsi_path,
@@ -1339,7 +1339,7 @@ class Console(cmd.Cmd):
                 print("system.img path is updated to : {}".format(output_path))
                 self.device_image_info["system.img"] = output_path
         else:
-            print "gsispl error: {}".format(stderr)
+            print "gsispl error: {}".format(stdout)
             return
 
     def help_gsispl(self):
