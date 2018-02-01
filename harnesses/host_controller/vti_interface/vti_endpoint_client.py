@@ -176,11 +176,14 @@ class VtiEndpointClient(object):
                 succ = False
         return succ
 
-    def LeaseJob(self, hostname):
+    def LeaseJob(self, hostname, execute=True):
         """Leases a job for the given host, 'hostname'.
 
         Args:
             hostname: string, the hostname of a target host.
+            execute: boolean, True to lease and execute StartHeartbeat, which is
+                     the case that the leased job will be executed on this
+                     process's context.
 
         Returns:
             True if successful, False otherwise.
@@ -208,9 +211,28 @@ class VtiEndpointClient(object):
         jobs = response_json["jobs"]
         if jobs and len(jobs) > 0:
             for job in jobs:
-                self._job = job
-                self.StartHeartbeat("LEASED", 60)
+                if execute == True:
+                    self._job = job
+                    self.StartHeartbeat("LEASED", 60)
                 return job["test_name"].split("/")[0], job
+        return None, {}
+
+    def ExecuteJob(self, job):
+        """Executes leased job passed from parent process.
+
+        Args:
+            job: dict, information the on leased job.
+
+        Returns:
+            a string which is path to a script file for onecmd().
+            a dict contains info on the leased job, will be passed to onecmd().
+        """
+        print("Job info : {}".format(json.dumps(job)))
+        if job is not None:
+            self._job = job
+            self.StartHeartbeat("LEASED", 60)
+            return job["test_name"].split("/")[0], job
+
         return None, {}
 
     def UpdateLeasedJobStatus(self, status, update_interval):
@@ -271,3 +293,5 @@ class VtiEndpointClient(object):
                                  headers=self._headers)
         if response.status_code != requests.codes.ok:
             print("UpdateLeasedJobStatus error: %s" % response)
+
+        self._job = None
