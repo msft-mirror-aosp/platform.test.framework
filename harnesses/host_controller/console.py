@@ -15,14 +15,17 @@
 #
 
 import cmd
+import ctypes
 import datetime
 import imp  # Python v2 compatibility
 import importlib
 import logging
 import multiprocessing
 import os
+import queue
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import threading
@@ -84,6 +87,9 @@ DEVICE_STATUS_DICT = {
 
 _SPL_DEFAULT_DAY = 5
 
+# Maximum number of leased jobs per host.
+_MAX_LEASED_JOBS = 14
+
 
 COMMAND_PROCESSORS = [
     command_info.CommandInfo,
@@ -108,6 +114,12 @@ class Console(cmd.Cmd):
         scheduler_thread: dict containing threading.Thread instances(s) that
                           update configs regularly.
         update_thread: threading.Thread that updates device state regularly.
+        leased_job_process: Process. Fetches leased jobs from leased_job_queue
+                           and maps them to process pool.
+        leased_job_running: boolean, runs leased_job_process if True.
+        leased_job_queue: multiprocessing.Queue. Jobs leased will be pushed form
+                          the main process, popped and executed on process pool.
+        leased_job_exec_pool: Pool, Process pool for the leased jobs from VTI.
         _build_provider_pab: The BuildProviderPAB used to download artifacts.
         _vti_client: VtiEndpoewrClient, used to upload data to a test
                      scheduling infrastructure.
@@ -158,6 +170,10 @@ class Console(cmd.Cmd):
         self.build_thread = {}
         self.schedule_thread = {}
         self.update_thread = None
+        self.leased_job_process = None
+        self.leased_job_running = multiprocessing.Value(ctypes.c_bool, True)
+        self.leased_job_queue = multiprocessing.Queue()
+        self.leased_job_exec_pool = multiprocessing.Pool(_MAX_LEASED_JOBS)
         self.fetch_info = {}
 
         if _ANDROID_SERIAL in os.environ:
@@ -167,6 +183,7 @@ class Console(cmd.Cmd):
 
         self.InitCommandModuleParsers()
         self.SetUpCommandProcessors()
+        self.ExecLeasedJobExecutionProcess()
 
     def InitCommandModuleParsers(self):
         """Init all console command modules"""
@@ -618,6 +635,9 @@ class Console(cmd.Cmd):
             flasher_path = args.flasher_path
         else:
             flasher_path = ""
+        flasher_mode = os.stat(flasher_path).st_mode
+        os.chmod(flasher_path,
+                 flasher_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
         # serial numbers
         if args.serial:
@@ -1122,6 +1142,68 @@ class Console(cmd.Cmd):
         """
         return self._serials
 
+    def ExecLeasedJobExecutionProcess(self, map_interval=1):
+        """Executes process that runs the leased job.
+
+        Args:
+            map_interval: int, time between mapping the leased jobs to process
+                          pool in seconds. Default value is 30
+        """
+        self.leased_job_running = True
+        self.leased_job_process = multiprocessing.Process(
+            target=self.ExecLeasedJobs,
+            args=(self.leased_job_queue,
+                  self.leased_job_running,
+                  map_interval,)
+        )
+        self.leased_job_process.daemon = True
+        self.leased_job_process.start()
+
+    def ExecJobOnProcessPool(self, job):
+        """Executes a job from job queue.
+
+        Args:
+            job: dict, contains the information on the leased job passed to this
+                 process.
+        """
+        print("Executing a leased job on process {}".format(os.getpid()))
+        filepath, kwargs = self._vti_endpoint_client.ExecuteJob(job)
+        if filepath:
+            ret = self.ProcessConfigurableScript(
+                os.path.join(os.getcwd(), "host_controller", "campaigns",
+                             filepath),
+                **kwargs)
+            if ret:
+                job_status = "COMPLETE"
+            else:
+                job_status = "INFRA_ERROR"
+
+            self._vti_endpoint_client.StopHeartbeat(job_status)
+            print("Job execution complete. "
+                  "Setting job status to {}".format(job_status))
+
+    def ExecLeasedJobs(self, job_queue, process_running, map_interval):
+        """Pops jobs from job_queue and execute them on process pool.
+
+        Args:
+            job_queue: multiprocessing.Queue, a queue from which to get the
+                       leased jobs. Shared with the main process.
+            process_running: boolean, continues to run the while loop if True.
+                             Shared with the main process.
+            map_interval: int, time between mapping the leased jobs to process
+                          pool in seconds.
+        """
+        while True:
+            if process_running:
+                job_list = []
+                while not job_queue.empty():
+                    job_list.append(job_queue.get())
+
+                if len(job_list) > 0:
+                    self.leased_job_exec_pool.map_async(self.ExecJobOnProcessPool,
+                                                         job_list)
+            time.sleep(map_interval)
+
     def UpdateDevice(self, server_type, host, lease):
         """Updates the device state of all devices on a given host.
 
@@ -1172,16 +1254,10 @@ class Console(cmd.Cmd):
 
             if lease:
                 filepath, kwargs = self._vti_endpoint_client.LeaseJob(
-                    socket.gethostname())
-                if filepath:
-                    ret = self.ProcessConfigurableScript(
-                        os.path.join(os.getcwd(), "host_controller", "campaigns",
-                                     filepath),
-                        **kwargs)
-                    if ret:
-                        self._vti_endpoint_client.StopHeartbeat("COMPLETE")
-                    else:
-                        self._vti_endpoint_client.StopHeartbeat("INFRA_ERROR")
+                    socket.gethostname(), False)
+                if filepath is not None:
+                    self.leased_job_queue.put(kwargs)
+
         elif server_type == "tfc":
             devices = host.ListDevices()
             for device in devices:
@@ -1245,8 +1321,12 @@ class Console(cmd.Cmd):
                     ))
                 self.update_thread.daemon = True
                 self.update_thread.start()
+                if args.lease:
+                    self.leased_job_running = True
             elif args.update == "stop":
                 self.update_thread.keep_running = False
+                if self.leased_job_running:
+                    self.leased_job_running = False
 
     def help_device(self):
         """Prints help message for device command."""
