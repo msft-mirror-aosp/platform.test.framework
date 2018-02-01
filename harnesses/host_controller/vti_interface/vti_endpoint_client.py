@@ -56,7 +56,7 @@ class VtiEndpointClient(object):
             response = requests.post(url, data=json.dumps(build),
                                      headers=self._headers)
             if response.status_code != requests.codes.ok:
-                print "UploadDeviceInfo error: %s" % response
+                print("UploadBuildInfo error: %s" % response)
                 fail = True
         if fail:
             return False
@@ -86,7 +86,7 @@ class VtiEndpointClient(object):
         response = requests.post(url, data=json.dumps(payload),
                                  headers=self._headers)
         if response.status_code != requests.codes.ok:
-            print "UploadDeviceInfo error: %s" % response
+            print("UploadDeviceInfo error: %s" % response)
             return False
         return True
 
@@ -108,7 +108,7 @@ class VtiEndpointClient(object):
             url, data=json.dumps({"manifest_branch": "na"}),
             headers=self._headers)
         if response.status_code != requests.codes.ok:
-            print("UploadDeviceInfo error: %s" % response)
+            print("UploadScheduleInfo error: %s" % response)
             succ = False
 
         if not succ:
@@ -130,7 +130,7 @@ class VtiEndpointClient(object):
                     response = requests.post(url, data=json.dumps(schedule),
                                              headers=self._headers)
                     if response.status_code != requests.codes.ok:
-                        print("UploadDeviceInfo error: %s" % response)
+                        print("UploadScheduleInfo error: %s" % response)
                         succ = False
         return succ
 
@@ -151,7 +151,7 @@ class VtiEndpointClient(object):
         response = requests.post(url, data=json.dumps({"name": "na"}),
                                  headers=self._headers)
         if response.status_code != requests.codes.ok:
-            print "UploadDeviceInfo error: %s" % response
+            print("UploadLabInfo error: %s" % response)
             succ = False
 
         if not succ:
@@ -172,7 +172,7 @@ class VtiEndpointClient(object):
             response = requests.post(url, data=json.dumps(lab),
                                      headers=self._headers)
             if response.status_code != requests.codes.ok:
-                print("UploadDeviceInfo error: %s" % response)
+                print("UploadLabInfo error: %s" % response)
                 succ = False
         return succ
 
@@ -292,6 +292,6 @@ class VtiEndpointClient(object):
         response = requests.post(url, data=json.dumps(self._job),
                                  headers=self._headers)
         if response.status_code != requests.codes.ok:
-            print("UpdateLeasedJobStatus error: %s" % response)
+            print("StopHeartbeat error: %s" % response)
 
         self._job = None
