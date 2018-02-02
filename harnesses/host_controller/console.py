@@ -576,6 +576,10 @@ class Console(cmd.Cmd):
         self._flash_parser = ConsoleArgumentParser("flash",
                                                    "Flash images to a device.")
         self._flash_parser.add_argument(
+            "--image",
+            help=("The file name of an image to flash."
+                  " Used to flash a single image."))
+        self._flash_parser.add_argument(
             "--current",
             metavar="PARTITION_IMAGE",
             nargs="*",
@@ -622,6 +626,14 @@ class Console(cmd.Cmd):
             default="tar.md5",
             choices=("tar.md5"),
             help="Repackage artifacts into given format before flashing.")
+        self._flash_parser.add_argument(
+            "--wait-for-boot",
+            default="true",
+            help="false to not wait for devie booting.")
+        self._flash_parser.add_argument(
+            "--reboot",
+            default="false",
+            help="true to reboot the device(s).")
 
     def do_flash(self, line):
         """Flash GSI or build images to a device connected with ADB."""
@@ -648,14 +660,18 @@ class Console(cmd.Cmd):
             flasher_serials = [""]
 
         # images
-        if args.current:
-            partition_image = dict((partition, self.device_image_info[image])
-                                   for partition, image in args.current)
+        if args.image:
+            partition_image = {}
+            partition_image[args.image] = self.device_image_info[args.image]
         else:
-            partition_image = dict((image.rsplit(".img", 1)[0],
-                                    self.device_image_info[image])
-                                   for image in _DEFAULT_FLASH_IMAGES
-                                   if image in self.device_image_info)
+            if args.current:
+                partition_image = dict((partition, self.device_image_info[image])
+                                       for partition, image in args.current)
+            else:
+                partition_image = dict((image.rsplit(".img", 1)[0],
+                                        self.device_image_info[image])
+                                       for image in _DEFAULT_FLASH_IMAGES
+                                       if image in self.device_image_info)
 
         # type
         if args.flasher_type in ("fastboot", "custom"):
@@ -673,7 +689,11 @@ class Console(cmd.Cmd):
         # Can be parallelized as long as that's proven reliable.
         for flasher in flashers:
             if args.flasher_type == "fastboot":
-                if args.current is not None:
+                if args.image is not None:
+                    flasher.FlashImage(
+                        partition_image,
+                        True if args.reboot == "true" else False)
+                elif args.current is not None:
                     flasher.Flash(partition_image)
                 else:
                     if args.gsi is None and args.build_dir is None:
@@ -699,8 +719,9 @@ class Console(cmd.Cmd):
                 flasher.Flash(
                     partition_image, self.tools_info, *args.flasher_args)
 
-        for flasher in flashers:
-            flasher.WaitForDevice()
+        if args.wait_for_boot == "true":
+            for flasher in flashers:
+                flasher.WaitForDevice()
 
     def help_flash(self):
         """Prints help message for flash command."""
