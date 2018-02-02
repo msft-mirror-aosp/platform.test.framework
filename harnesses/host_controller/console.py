@@ -23,6 +23,7 @@ import logging
 import multiprocessing
 import os
 import queue
+import re
 import shutil
 import socket
 import stat
@@ -105,8 +106,7 @@ class Console(cmd.Cmd):
                             map between command string and command processors.
         device_image_info: dict containing info about device image files.
         prompt: The prompt string at the beginning of each command line.
-        test_results: dict where the key is the name of the test suite and the
-                      value is the path to the result.
+        test_result: dict containing info about the last test result.
         test_suite_info: dict containing info about test suite package files.
         tools_info: dict containing info about custom tool files.
         build_thread: dict containing threading.Thread instances(s) that
@@ -164,7 +164,7 @@ class Console(cmd.Cmd):
         self.prompt = "> "
         self.command_processors = {}
         self.device_image_info = {}
-        self.test_results = {}
+        self.test_result = {}
         self.test_suite_info = {}
         self.tools_info = {}
         self.build_thread = {}
@@ -209,6 +209,35 @@ class Console(cmd.Cmd):
         for command_processor in self.command_processors.itervalues():
             command_processor._TearDown()
         self.command_processors.clear()
+
+    def FormatString(self, format_string):
+        """Replaces variables with the values in the console's dictionaries.
+
+        Args:
+            format_string: The string containing variables enclosed in {}.
+
+        Returns:
+            The formatted string.
+
+        Raises:
+            KeyError if a variable is not found in the dictionaries or the
+            value is empty.
+        """
+        def ReplaceVariable(match):
+            name = match.group(1)
+            if name in ("build_id", "branch", "target"):
+                value = self.fetch_info[name]
+            elif name in ("result_zip", "suite_plan"):
+                value = self.test_result[name]
+            else:
+                value = None
+
+            if not value:
+                raise KeyError(name)
+
+            return value
+
+        return re.sub("{([^}]+)}", ReplaceVariable, format_string)
 
     def _InitRequestParser(self):
         """Initializes the parser for request command."""
@@ -1471,16 +1500,11 @@ class Console(cmd.Cmd):
 
     def _InitUploadParser(self):
         """Initializes the parser for upload command."""
-        self._upload_parser = ConsoleArgumentParser("upload",
-            "Upload <src> file to <dest> Google Cloud Storage.")
-        self._upload_parser.add_argument(
-            "--type",
-            choices=("image", "result"),
-            default=None,
-            help="The dictionary where the source file is. The console finds "
-                "and uploads the file whose key matches --src. If this "
-                "argument is not specified, --src is the path to the source "
-                "file.")
+        self._upload_parser = ConsoleArgumentParser(
+            "upload",
+            "Upload <src> file to <dest> Google Cloud Storage. "
+            "In <src> and <dest>, variables enclosed in {} are replaced "
+            "with the values stored in the console.")
         self._upload_parser.add_argument(
             "--src",
             required=True,
@@ -1493,8 +1517,7 @@ class Console(cmd.Cmd):
         self._upload_parser.add_argument(
             "--dest",
             required=True,
-            help="Google Cloud Storage URL. {build-id} will be "
-                "replaced with the most recently fetched build id.")
+            help="Google Cloud Storage URL to which the file is uploaded.")
 
     def do_upload(self, line):
         """Upload args.src file to args.dest Google Cloud Storage."""
@@ -1513,30 +1536,29 @@ class Console(cmd.Cmd):
                 print("Unable to find {} in device_image_info".format(
                     src_name))
                 return
-        elif args.type:
-            if args.type == "image":
-                file_dict = self.device_image_info
-            elif args.type == "result":
-                file_dict = self.test_results
-            else:
-                print("ERROR: unknown type %s" % args.type)
-                return
-            if args.src not in file_dict:
-                print("ERROR: cannot find %s" % args.src)
-                return
-            src_path = file_dict[args.src]
-        elif os.path.isfile(args.src):
-            src_path = args.src
         else:
-            print("Cannot find a file: {}".format(args.src))
+            try:
+                src_path = self.FormatString(args.src)
+            except KeyError as e:
+                print("Unknown or uninitialized variable in src: %s" % e)
+                return
+
+        if not os.path.isfile(src_path):
+            print("Cannot find a file: {}".format(src_path))
             return
 
-        if not args.dest.startswith("gs://"):
-            print("{} is not correct GCS url.".format(args.dest))
+        try:
+            dest_path = self.FormatString(args.dest)
+        except KeyError as e:
+            print("Unknown or uninitialized variable in dest: %s" % e)
+            return
+
+        if not dest_path.startswith("gs://"):
+            print("{} is not correct GCS url.".format(dest_path))
             return
         """ TODO(jongmok) : Before upload, login status, authorization,
                             and dest check are required. """
-        copy_command = "{} cp {} {}".format(gsutil_path, src_path, args.dest)
+        copy_command = "{} cp {} {}".format(gsutil_path, src_path, dest_path)
         _, stderr, err_code = cmd_utils.ExecuteOneShellCommand(
             copy_command)
 
