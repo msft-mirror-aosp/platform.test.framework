@@ -98,6 +98,20 @@ COMMAND_PROCESSORS = [
 ]
 
 
+def ExecJobOnProcessPoolWrapper(arg, **kwargs):
+    """Passes argument to Console.ExecjobOnProcessPool.
+
+    need to invoke a global function from a process pool
+    since methods are not picklable.
+
+    Args:
+        arg: tuple, consists of Console class instance from the main process
+             and a dict containing the leased job information.
+        kwargs: dict, currently not in use.
+    """
+    return Console.ExecJobOnProcessPool(*arg, **kwargs)
+
+
 class Console(cmd.Cmd):
     """The console for host controllers.
 
@@ -116,10 +130,10 @@ class Console(cmd.Cmd):
         update_thread: threading.Thread that updates device state regularly.
         leased_job_process: Process. Fetches leased jobs from leased_job_queue
                            and maps them to process pool.
-        leased_job_running: boolean, runs leased_job_process if True.
+        leased_job_running: multiprocess.Value, keeps running leased_job_process
+                            if equal to 1.
         leased_job_queue: multiprocessing.Queue. Jobs leased will be pushed form
                           the main process, popped and executed on process pool.
-        leased_job_exec_pool: Pool, Process pool for the leased jobs from VTI.
         _build_provider_pab: The BuildProviderPAB used to download artifacts.
         _vti_client: VtiEndpoewrClient, used to upload data to a test
                      scheduling infrastructure.
@@ -171,9 +185,8 @@ class Console(cmd.Cmd):
         self.schedule_thread = {}
         self.update_thread = None
         self.leased_job_process = None
-        self.leased_job_running = multiprocessing.Value(ctypes.c_bool, True)
-        self.leased_job_queue = multiprocessing.Queue()
-        self.leased_job_exec_pool = multiprocessing.Pool(_MAX_LEASED_JOBS)
+        self.leased_job_running = None
+        self.leased_job_queue = None
         self.fetch_info = {}
 
         if _ANDROID_SERIAL in os.environ:
@@ -183,7 +196,7 @@ class Console(cmd.Cmd):
 
         self.InitCommandModuleParsers()
         self.SetUpCommandProcessors()
-        self.ExecLeasedJobExecutionProcess()
+        self.StartLeasedJobExecutionProcess()
 
     def InitCommandModuleParsers(self):
         """Init all console command modules"""
@@ -1192,22 +1205,31 @@ class Console(cmd.Cmd):
         """
         return self._serials
 
-    def ExecLeasedJobExecutionProcess(self, map_interval=1):
+    def StartLeasedJobExecutionProcess(self, map_interval=1):
         """Executes process that runs the leased job.
 
         Args:
             map_interval: int, time between mapping the leased jobs to process
                           pool in seconds. Default value is 30
         """
-        self.leased_job_running = True
-        self.leased_job_process = multiprocessing.Process(
+        leased_job_queue = multiprocessing.Queue()
+        leased_job_running = multiprocessing.Value("b", 0)
+        process = multiprocessing.Process(
             target=self.ExecLeasedJobs,
-            args=(self.leased_job_queue,
-                  self.leased_job_running,
+            args=(leased_job_queue,
+                  leased_job_running,
                   map_interval,)
         )
-        self.leased_job_process.daemon = True
-        self.leased_job_process.start()
+        process.start()
+
+        self.leased_job_process = process
+        self.leased_job_queue = leased_job_queue
+        self.leased_job_running = leased_job_running
+
+    def StopLeasedJobExecutionProcess(self):
+        """Terminates the process that runs the leased job."""
+        self.leased_job_running = 0
+        self.leased_job_process.terminate()
 
     def ExecJobOnProcessPool(self, job):
         """Executes a job from job queue.
@@ -1238,20 +1260,24 @@ class Console(cmd.Cmd):
         Args:
             job_queue: multiprocessing.Queue, a queue from which to get the
                        leased jobs. Shared with the main process.
-            process_running: boolean, continues to run the while loop if True.
+            process_running: byte, continue to run the while loop if equal to 1.
                              Shared with the main process.
             map_interval: int, time between mapping the leased jobs to process
                           pool in seconds.
         """
+        leased_job_exec_pool = multiprocessing.Pool(processes=_MAX_LEASED_JOBS)
+
         while True:
             if process_running:
-                job_list = []
+                arg_list = []
                 while not job_queue.empty():
-                    job_list.append(job_queue.get())
+                    leased_job = job_queue.get()
+                    pair = (self, leased_job)
+                    arg_list.append(pair)
 
-                if len(job_list) > 0:
-                    self.leased_job_exec_pool.map_async(self.ExecJobOnProcessPool,
-                                                         job_list)
+                if len(arg_list) > 0:
+                    leased_job_exec_pool.map_async(ExecJobOnProcessPoolWrapper,
+                                                   arg_list)
             time.sleep(map_interval)
 
     def UpdateDevice(self, server_type, host, lease):
@@ -1372,11 +1398,11 @@ class Console(cmd.Cmd):
                 self.update_thread.daemon = True
                 self.update_thread.start()
                 if args.lease:
-                    self.leased_job_running = True
+                    self.leased_job_running = 1
             elif args.update == "stop":
                 self.update_thread.keep_running = False
                 if self.leased_job_running:
-                    self.leased_job_running = False
+                    self.leased_job_running = 0
 
     def help_device(self):
         """Prints help message for device command."""
@@ -1492,6 +1518,7 @@ class Console(cmd.Cmd):
         Returns:
             True, which stops the cmdloop.
         """
+        self.StopLeasedJobExecutionProcess()
         return True
 
     def help_exit(self):
