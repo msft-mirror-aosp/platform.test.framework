@@ -168,6 +168,13 @@ class VtiEndpointClient(object):
                 new_host["hostname"] = host.hostname
                 new_host["ip"] = host.ip
                 new_host["script"] = host.script
+                new_host["device"] = []
+                if host.device:
+                    for device in host.device:
+                        new_device = {}
+                        new_device["serial"] = device.serial
+                        new_device["product"] = device.product
+                        new_host["device"].append(new_device)
                 lab["host"].append(new_host)
             response = requests.post(url, data=json.dumps(lab),
                                      headers=self._headers)
