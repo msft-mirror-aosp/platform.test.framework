@@ -30,10 +30,13 @@ class VtiEndpointClient(object):
     """
 
     def __init__(self, url):
-        if not url.startswith(("https://")) and not url.startswith("http://"):
-            url = "https://" + url
-        if url.endswith("appspot.com"):
-            url += "/_ah/api/"
+        if url == "localhost":
+            url = "http://localhost:8080/_ah/api/"
+        else:
+            if not url.startswith(("https://")) and not url.startswith("http://"):
+                url = "https://" + url
+            if url.endswith("appspot.com"):
+                url += "/_ah/api/"
         self._headers = {"content-type": "application/json",
                    "Accept-Charset": "UTF-8"}
         self._url = url
