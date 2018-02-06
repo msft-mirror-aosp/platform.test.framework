@@ -14,10 +14,23 @@
 # limitations under the License.
 #
 
-def EmitConsoleCommands(build_id="latest",
-                        test_name="vts/vts",
-                        shards=1,
-                        serials=None,
+# The list of the kwargs key. can retrieve informations on the leased job.
+_JOB_ADDITIONAL_ATTR_LIST = [
+    "build_target",
+    "manifest_branch",
+    "gsi_branch",
+    "gsi_build_target",
+    "gsi_pab_account_id",
+    "test_branch",
+    "test_build_target",
+    "test_pab_account_id",
+]
+
+
+def EmitConsoleCommands(_build_id="latest",
+                        _test_name="vts/vts",
+                        _shards=1,
+                        _serials=None,
                         **kwargs):
     """Runs a common VTS-on-GSI or CTS-on-GSI test.
 
@@ -26,64 +39,67 @@ def EmitConsoleCommands(build_id="latest",
     """
     result = []
 
-    if isinstance(build_target, list):
-        build_target = build_target[0]
+    if not set(_JOB_ADDITIONAL_ATTR_LIST).issubset(kwargs):
+        missing_keys = [
+            key for key in _JOB_ADDITIONAL_ATTR_LIST if key not in kwargs
+        ]
+        print("Leased job missing attribute(s): {}".format(
+            ", ".join(missing_keys)))
+        return None
+
+    if isinstance(kwargs["build_target"], list):
+        build_target = kwargs["build_target"][0]
+    else:
+        build_target = kwargs["build_target"]
 
     result.append(
         "fetch --type=pab --branch=%s --target=%s --artifact_name=%s-img-%s.zip "
-        "--build_id=%s --account_id=541462473" % (
-            manifest_branch, build_target, build_target.split("-")[0],
-            build_id if build_id != "latest" else "{build_id}", build_id),
-    )
+        "--build_id=%s --account_id=541462473" %
+        (kwargs["manifest_branch"], build_target, build_target.split("-")[0],
+         _build_id if _build_id != "latest" else "{build_id}", _build_id), )
     result.append(
         "fetch --type=pab --branch=%s --target=%s --artifact_name=bootloader.img "
-        "--build_id=%s --account_id=541462473" % (
-            manifest_branch, build_target, build_id),
-    )
+        "--build_id=%s --account_id=541462473" % (kwargs["manifest_branch"],
+                                                  build_target, _build_id), )
     result.append(
         "fetch --type=pab --branch=%s --target=%s --artifact_name=radio.img "
-        "--build_id=%s --account_id=541462473" % (
-            manifest_branch, build_target, build_id),
-    )
+        "--build_id=%s --account_id=541462473" % (kwargs["manifest_branch"],
+                                                  build_target, _build_id), )
 
-    result.append(
-        "fetch --type=pab --branch=%s --target=aosp_arm64_ab-userdebug "
-        "--artifact_name=aosp_arm64_ab-img-{build_id}.zip "
-        "--build_id=latest" % gsi_branch,
-    )
-    result.append(
-        "fetch --type=pab --branch=%s --target=%s "
-        "--artifact_name=android-vts.zip "
-        "--build_id=latest" % (test_branch, test_target),
-    )
+    result.append("fetch --type=pab --branch=%s --target=%s "
+                  "--artifact_name=aosp_arm64_ab-img-{build_id}.zip "
+                  "--build_id=latest --account_id=%s" %
+                  (kwargs["gsi_branch"], kwargs["gsi_build_target"],
+                   kwargs["gsi_pab_account_id"]), )
+    result.append("fetch --type=pab --branch=%s --target=%s "
+                  "--artifact_name=android-vts.zip "
+                  "--build_id=latest --account_id=%s" %
+                  (kwargs["test_branch"], kwargs["test_build_target"],
+                   kwargs["test_pab_account_id"]), )
 
-    shards = int(shards)
+    shards = int(_shards)
     result.append("info")
     result.append("gsispl --version_from_path=boot.img")
-    test_name = test_name.split("/")[-1]
+    test_name = _test_name.split("/")[-1]
     if shards > 1:
         sub_commands = []
-        if shards <= len(serials):
+        if shards <= len(_serials):
             for shard_index in range(shards):
                 new_cmd_list = []
-                new_cmd_list.append("flash --current --serial %s" %
-                                    serials[shard_index])
                 new_cmd_list.append(
-                    "test -- %s --serial %s --shard-count %d "
-                    "--shard-index %d" % (
-                        test_name,
-                        serials[shard_index],
-                        shards, shard_index))
+                    "flash --current --serial %s" % _serials[shard_index])
+                new_cmd_list.append("test -- %s --serial %s --shard-count %d "
+                                    "--shard-index %d" %
+                                    (test_name, _serials[shard_index], shards,
+                                     shard_index))
                 sub_commands.append(new_cmd_list)
         result.append(sub_commands)
     else:
-        result.append("flash --current")
-        if serials:
-            result.append(
-                "test %s --shards %s --serial %s" % (test_name, shards,
-                                                     ",".join(serials)))
+        result.append("flash --current --serial %s" % _serials[0])
+        if _serials:
+            result.append("test %s -- --serial %s --shards %s" %
+                          (test_name, ",".join(_serials), shards))
         else:
-            result.append(
-                "test %s --shards %s" % (test_name, shards))
+            result.append("test %s -- --shards %s" % (test_name, shards))
 
     return result
