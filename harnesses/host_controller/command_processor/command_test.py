@@ -19,6 +19,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
 import zipfile
 
 from xml.etree import ElementTree
@@ -100,6 +101,41 @@ class CommandTest(base_command_processor.BaseCommandProcessor):
 
         return cmd
 
+    @staticmethod
+    def _ExecuteCommand(cmd):
+        """Executes a command and logs output in real time.
+
+        Args:
+            cmd: a list of strings, the command to execute.
+        """
+        def LogOutputStream(log_level, stream):
+            try:
+                while True:
+                    line = stream.readline()
+                    if not line:
+                        break
+                    logging.log(log_level, line.rstrip())
+            finally:
+                stream.close()
+
+        proc = subprocess.Popen(
+            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE)
+
+        out_thread = threading.Thread(
+            target=LogOutputStream, args=(logging.INFO, proc.stdout))
+        err_thread = threading.Thread(
+            target=LogOutputStream, args=(logging.ERROR, proc.stderr))
+        out_thread.daemon = True
+        err_thread.daemon = True
+        out_thread.start()
+        err_thread.start()
+        proc.wait()
+        logging.info("Return code: %d", proc.returncode)
+        proc.stdin.close()
+        out_thread.join()
+        err_thread.join()
+
     def _LoadReport(self, report_file):
         """Loads information from a report.
 
@@ -156,8 +192,7 @@ class CommandTest(base_command_processor.BaseCommandProcessor):
                 serials, result_dir)
 
             print("Command: %s" % cmd)
-            stdout = subprocess.check_output(cmd)
-            logging.debug("stdout:\n%s", stdout)
+            self._ExecuteCommand(cmd)
 
             if result_dir:
                 result_paths = [
