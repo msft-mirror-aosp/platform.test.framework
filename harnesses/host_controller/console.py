@@ -326,15 +326,16 @@ class Console(cmd.Cmd):
         script_module = imp.load_source('script_module', script_file_path)
 
         commands = script_module.EmitConsoleCommands(
-            branch=kwargs["manifest_branch"],
-            build_target=kwargs["build_target"][0],
-            build_id=kwargs["build_id"],
-            test_name=kwargs["test_name"].split("/")[0],
-            shards=int(kwargs["shards"]),
-            serials=kwargs["serial"])
+            _build_id=kwargs["build_id"],
+            _test_name=kwargs["test_name"].split("/")[0],
+            _shards=int(kwargs["shards"]),
+            _serials=kwargs["serial"],
+            **kwargs)
         if commands:
             for command in commands:
                 self.onecmd(command)
+        else:
+            return False
         return True
 
     def do_request(self, line):
@@ -689,9 +690,10 @@ class Console(cmd.Cmd):
             flasher_path = args.flasher_path
         else:
             flasher_path = ""
-        flasher_mode = os.stat(flasher_path).st_mode
-        os.chmod(flasher_path,
-                 flasher_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        if os.path.exists(flasher_path):
+            flasher_mode = os.stat(flasher_path).st_mode
+            os.chmod(flasher_path,
+                     flasher_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
         # serial numbers
         if args.serial:
