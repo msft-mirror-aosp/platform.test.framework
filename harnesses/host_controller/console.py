@@ -1243,9 +1243,9 @@ class Console(cmd.Cmd):
                              filepath),
                 **kwargs)
             if ret:
-                job_status = "COMPLETE"
+                job_status = "complete"
             else:
-                job_status = "INFRA_ERROR"
+                job_status = "infra_error"
 
             self._vti_endpoint_client.StopHeartbeat(job_status)
             print("Job execution complete. "
