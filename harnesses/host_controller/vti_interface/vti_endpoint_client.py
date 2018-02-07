@@ -130,6 +130,12 @@ class VtiEndpointClient(object):
                     schedule["device"] = test_schedule.device
                     schedule["shards"] = test_schedule.shards
                     schedule["param"] = test_schedule.param
+                    schedule["gsi_branch"] = test_schedule.gsi_branch
+                    schedule["gsi_build_target"] = test_schedule.gsi_build_target
+                    schedule["gsi_pab_account_id"] = test_schedule.gsi_pab_account_id
+                    schedule["test_branch"] = test_schedule.test_branch
+                    schedule["test_build_target"] = test_schedule.test_build_target
+                    schedule["test_pab_account_id"] = test_schedule.test_pab_account_id
                     response = requests.post(url, data=json.dumps(schedule),
                                              headers=self._headers)
                     if response.status_code != requests.codes.ok:
