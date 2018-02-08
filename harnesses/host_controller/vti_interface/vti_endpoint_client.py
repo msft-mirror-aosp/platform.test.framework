@@ -19,6 +19,18 @@ import requests
 import threading
 import time
 
+# Job status dict
+JOB_STATUS_DICT = {
+    # scheduled but not leased yet
+    "ready": 0,
+    # scheduled and in running
+    "leased": 1,
+    # completed job
+    "complete": 2,
+    # unexpected error during running
+    "infra-err": 3
+}
+
 
 class VtiEndpointClient(object):
     """VTI (Vendor Test Infrastructure) endpoint client.
@@ -229,7 +241,7 @@ class VtiEndpointClient(object):
             for job in jobs:
                 if execute == True:
                     self._job = job
-                    self.StartHeartbeat("LEASED", 60)
+                    self.StartHeartbeat("leased", 60)
                 return job["test_name"].split("/")[0], job
         return None, {}
 
@@ -246,7 +258,7 @@ class VtiEndpointClient(object):
         print("Job info : {}".format(json.dumps(job)))
         if job is not None:
             self._job = job
-            self.StartHeartbeat("LEASED", 60)
+            self.StartHeartbeat("leased", 60)
             return job["test_name"].split("/")[0], job
 
         return None, {}
@@ -262,7 +274,7 @@ class VtiEndpointClient(object):
             return
 
         url = self._url + "job_queue/v1/heartbeat"
-        self._job["status"] = status
+        self._job["status"] = JOB_STATUS_DICT[status]
 
         thread = threading.currentThread()
         while getattr(thread, 'keep_running', True):
@@ -272,7 +284,7 @@ class VtiEndpointClient(object):
                 print("UpdateLeasedJobStatus error: %s" % response)
             time.sleep(update_interval)
 
-    def StartHeartbeat(self, status="LEASED", update_interval=60):
+    def StartHeartbeat(self, status="leased", update_interval=60):
         """Starts the hearbeat_thread.
 
         Args:
@@ -290,7 +302,7 @@ class VtiEndpointClient(object):
             self._heartbeat_thread.daemon = True
             self._heartbeat_thread.start()
 
-    def StopHeartbeat(self, status="COMPLETE"):
+    def StopHeartbeat(self, status="complete"):
         """Stops the hearbeat_thread and sets current job's status.
 
         Args:
@@ -302,8 +314,8 @@ class VtiEndpointClient(object):
             return
 
         url = self._url + "job_queue/v1/heartbeat"
-        if self._job is not None and self._job["status"] == "LEASED":
-            self._job["status"] = status
+        if self._job is not None and self._job["status"] == JOB_STATUS_DICT["leased"]:
+            self._job["status"] = JOB_STATUS_DICT[status]
 
         response = requests.post(url, data=json.dumps(self._job),
                                  headers=self._headers)
