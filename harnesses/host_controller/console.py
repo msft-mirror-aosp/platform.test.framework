@@ -325,12 +325,7 @@ class Console(cmd.Cmd):
 
         script_module = imp.load_source('script_module', script_file_path)
 
-        commands = script_module.EmitConsoleCommands(
-            _build_id=kwargs["build_id"],
-            _test_name=kwargs["test_name"].split("/")[0],
-            _shards=int(kwargs["shards"]),
-            _serials=kwargs["serial"],
-            **kwargs)
+        commands = script_module.EmitConsoleCommands(**kwargs)
         if commands:
             for command in commands:
                 self.onecmd(command)
@@ -1248,9 +1243,9 @@ class Console(cmd.Cmd):
                              filepath),
                 **kwargs)
             if ret:
-                job_status = "COMPLETE"
+                job_status = "complete"
             else:
-                job_status = "INFRA_ERROR"
+                job_status = "infra_error"
 
             self._vti_endpoint_client.StopHeartbeat(job_status)
             print("Job execution complete. "
@@ -1321,7 +1316,11 @@ class Console(cmd.Cmd):
                         "fastboot -s %s getvar product" % device["serial"])
                     if retcode == 0:
                         res = stderr.splitlines()[0].rstrip()
-                        device["product"] = res.split(":")[1].strip()
+                        print(res)
+                        if ":" in res:
+                            device["product"] = res.split(":")[1].strip()
+                        else:
+                            device["product"] = "error"
                     else:
                         device["product"] = "error"
                     device["status"] = DEVICE_STATUS_DICT["fastboot"]
@@ -1333,6 +1332,7 @@ class Console(cmd.Cmd):
             if lease:
                 filepath, kwargs = self._vti_endpoint_client.LeaseJob(
                     socket.gethostname(), False)
+
                 if filepath is not None:
                     self.leased_job_queue.put(kwargs)
 
