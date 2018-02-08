@@ -108,6 +108,9 @@ def EmitConsoleCommands(**kwargs):
             result.append("test --keep-result -- %s --shards %s" % (test_name,
                                                                     shards))
 
-        result.append("upload --src={result_zip} --dest=gs://vts-report/")
+        result.append(
+            "upload --src={result_zip} --dest=gs://vts-report/{suite_plan}"
+            "/{branch}/{target}/{build_id}_{timestamp}.zip"
+        )
 
     return result
