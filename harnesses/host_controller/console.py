@@ -484,6 +484,9 @@ class Console(cmd.Cmd):
         Args:
             line: a list of string or string which keeps the command to run.
         """
+        if not line:
+            return
+
         if type(line) == list:
             if depth == 1:  # 1 to use multi-threading
                 jobs = []
@@ -494,13 +497,12 @@ class Console(cmd.Cmd):
                     p.start()
                 for job in jobs:
                     job.join()
-                return
             else:
                 for sub_command in line:
                     self.onecmd(sub_command, depth + 1)
+            return
 
-        if line:
-            print("Command: %s" % line)
+        print("Command: %s" % line)
         try:
             return cmd.Cmd.onecmd(self, line)
         except Exception as e:
