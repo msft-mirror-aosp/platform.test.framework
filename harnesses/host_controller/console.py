@@ -135,6 +135,7 @@ class Console(cmd.Cmd):
         leased_job_queue: multiprocessing.Queue. Jobs leased will be pushed form
                           the main process, popped and executed on process pool.
         _build_provider_pab: The BuildProviderPAB used to download artifacts.
+        _vti_address: string, VTI service URI.
         _vti_client: VtiEndpoewrClient, used to upload data to a test
                      scheduling infrastructure.
         _tfc_client: The TfcClient that the host controllers connect to.
@@ -159,6 +160,7 @@ class Console(cmd.Cmd):
                  tfc,
                  pab,
                  host_controllers,
+                 vti_address=None,
                  in_file=sys.stdin,
                  out_file=sys.stdout):
         """Initializes the attributes and the parsers."""
@@ -171,6 +173,7 @@ class Console(cmd.Cmd):
         self._build_provider["gcs"] = build_provider_gcs.BuildProviderGCS()
         self._build_provider["ab"] = build_provider_ab.BuildProviderAB()
         self._vti_endpoint_client = vti_endpoint_client
+        self._vti_address = vti_address
         self._tfc_client = tfc
         self._hosts = host_controllers
         self._in_file = in_file
