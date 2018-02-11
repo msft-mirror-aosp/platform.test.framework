@@ -279,7 +279,7 @@ class VtiEndpointClient(object):
         thread = threading.currentThread()
         while getattr(thread, 'keep_running', True):
             response = requests.post(url, data=json.dumps(self._job),
-                                    headers=self._headers)
+                                     headers=self._headers)
             if response.status_code != requests.codes.ok:
                 print("UpdateLeasedJobStatus error: %s" % response)
             time.sleep(update_interval)
@@ -314,7 +314,8 @@ class VtiEndpointClient(object):
             return
 
         url = self._url + "job_queue/v1/heartbeat"
-        if self._job is not None and self._job["status"] == JOB_STATUS_DICT["leased"]:
+        if (self._job is not None and
+            self._job["status"] == JOB_STATUS_DICT["leased"]):
             self._job["status"] = JOB_STATUS_DICT[status]
 
         response = requests.post(url, data=json.dumps(self._job),
