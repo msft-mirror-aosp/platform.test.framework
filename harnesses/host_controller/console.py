@@ -188,6 +188,7 @@ class Console(cmd.Cmd):
         self.leased_job_running = None
         self.leased_job_queue = None
         self.fetch_info = {}
+        self.test_results = {}
 
         if _ANDROID_SERIAL in os.environ:
             self._serials = [os.environ[_ANDROID_SERIAL]]
@@ -242,6 +243,8 @@ class Console(cmd.Cmd):
                 value = self.fetch_info[name]
             elif name in ("result_zip", "suite_plan"):
                 value = self.test_result[name]
+            elif name in ("timestamp"):
+                value = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
             else:
                 value = None
 

@@ -93,10 +93,16 @@ def EmitConsoleCommands(**kwargs):
                 new_cmd_list = []
                 new_cmd_list.append(
                     "flash --current --serial %s" % serials[shard_index])
-                new_cmd_list.append("test -- %s --serial %s --shard-count %d "
+                new_cmd_list.append("test --keep-result -- %s --serial %s --shard-count %d "
                                     "--shard-index %d" %
                                     (test_name, serials[shard_index], shards,
                                      shard_index))
+                new_cmd_list.append(
+                    "upload --src={result_zip} "
+                    "--dest=gs://vts-report/{suite_plan}"
+                    "/{branch}/{target}/{build_id}_"
+                    "shard_%s_{timestamp}.zip" % shard_index
+                )
                 sub_commands.append(new_cmd_list)
         result.append(sub_commands)
     else:
@@ -108,6 +114,9 @@ def EmitConsoleCommands(**kwargs):
             result.append("test --keep-result -- %s --shards %s" % (test_name,
                                                                     shards))
 
-        result.append("upload --src={result_zip} --dest=gs://vts-report/")
+        result.append(
+            "upload --src={result_zip} --dest=gs://vts-report/{suite_plan}"
+            "/{branch}/{target}/{build_id}_{timestamp}.zip"
+        )
 
     return result
