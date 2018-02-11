@@ -20,7 +20,7 @@ import datetime
 import imp  # Python v2 compatibility
 import importlib
 import logging
-import multiprocess
+import multiprocessing
 import os
 import queue
 import re
@@ -130,9 +130,9 @@ class Console(cmd.Cmd):
         update_thread: threading.Thread that updates device state regularly.
         leased_job_process: Process. Fetches leased jobs from leased_job_queue
                            and maps them to process pool.
-        leased_job_running: multiprocess.Value, keeps running leased_job_process
+        leased_job_running: multiprocessing.Value, keeps running leased_job_process
                             if equal to 1.
-        leased_job_queue: multiprocess.Queue. Jobs leased will be pushed form
+        leased_job_queue: multiprocessing.Queue. Jobs leased will be pushed form
                           the main process, popped and executed on process pool.
         _build_provider_pab: The BuildProviderPAB used to download artifacts.
         _vti_client: VtiEndpoewrClient, used to upload data to a test
@@ -1212,9 +1212,9 @@ class Console(cmd.Cmd):
             map_interval: int, time between mapping the leased jobs to process
                           pool in seconds. Default value is 30
         """
-        leased_job_queue = multiprocess.Queue()
-        leased_job_running = multiprocess.Value("b", 0)
-        process = multiprocess.Process(
+        leased_job_queue = multiprocessing.Queue()
+        leased_job_running = multiprocessing.Value("b", 0)
+        process = multiprocessing.Process(
             target=self.ExecLeasedJobs,
             args=(leased_job_queue,
                   leased_job_running,
@@ -1258,14 +1258,14 @@ class Console(cmd.Cmd):
         """Pops jobs from job_queue and execute them on process pool.
 
         Args:
-            job_queue: multiprocess.Queue, a queue from which to get the
+            job_queue: multiprocesing.Queue, a queue from which to get the
                        leased jobs. Shared with the main process.
             process_running: byte, continue to run the while loop if equal to 1.
                              Shared with the main process.
             map_interval: int, time between mapping the leased jobs to process
                           pool in seconds.
         """
-        leased_job_exec_pool = multiprocess.Pool(processes=_MAX_LEASED_JOBS)
+        leased_job_exec_pool = multiprocessing.Pool(processes=_MAX_LEASED_JOBS)
 
         while True:
             if process_running:
@@ -1614,7 +1614,7 @@ class Console(cmd.Cmd):
             if depth == 1:  # 1 to use multi-threading
                 jobs = []
                 for sub_command in line:
-                    p = multiprocess.Process(
+                    p = multiprocessing.Process(
                         target=self.onecmd, args=(sub_command, depth + 1,))
                     jobs.append(p)
                     p.start()
