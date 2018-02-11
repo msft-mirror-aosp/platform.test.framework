@@ -1277,10 +1277,10 @@ class Console(cmd.Cmd):
         self._job_thread.daemon = True
         self._job_thread.start()
 
-    def StopLeasedJobExecutionProcess(self):
-        """Terminates the process that runs the leased job."""
-        self.leased_job_running = 0
-        self.leased_job_process.terminate()
+    def StopJobThreadAndProcessPool(self):
+        """Terminates the thread and processes that runs the leased job."""
+        if hasattr(self, "_job_thread"):
+            self._job_thread.keep_running = False
 
     def UpdateDevice(self, server_type, host, lease):
         """Updates the device state of all devices on a given host.
@@ -1517,7 +1517,6 @@ class Console(cmd.Cmd):
             True, which stops the cmdloop.
         """
         self.StopJobThreadAndProcessPool()
-        self.StopLeasedJobExecutionProcess()
         return True
 
     def help_exit(self):
