@@ -20,7 +20,8 @@ import datetime
 import imp  # Python v2 compatibility
 import importlib
 import logging
-import multiprocess
+import multiprocessing
+import multiprocessing.pool
 import os
 import queue
 import re
@@ -55,6 +56,7 @@ from host_controller.build import build_provider_gcs
 from host_controller.build import build_provider_local_fs
 from host_controller.tradefed import remote_operation
 from host_controller.utils.gsi import img_utils
+from host_controller.vti_interface import vti_endpoint_client
 from vts.utils.python.common import cmd_utils
 
 # The default Partner Android Build (PAB) public account.
@@ -98,18 +100,71 @@ COMMAND_PROCESSORS = [
 ]
 
 
-def ExecJobOnProcessPoolWrapper(arg, **kwargs):
-    """Passes argument to Console.ExecjobOnProcessPool.
+class NonDaemonizedProcess(multiprocessing.Process):
+    """Process class which is not daemonized."""
 
-    need to invoke a global function from a process pool
-    since methods are not picklable.
+    def _get_daemon(self):
+        return False
+
+    def _set_daemon(self, value):
+        pass
+
+    daemon = property(_get_daemon, _set_daemon)
+
+
+class NonDaemonizedPool(multiprocessing.pool.Pool):
+    """Pool class which is not daemonized."""
+
+    Process = NonDaemonizedProcess
+
+
+def JobMain(vti_address, pab, in_queue, out_queue):
+    """Main() for a child process that executes a leased job.
+
+    Currently, lease jobs must use VTI (not TFC).
 
     Args:
-        arg: tuple, consists of Console class instance from the main process
-             and a dict containing the leased job information.
-        kwargs: dict, currently not in use.
+        vti_client: VtiEndpointClient needed to create Console.
+        pab: BuildProvider for Partner Android Build and needed
+             to create Console.
+        in_queue: Queue to get new jobs.
+        out_queue; Queue to put execution results.
     """
-    return Console.ExecJobOnProcessPool(*arg, **kwargs)
+    vti_client = vti_endpoint_client.VtiEndpointClient(vti_address)
+    console = Console(vti_client, None, pab, None)
+    while True:
+        command = in_queue.get()
+        if command == "exit":
+            break
+        elif command == "lease":
+            filepath, kwargs = vti_client.LeaseJob(socket.gethostname(), True)
+            print("Job %s -> %s" % (os.getpid(), kwargs))
+            if filepath is not None:
+                # TODO: redirect console output and add
+                # console command to access them.
+                print_to_console = True
+                if not print_to_console:
+                    sys.stdout = out
+                    sys.stderr = err
+
+                ret = console.ProcessConfigurableScript(
+                    os.path.join(os.getcwd(), "host_controller", "campaigns",
+                                 filepath),
+                    **kwargs)
+                if ret:
+                    job_status = "complete"
+                else:
+                    job_status = "infra-err"
+
+                vti_client.StopHeartbeat(job_status)
+                print("Job execution complete. "
+                      "Setting job status to {}".format(job_status))
+
+                if not print_to_console:
+                    sys.stdout = sys.__stdout__
+                    sys.stderr = sys.__stderr__
+        else:
+            print("Unknown job command %s" % command)
 
 
 class Console(cmd.Cmd):
@@ -128,13 +183,8 @@ class Console(cmd.Cmd):
         scheduler_thread: dict containing threading.Thread instances(s) that
                           update configs regularly.
         update_thread: threading.Thread that updates device state regularly.
-        leased_job_process: Process. Fetches leased jobs from leased_job_queue
-                           and maps them to process pool.
-        leased_job_running: multiprocess.Value, keeps running leased_job_process
-                            if equal to 1.
-        leased_job_queue: multiprocess.Queue. Jobs leased will be pushed form
-                          the main process, popped and executed on process pool.
         _build_provider_pab: The BuildProviderPAB used to download artifacts.
+        _vti_address: string, VTI service URI.
         _vti_client: VtiEndpoewrClient, used to upload data to a test
                      scheduling infrastructure.
         _tfc_client: The TfcClient that the host controllers connect to.
@@ -159,6 +209,7 @@ class Console(cmd.Cmd):
                  tfc,
                  pab,
                  host_controllers,
+                 vti_address=None,
                  in_file=sys.stdin,
                  out_file=sys.stdout):
         """Initializes the attributes and the parsers."""
@@ -171,6 +222,7 @@ class Console(cmd.Cmd):
         self._build_provider["gcs"] = build_provider_gcs.BuildProviderGCS()
         self._build_provider["ab"] = build_provider_ab.BuildProviderAB()
         self._vti_endpoint_client = vti_endpoint_client
+        self._vti_address = vti_address
         self._tfc_client = tfc
         self._hosts = host_controllers
         self._in_file = in_file
@@ -184,9 +236,6 @@ class Console(cmd.Cmd):
         self.build_thread = {}
         self.schedule_thread = {}
         self.update_thread = None
-        self.leased_job_process = None
-        self.leased_job_running = None
-        self.leased_job_queue = None
         self.fetch_info = {}
         self.test_results = {}
 
@@ -197,7 +246,6 @@ class Console(cmd.Cmd):
 
         self.InitCommandModuleParsers()
         self.SetUpCommandProcessors()
-        self.StartLeasedJobExecutionProcess()
 
     def InitCommandModuleParsers(self):
         """Init all console command modules"""
@@ -1047,19 +1095,22 @@ class Console(cmd.Cmd):
                     for root, dirs, files in os.walk(base_path):
                         for config_file in files:
                             full_path = os.path.join(root, config_file)
-                            if config_file.endswith(".schedule_config"):
-                                with open(full_path, "r") as fd:
-                                  context = fd.read()
-                                  sched_cfg_msg = SchedCfgMsg.ScheduleConfigMessage()
-                                  text_format.Merge(context, sched_cfg_msg)
-                                  schedules_pbs.append(sched_cfg_msg)
-                                  print sched_cfg_msg.manifest_branch
-                            elif config_file.endswith(".lab_config"):
-                                with open(full_path, "r") as fd:
-                                  context = fd.read()
-                                  lab_cfg_msg = LabCfgMsg.LabConfigMessage()
-                                  text_format.Merge(context, lab_cfg_msg)
-                                  lab_pbs.append(lab_cfg_msg)
+                            try:
+                                if config_file.endswith(".schedule_config"):
+                                    with open(full_path, "r") as fd:
+                                        context = fd.read()
+                                        sched_cfg_msg = SchedCfgMsg.ScheduleConfigMessage()
+                                        text_format.Merge(context, sched_cfg_msg)
+                                        schedules_pbs.append(sched_cfg_msg)
+                                        print sched_cfg_msg.manifest_branch
+                                elif config_file.endswith(".lab_config"):
+                                    with open(full_path, "r") as fd:
+                                        context = fd.read()
+                                        lab_cfg_msg = LabCfgMsg.LabConfigMessage()
+                                        text_format.Merge(context, lab_cfg_msg)
+                                        lab_pbs.append(lab_cfg_msg)
+                            except text_format.ParseError as e:
+                                print("ERROR: Config parsing error %s" % e)
                     self._vti_endpoint_client.UploadScheduleInfo(schedules_pbs)
                     self._vti_endpoint_client.UploadLabInfo(lab_pbs)
 
@@ -1205,80 +1256,34 @@ class Console(cmd.Cmd):
         """
         return self._serials
 
-    def StartLeasedJobExecutionProcess(self, map_interval=1):
-        """Executes process that runs the leased job.
+    def JobThread(self):
+        """Job thread which monitors and uploads results."""
+        thread = threading.currentThread()
+        while getattr(thread, "keep_running", True):
+            time.sleep(1)
+        if self._job_pool:
+            self._job_pool.terminate()
+            self._job_pool = None
 
-        Args:
-            map_interval: int, time between mapping the leased jobs to process
-                          pool in seconds. Default value is 30
-        """
-        leased_job_queue = multiprocess.Queue()
-        leased_job_running = multiprocess.Value("b", 0)
-        process = multiprocess.Process(
-            target=self.ExecLeasedJobs,
-            args=(leased_job_queue,
-                  leased_job_running,
-                  map_interval,)
-        )
-        process.start()
+    def StartJobThreadAndProcessPool(self):
+        """Starts a background thread to control leased jobs."""
+        self._job_in_queue = multiprocessing.Queue()
+        self._job_out_queue = multiprocessing.Queue()
+        self._job_pool = NonDaemonizedPool(
+            _MAX_LEASED_JOBS, JobMain,
+            (self._vti_address,
+             self._build_provider["pab"],
+             self._job_in_queue,
+             self._job_out_queue))
 
-        self.leased_job_process = process
-        self.leased_job_queue = leased_job_queue
-        self.leased_job_running = leased_job_running
+        self._job_thread = threading.Thread(target=self.JobThread)
+        self._job_thread.daemon = True
+        self._job_thread.start()
 
-    def StopLeasedJobExecutionProcess(self):
-        """Terminates the process that runs the leased job."""
-        self.leased_job_running = 0
-        self.leased_job_process.terminate()
-
-    def ExecJobOnProcessPool(self, job):
-        """Executes a job from job queue.
-
-        Args:
-            job: dict, contains the information on the leased job passed to this
-                 process.
-        """
-        print("Executing a leased job on process {}".format(os.getpid()))
-        filepath, kwargs = self._vti_endpoint_client.ExecuteJob(job)
-        if filepath:
-            ret = self.ProcessConfigurableScript(
-                os.path.join(os.getcwd(), "host_controller", "campaigns",
-                             filepath),
-                **kwargs)
-            if ret:
-                job_status = "complete"
-            else:
-                job_status = "infra_error"
-
-            self._vti_endpoint_client.StopHeartbeat(job_status)
-            print("Job execution complete. "
-                  "Setting job status to {}".format(job_status))
-
-    def ExecLeasedJobs(self, job_queue, process_running, map_interval):
-        """Pops jobs from job_queue and execute them on process pool.
-
-        Args:
-            job_queue: multiprocess.Queue, a queue from which to get the
-                       leased jobs. Shared with the main process.
-            process_running: byte, continue to run the while loop if equal to 1.
-                             Shared with the main process.
-            map_interval: int, time between mapping the leased jobs to process
-                          pool in seconds.
-        """
-        leased_job_exec_pool = multiprocess.Pool(processes=_MAX_LEASED_JOBS)
-
-        while True:
-            if process_running:
-                arg_list = []
-                while not job_queue.empty():
-                    leased_job = job_queue.get()
-                    pair = (self, leased_job)
-                    arg_list.append(pair)
-
-                if len(arg_list) > 0:
-                    leased_job_exec_pool.map_async(ExecJobOnProcessPoolWrapper,
-                                                   arg_list)
-            time.sleep(map_interval)
+    def StopJobThreadAndProcessPool(self):
+        """Terminates the thread and processes that runs the leased job."""
+        if hasattr(self, "_job_thread"):
+            self._job_thread.keep_running = False
 
     def UpdateDevice(self, server_type, host, lease):
         """Updates the device state of all devices on a given host.
@@ -1333,12 +1338,7 @@ class Console(cmd.Cmd):
                 host.hostname, devices)
 
             if lease:
-                filepath, kwargs = self._vti_endpoint_client.LeaseJob(
-                    socket.gethostname(), False)
-
-                if filepath is not None:
-                    self.leased_job_queue.put(kwargs)
-
+                self._job_in_queue.put("lease")
         elif server_type == "tfc":
             devices = host.ListDevices()
             for device in devices:
@@ -1402,12 +1402,8 @@ class Console(cmd.Cmd):
                     ))
                 self.update_thread.daemon = True
                 self.update_thread.start()
-                if args.lease:
-                    self.leased_job_running = 1
             elif args.update == "stop":
                 self.update_thread.keep_running = False
-                if self.leased_job_running:
-                    self.leased_job_running = 0
 
     def help_device(self):
         """Prints help message for device command."""
@@ -1523,7 +1519,7 @@ class Console(cmd.Cmd):
         Returns:
             True, which stops the cmdloop.
         """
-        self.StopLeasedJobExecutionProcess()
+        self.StopJobThreadAndProcessPool()
         return True
 
     def help_exit(self):
@@ -1614,7 +1610,7 @@ class Console(cmd.Cmd):
             if depth == 1:  # 1 to use multi-threading
                 jobs = []
                 for sub_command in line:
-                    p = multiprocess.Process(
+                    p = multiprocessing.Process(
                         target=self.onecmd, args=(sub_command, depth + 1,))
                     jobs.append(p)
                     p.start()

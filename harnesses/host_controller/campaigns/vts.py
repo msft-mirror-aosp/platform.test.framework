@@ -82,6 +82,7 @@ def EmitConsoleCommands(**kwargs):
 
     result.append("info")
     result.append("gsispl --version_from_path=boot.img")
+    result.append("info")
 
     shards = int(kwargs["shards"])
     test_name = kwargs["test_name"].split("/")[-1]
