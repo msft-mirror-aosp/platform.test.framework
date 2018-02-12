@@ -52,6 +52,9 @@ from host_controller.vti_interface import vti_endpoint_client
 # department of Google LLC.
 _DEFAULT_ACCOUNT_ID = '543365459'
 
+# The default Partner Android Build (PAB) internal account.
+_DEFAULT_ACCOUNT_ID_INTERNAL = '541462473'
+
 # The default value for "flash --current".
 _DEFAULT_FLASH_IMAGES = [
     build_provider.FULL_ZIPFILE,
