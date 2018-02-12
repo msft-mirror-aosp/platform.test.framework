@@ -1095,19 +1095,22 @@ class Console(cmd.Cmd):
                     for root, dirs, files in os.walk(base_path):
                         for config_file in files:
                             full_path = os.path.join(root, config_file)
-                            if config_file.endswith(".schedule_config"):
-                                with open(full_path, "r") as fd:
-                                  context = fd.read()
-                                  sched_cfg_msg = SchedCfgMsg.ScheduleConfigMessage()
-                                  text_format.Merge(context, sched_cfg_msg)
-                                  schedules_pbs.append(sched_cfg_msg)
-                                  print sched_cfg_msg.manifest_branch
-                            elif config_file.endswith(".lab_config"):
-                                with open(full_path, "r") as fd:
-                                  context = fd.read()
-                                  lab_cfg_msg = LabCfgMsg.LabConfigMessage()
-                                  text_format.Merge(context, lab_cfg_msg)
-                                  lab_pbs.append(lab_cfg_msg)
+                            try:
+                                if config_file.endswith(".schedule_config"):
+                                    with open(full_path, "r") as fd:
+                                        context = fd.read()
+                                        sched_cfg_msg = SchedCfgMsg.ScheduleConfigMessage()
+                                        text_format.Merge(context, sched_cfg_msg)
+                                        schedules_pbs.append(sched_cfg_msg)
+                                        print sched_cfg_msg.manifest_branch
+                                elif config_file.endswith(".lab_config"):
+                                    with open(full_path, "r") as fd:
+                                        context = fd.read()
+                                        lab_cfg_msg = LabCfgMsg.LabConfigMessage()
+                                        text_format.Merge(context, lab_cfg_msg)
+                                        lab_pbs.append(lab_cfg_msg)
+                            except text_format.ParseError as e:
+                                print("ERROR: Config parsing error %s" % e)
                     self._vti_endpoint_client.UploadScheduleInfo(schedules_pbs)
                     self._vti_endpoint_client.UploadLabInfo(lab_pbs)
 
