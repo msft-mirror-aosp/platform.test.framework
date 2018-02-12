@@ -53,7 +53,12 @@ class BaseCommandProcessor(object):
         Args:
             arg_line: string, line of command arguments
         '''
-        self.Run(arg_line)
+        ret = self.Run(arg_line)
+        if ret == True:  # exit command executed.
+            return True
+        elif ret == False:
+            """ TODO(hyunwooko) : abort leased job execution and set 
+                                  the job status to error on the cloud."""
 
     def Run(self, arg_line):
         '''Run method to perform action when invoked from console.
