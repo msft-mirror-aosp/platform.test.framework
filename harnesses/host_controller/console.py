@@ -45,12 +45,16 @@ from host_controller.build import build_provider
 from host_controller.build import build_provider_ab
 from host_controller.build import build_provider_gcs
 from host_controller.build import build_provider_local_fs
+from host_controller.build import build_provider_pab
 from host_controller.vti_interface import vti_endpoint_client
 
 # The default Partner Android Build (PAB) public account.
 # To obtain access permission, please reach out to Android partner engineering
 # department of Google LLC.
 _DEFAULT_ACCOUNT_ID = '543365459'
+
+# The default Partner Android Build (PAB) internal account.
+_DEFAULT_ACCOUNT_ID_INTERNAL = '541462473'
 
 # The default value for "flash --current".
 _DEFAULT_FLASH_IMAGES = [
@@ -130,8 +134,13 @@ def JobMain(vti_address, pab, in_queue, out_queue):
         in_queue: Queue to get new jobs.
         out_queue; Queue to put execution results.
     """
+    if not vti_address:
+        print("vti address is not set. example : $ run --vti=<url>")
+        return
+
     vti_client = vti_endpoint_client.VtiEndpointClient(vti_address)
-    console = Console(vti_client, None, pab, None)
+    console = Console(vti_client, None, build_provider_pab.BuildProviderPAB(),
+                      None)
     while True:
         command = in_queue.get()
         if command == "exit":
