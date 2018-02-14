@@ -69,7 +69,7 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
             gsi_path = self.console.device_image_info["system.img"]
         else:
             print "Cannot find system image."
-            return
+            return False
 
         if args.version:
             try:
@@ -101,7 +101,7 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
                     img_path = os.path.join(dest_path, "boot.img")
             else:
                 print("Cannot find %s file." % args.version_from_path)
-                return
+                return False
 
             version_dict = img_utils.GetSPLVersionFromBootImg(img_path)
             if "year" in version_dict and "month" in version_dict:
@@ -110,10 +110,10 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
                     self.console._SPL_DEFAULT_DAY)
             else:
                 print("Failed to fetch SPL version from %s file." % img_path)
-                return
+                return False
         else:
             print("version ID or path of .img file must be given.")
-            return
+            return False
 
         output_path = os.path.join(
             os.path.dirname(os.path.abspath(gsi_path)),
@@ -129,4 +129,4 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
                 self.console.device_image_info["system.img"] = output_path
         else:
             print "gsispl error: {}".format(stdout)
-            return
+            return False
