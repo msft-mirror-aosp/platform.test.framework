@@ -84,7 +84,7 @@ class CommandFetch(base_command_processor.BaseCommandProcessor):
 
         if args.type not in self.console._build_provider:
             print("ERROR: uninitialized fetch type %s" % args.type)
-            return
+            return False
 
         provider = self.console._build_provider[args.type]
         if args.type == "pab":
@@ -115,7 +115,7 @@ class CommandFetch(base_command_processor.BaseCommandProcessor):
             self.console.fetch_info["build_id"] = fetch_environment["build_id"]
         else:
             print("ERROR: unknown fetch type %s" % args.type)
-            return
+            return False
 
         self.console.fetch_info["branch"] = args.branch
         self.console.fetch_info["target"] = args.target

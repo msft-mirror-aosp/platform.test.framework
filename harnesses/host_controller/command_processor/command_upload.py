@@ -94,7 +94,7 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
         gsutil_path = build_provider_gcs.BuildProviderGCS.GetGsutilPath()
         if not gsutil_path:
             print("Please check gsutil is installed and on your PATH")
-            return
+            return False
 
         if args.src.startswith("latest-"):
             src_name = args.src[7:]
@@ -103,27 +103,27 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             else:
                 print(
                     "Unable to find {} in device_image_info".format(src_name))
-                return
+                return False
         else:
             try:
                 src_path = self.FormatString(args.src)
             except KeyError as e:
                 print("Unknown or uninitialized variable in src: %s" % e)
-                return
+                return False
 
         if not os.path.isfile(src_path):
             print("Cannot find a file: {}".format(src_path))
-            return
+            return False
 
         try:
             dest_path = self.FormatString(args.dest)
         except KeyError as e:
             print("Unknown or uninitialized variable in dest: %s" % e)
-            return
+            return False
 
         if not dest_path.startswith("gs://"):
             print("{} is not correct GCS url.".format(dest_path))
-            return
+            return False
         """ TODO(jongmok) : Before upload, login status, authorization,
                             and dest check are required. """
         copy_command = "{} cp {} {}".format(gsutil_path, src_path, dest_path)
