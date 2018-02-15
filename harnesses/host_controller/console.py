@@ -322,7 +322,9 @@ class Console(cmd.Cmd):
         commands = script_module.EmitConsoleCommands()
         if commands:
             for command in commands:
-                self.onecmd(command)
+                ret = self.onecmd(command)
+                if ret == False:
+                    return False
         return True
 
     def ProcessConfigurableScript(self, script_file_path, **kwargs):
@@ -352,7 +354,9 @@ class Console(cmd.Cmd):
         commands = script_module.EmitConsoleCommands(**kwargs)
         if commands:
             for command in commands:
-                self.onecmd(command)
+                ret = self.onecmd(command)
+                if ret == False:
+                    return False
         else:
             return False
         return True
@@ -485,7 +489,7 @@ class Console(cmd.Cmd):
             self._job_thread.keep_running = False
 
     # @Override
-    def onecmd(self, line, depth=1):
+    def onecmd(self, line, depth=1, ret_out_queue=None):
         """Executes command(s) and prints any exception.
 
         Parallel execution only for 2nd-level list element.
@@ -499,24 +503,40 @@ class Console(cmd.Cmd):
         if type(line) == list:
             if depth == 1:  # 1 to use multi-threading
                 jobs = []
+                ret_queue = multiprocessing.Queue()
                 for sub_command in line:
                     p = multiprocessing.Process(
-                        target=self.onecmd, args=(sub_command, depth + 1,))
+                        target=self.onecmd, args=(sub_command, depth + 1, ret_queue, ))
                     jobs.append(p)
                     p.start()
                 for job in jobs:
                     job.join()
+
+                ret_cmd_list = True
+                while not ret_queue.empty():
+                    ret_from_subprocess = ret_queue.get()
+                    ret_cmd_list = ret_cmd_list and ret_from_subprocess
+                if ret_cmd_list == False:
+                    return False
             else:
                 for sub_command in line:
-                    self.onecmd(sub_command, depth + 1)
+                    ret_cmd_list = self.onecmd(sub_command, depth + 1)
+                    if ret_cmd_list==False and ret_out_queue:
+                        ret_out_queue.put(False)
+                        return False
             return
 
         print("Command: %s" % line)
         try:
-            return cmd.Cmd.onecmd(self, line)
+            ret_cmd = cmd.Cmd.onecmd(self, line)
+            if ret_cmd==False and ret_out_queue:
+                ret_out_queue.put(ret_cmd)
+            return ret_cmd
         except Exception as e:
             self._Print("%s: %s" % (type(e).__name__, e))
-            return None
+            if ret_out_queue:
+                ret_out_queue.put(False)
+            return False
 
     # @Override
     def emptyline(self):

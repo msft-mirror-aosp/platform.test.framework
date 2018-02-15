@@ -151,35 +151,42 @@ class CommandFlash(base_command_processor.BaseCommandProcessor):
 
         # Can be parallelized as long as that's proven reliable.
         for flasher in flashers:
+            ret_flash = True
             if args.flasher_type == "fastboot":
                 if args.image is not None:
-                    flasher.FlashImage(partition_image, True
+                    ret_flash = flasher.FlashImage(partition_image, True
                                        if args.reboot == "true" else False)
                 elif args.current is not None:
-                    flasher.Flash(partition_image)
+                    ret_flash = flasher.Flash(partition_image)
                 else:
                     if args.gsi is None and args.build_dir is None:
                         self.arg_parser.error("Nothing requested: "
                                               "specify --gsi or --build_dir")
+                        return False
                     if args.build_dir is not None:
-                        flasher.Flashall(args.build_dir)
+                        ret_flash = flasher.Flashall(args.build_dir)
                     if args.gsi is not None:
-                        flasher.FlashGSI(args.gsi, args.vbmeta)
+                        ret_flash = flasher.FlashGSI(args.gsi, args.vbmeta)
             elif args.flasher_type == "custom":
                 if flasher_path is not None:
                     if args.repackage is not None:
                         flasher.RepackageArtifacts(
                             self.console.device_image_info, args.repackage)
-                    flasher.FlashUsingCustomBinary(
+                    ret_flash = flasher.FlashUsingCustomBinary(
                         self.console.device_image_info, args.reboot_mode,
                         args.flasher_args, 300)
                 else:
                     self.arg_parser.error(
                         "Please specify the path to custom flash tool.")
+                    return False
             else:
-                flasher.Flash(partition_image, self.console.tools_info,
+                ret_flash = flasher.Flash(partition_image, self.console.tools_info,
                               *args.flasher_args)
+            if ret_flash == False:
+                return False
 
         if args.wait_for_boot == "true":
             for flasher in flashers:
-                flasher.WaitForDevice()
+                ret_wait = flasher.WaitForDevice()
+                if ret_wait == False:
+                    return False
