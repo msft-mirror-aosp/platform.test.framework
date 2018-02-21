@@ -116,7 +116,7 @@ def EmitConsoleCommands(**kwargs):
                                                                     shards))
 
     result.append(
-        "upload --src={result_zip} --dest=gs://vts-report/{suite_plan}"
-        "/{branch}/{target}/{build_id}_{timestamp}.zip")
+        "upload --src={result_full} --dest=gs://vts-report/{suite_plan}"
+        "/{branch}/{target}/{build_id}_{timestamp}/")
 
     return result
