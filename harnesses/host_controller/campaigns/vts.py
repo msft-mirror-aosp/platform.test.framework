@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-from host_controller.console import _DEFAULT_ACCOUNT_ID_INTERNAL
+from host_controller import common
 
 # The list of the kwargs key. can retrieve informations on the leased job.
 _JOB_ATTR_LIST = [
@@ -53,7 +53,7 @@ def EmitConsoleCommands(**kwargs):
     if "pab_account_id" in kwargs and kwargs["pab_account_id"] != "":
         pab_account_id = kwargs["pab_account_id"]
     else:
-        pab_account_id = _DEFAULT_ACCOUNT_ID_INTERNAL
+        pab_account_id = common._DEFAULT_ACCOUNT_ID_INTERNAL
 
     manifest_branch = kwargs["manifest_branch"]
     build_id = kwargs["build_id"]
