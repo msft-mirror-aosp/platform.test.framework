@@ -200,6 +200,7 @@ class CommandTest(base_command_processor.BaseCommandProcessor):
                     dir_name, file_name in utils.iterate_files(result_dir) if
                     file_name.startswith("log-result") and
                     file_name.endswith(".zip")]
+
                 if len(result_paths) != 1:
                     logging.warning(
                         "Unexpected number of results: %s", result_paths)
@@ -212,8 +213,15 @@ class CommandTest(base_command_processor.BaseCommandProcessor):
                                 "log-result.xml", mode="rU") as result_xml:
                             result = self._LoadReport(result_xml)
                     result["result_zip"] = result_paths[0]
-                    logging.debug(result)
-                    self.console.test_result.update(result)
+
+                result_paths_full = [
+                    os.path.join(dir_name, file_name) for
+                    dir_name, file_name in utils.iterate_files(result_dir) if
+                    file_name.endswith(".zip")]
+                result["result_full"] = " ".join(result_paths_full)
+
+                logging.debug(result)
+                self.console.test_result.update(result)
         else:
             print("unsupported exec mode: %s", args.test_exec_mode)
             return False
