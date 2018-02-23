@@ -14,8 +14,6 @@
 # limitations under the License.
 #
 
-from host_controller.build import build_provider
-
 # The default Partner Android Build (PAB) public account.
 # To obtain access permission, please reach out to Android partner engineering
 # department of Google LLC.
@@ -24,9 +22,12 @@ _DEFAULT_ACCOUNT_ID = '543365459'
 # The default Partner Android Build (PAB) internal account.
 _DEFAULT_ACCOUNT_ID_INTERNAL = '541462473'
 
+# The key value used for getting a fetched .zip android img file.
+FULL_ZIPFILE = "full-zipfile"
+
 # The default value for "flash --current".
 _DEFAULT_FLASH_IMAGES = [
-    build_provider.FULL_ZIPFILE,
+    FULL_ZIPFILE,
     "bootloader.img",
     "boot.img",
     "cache.img",
