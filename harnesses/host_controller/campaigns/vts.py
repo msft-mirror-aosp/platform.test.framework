@@ -124,6 +124,10 @@ def EmitConsoleCommands(**kwargs):
             result.append("test --keep-result -- %s --shards %s" % (test_name,
                                                                     shards))
 
+    if "retry_count" in kwargs:
+        retry_count = int(kwargs["retry_count"])
+        result.append("retry --count %d" % retry_count)
+
     result.append(
         "upload --src={result_full} --dest=gs://vts-report/{suite_plan}"
         "/{branch}/{target}/%s_{build_id}_{timestamp}/" % build_target)
