@@ -126,6 +126,6 @@ def EmitConsoleCommands(**kwargs):
 
     result.append(
         "upload --src={result_full} --dest=gs://vts-report/{suite_plan}"
-        "/{branch}/{target}/{build_id}_{timestamp}/")
+        "/{branch}/{target}/%s_{build_id}_{timestamp}/" % build_target)
 
     return result
