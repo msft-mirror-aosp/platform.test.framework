@@ -39,6 +39,7 @@ from host_controller.command_processor import command_gsispl
 from host_controller.command_processor import command_info
 from host_controller.command_processor import command_lease
 from host_controller.command_processor import command_list
+from host_controller.command_processor import command_retry
 from host_controller.command_processor import command_request
 from host_controller.command_processor import command_test
 from host_controller.command_processor import command_upload
@@ -61,6 +62,7 @@ COMMAND_PROCESSORS = [
     command_info.CommandInfo,
     command_lease.CommandLease,
     command_list.CommandList,
+    command_retry.CommandRetry,
     command_request.CommandRequest,
     command_test.CommandTest,
     command_upload.CommandUpload,
