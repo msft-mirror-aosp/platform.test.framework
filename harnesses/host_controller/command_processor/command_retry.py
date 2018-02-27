@@ -15,6 +15,7 @@
 #
 
 import os
+import xml.etree.ElementTree as ET
 import zipfile
 
 from host_controller.build import build_provider_gcs
@@ -25,11 +26,54 @@ from vts.utils.python.common import cmd_utils
 # Test result file contains invoked test plan results.
 _TEST_RESULT_XML = "test_result.xml"
 
+# XML tag name whose attributes are pass/fail count, modules run/total count.
+_SUMMARY_TAG = "Summary"
+
+# The key value for retrieving failed testcase count
+_FAILED_ATTR_KEY = "failed"
+
+# The key value for retrieving total module count
+_MODULES_TOTAL_ATTR_KEY = "modules_total"
+
+# The key value for retrieving run module count
+_MODULES_DONE_ATTR_KEY = "modules_done"
+
+# The key value for retrieving test plan from the result xml
+_SUITE_PLAN_ATTR_KEY = "suite_plan"
+
 
 class CommandRetry(base_command_processor.BaseCommandProcessor):
+    """Command processor for retry command.
+
+    Attributes:
+        _result_suite_plan: string, test plan info from latest/downloaded
+                            test result.
+        _result_skip_count: int, number of skipped module from the result.
+        _result_fail_count: int, number of failed test cases from the result.
+    """
 
     command = "retry"
     command_detail = "Retry last run test plan for certain times."
+
+    def __init__(self):
+        self._result_suite_plan = ""
+        self._result_skip_count = 0
+        self._result_fail_count = 0
+
+    def ParseXml(self, path_to_xml_file):
+        """Parses test_result.xml file and get information about the test.
+
+        Args:
+            path_to_xml_file: string, path to the test_result.xml file
+        """
+        tree = ET.parse(path_to_xml_file)
+        root = tree.getroot()
+        self._result_suite_plan = root.attrib[_SUITE_PLAN_ATTR_KEY]
+
+        summary = root.find(_SUMMARY_TAG).attrib
+        self._result_fail_count = int(summary[_FAILED_ATTR_KEY])
+        self._result_skip_count = int(summary[_MODULES_TOTAL_ATTR_KEY]) - int(
+            summary[_MODULES_DONE_ATTR_KEY])
 
     def IsResultZipFile(self, zip_ref):
         """Determines whether the given zip_ref is the right result archive.
@@ -109,17 +153,22 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
             default=30,
             help="Retry count. Default retry count is 30.")
         self.arg_parser.add_argument(
+            "--force-count",
+            type=int,
+            default=3,
+            help="Forced retry count. Retry certain test plan for the given "
+            "times whether all testcases has passed or not.")
+        self.arg_parser.add_argument(
             "--result-from-gcs",
-            help=
-            "Google Cloud Storage URL from which the result is downloaded. "
-            "Will retry based on the fetched result data"
-        )
+            help="Google Cloud Storage URL from which the result is downloaded. "
+            "Will retry based on the fetched result data")
 
     # @Override
     def Run(self, arg_line):
         """Retry last run plan for certain times."""
         args = self.arg_parser.ParseLine(arg_line)
         retry_count = args.count
+        force_retry_count = args.force_count
 
         if "vts" not in self.console.test_suite_info:
             print("test_suite_info doesn't have 'vts': %s" %
@@ -143,24 +192,37 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
             if os.path.isdir(os.path.join(results_path, result))
             and not os.path.islink(os.path.join(results_path, result))
         ]
-        if unzipped_result_dir:
-            former_results.sort()
-            unzipped_result_session_id = former_results.index(
-                unzipped_result_dir)
         former_result_count = len(former_results)
-
         if former_result_count < 1:
             print("No test plan has been run yet, former results count is %d" %
                   former_result_count)
             return False
 
+        if unzipped_result_dir:
+            former_results.sort()
+            unzipped_result_session_id = former_results.index(
+                unzipped_result_dir)
+
         for result_index in range(retry_count):
             if unzipped_result_session_id >= 0:
                 session_id = unzipped_result_session_id
                 unzipped_result_session_id = -1
+                latest_result_xml_path = os.path.join(
+                    results_path, unzipped_result_dir, _TEST_RESULT_XML)
             else:
                 session_id = former_result_count - 1 + result_index
+                latest_result_xml_path = os.path.join(results_path, "latest",
+                                                      _TEST_RESULT_XML)
+
+            self.ParseXml(latest_result_xml_path)
+            if (result_index >= force_retry_count
+                    and self._result_skip_count == 0
+                    and self._result_fail_count == 0):
+                print("All modules have run and passed. "
+                      "Skipping remaining %d retry runs." %
+                      (retry_count - result_index))
+                break
 
             retry_test_command = "test --keep-result -- %s --retry %d" % (
-                self.console.test_result["suite_plan"], session_id)
+                self._result_suite_plan, session_id)
             self.console.onecmd(retry_test_command)
