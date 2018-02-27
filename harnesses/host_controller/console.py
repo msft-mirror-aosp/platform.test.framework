@@ -44,6 +44,7 @@ from host_controller.command_processor import command_retry
 from host_controller.command_processor import command_request
 from host_controller.command_processor import command_test
 from host_controller.command_processor import command_upload
+from host_controller.build import build_info
 from host_controller.build import build_provider_ab
 from host_controller.build import build_provider_gcs
 from host_controller.build import build_provider_local_fs
@@ -217,10 +218,10 @@ class Console(cmd.Cmd):
         self._out_file = out_file
         self.prompt = "> "
         self.command_processors = {}
-        self.device_image_info = {}
+        self.device_image_info = build_info.BuildInfo()
         self.test_result = {}
-        self.test_suite_info = {}
-        self.tools_info = {}
+        self.test_suite_info = build_info.BuildInfo()
+        self.tools_info = build_info.BuildInfo()
         self.fetch_info = {}
         self.test_results = {}
         self._device_status = shared_dict.SharedDict()
