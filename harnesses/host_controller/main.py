@@ -187,7 +187,11 @@ def main():
     else:
         main_console = console.Console(vti_endpoint, tfc, pab, hosts,
                                        vti_address=args.vti)
-        main_console.StartJobThreadAndProcessPool()
+        if args.vti:
+            main_console.StartJobThreadAndProcessPool()
+        else:
+            print("vti address is not set. example : $ run --vti=<url>")
+
         try:
             if args.serial:
                 main_console.SetSerials(args.serial.split(","))
