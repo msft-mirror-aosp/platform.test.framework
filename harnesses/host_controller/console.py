@@ -100,10 +100,6 @@ def JobMain(vti_address, in_queue, out_queue, device_status):
         device_status: SharedDict, contains device status information.
                        shared between processes.
     """
-    if not vti_address:
-        print("vti address is not set. example : $ run --vti=<url>")
-        return
-
     def SigTermHandler(signum, frame):
         """Signal handler for exiting pool process explicitly.
 
