@@ -57,9 +57,12 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
 
             stdout, stderr, returncode = cmd_utils.ExecuteOneShellCommand(
                 "adb devices")
+            lines_adb = stdout.split("\n")[1:]
+            stdout, stderr, returncode = cmd_utils.ExecuteOneShellCommand(
+                "fastboot devices")
+            lines_fastboot = stdout.split("\n")
 
-            lines = stdout.split("\n")[1:]
-            for line in lines:
+            for line in lines_adb:
                 if len(line.strip()):
                     device = {}
                     device["serial"] = line.split()[0]
@@ -68,23 +71,10 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                     if (self.console.device_status[serial] !=
                             common._DEVICE_STATUS_DICT["use"]):
                         stdout, _, retcode = cmd_utils.ExecuteOneShellCommand(
-                            "adb -s %s shell getprop ro.product.board" %
-                            device["serial"])
-                        if retcode == 0:
-                            device["product"] = stdout.strip()
-                        else:
-                            device["product"] = "error"
+                            "adb -s %s reboot bootloader" % device["serial"])
+                        lines_fastboot.append(line)
 
-                        self.console.device_status[
-                            serial] = common._DEVICE_STATUS_DICT["online"]
-
-                        device["status"] = self.console.device_status[serial]
-                        devices.append(device)
-
-            stdout, stderr, returncode = cmd_utils.ExecuteOneShellCommand(
-                "fastboot devices")
-            lines = stdout.split("\n")
-            for line in lines:
+            for line in lines_fastboot:
                 if len(line.strip()):
                     device = {}
                     device["serial"] = line.split()[0]
@@ -97,6 +87,9 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                         if retcode == 0:
                             res = stderr.splitlines()[0].rstrip()
                             if ":" in res:
+                                device["product"] = res.split(":")[1].strip()
+                            elif "waiting for %s" % serial in res:
+                                res = stderr.splitlines()[1].rstrip()
                                 device["product"] = res.split(":")[1].strip()
                             else:
                                 device["product"] = "error"
