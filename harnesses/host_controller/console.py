@@ -33,6 +33,7 @@ from host_controller.command_processor import command_build
 from host_controller.command_processor import command_config
 from host_controller.command_processor import command_copy
 from host_controller.command_processor import command_device
+from host_controller.command_processor import command_dut
 from host_controller.command_processor import command_exit
 from host_controller.command_processor import command_fetch
 from host_controller.command_processor import command_flash
@@ -57,6 +58,7 @@ COMMAND_PROCESSORS = [
     command_config.CommandConfig,
     command_copy.CommandCopy,
     command_device.CommandDevice,
+    command_dut.CommandDUT,
     command_exit.CommandExit,
     command_fetch.CommandFetch,
     command_flash.CommandFlash,
