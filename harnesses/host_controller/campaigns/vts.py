@@ -115,25 +115,29 @@ def EmitConsoleCommands(**kwargs):
 
     if shards > 1:
         sub_commands = []
-        test_command = "test --keep-result -- %s --shards %d %s" % (
-            test_name, shards, param)
+        test_command = "test --keep-result -- %s --shards %d %s" % (test_name,
+                                                                    shards,
+                                                                    param)
         if shards <= len(serials):
             for shard_index in range(shards):
                 new_cmd_list = []
                 new_cmd_list.append(
-                    "flash --current --serial %s" % serials[shard_index])
+                    "flash --current --serial %s --skip-vbmeta=True " %
+                    serials[shard_index])
                 test_command += " --serial %s" % serials[shard_index]
                 sub_commands.append(new_cmd_list)
         result.append(sub_commands)
         result.append(test_command)
     else:
-        result.append("flash --current --serial %s" % serials[0])
+        result.append(
+            "flash --current --serial %s --skip-vbmeta=True" % serials[0])
         if serials:
-            result.append("test --keep-result -- %s --serial %s --shards %s %s" %
-                          (test_name, ",".join(serials), shards, param))
+            result.append(
+                "test --keep-result -- %s --serial %s --shards %s %s" %
+                (test_name, ",".join(serials), shards, param))
         else:
-            result.append("test --keep-result -- %s --shards %s %s" % (
-                test_name, shards, param))
+            result.append("test --keep-result -- %s --shards %s %s" %
+                          (test_name, shards, param))
 
     if "retry_count" in kwargs:
         retry_count = int(kwargs["retry_count"])
