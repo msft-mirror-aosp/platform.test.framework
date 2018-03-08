@@ -54,3 +54,6 @@ _SPL_DEFAULT_DAY = 5
 
 # Maximum number of leased jobs per host.
 _MAX_LEASED_JOBS = 14
+
+# Defualt access point for dut wifi_on command.
+_DEFAULT_WIFI_AP = "GoogleGuest"
