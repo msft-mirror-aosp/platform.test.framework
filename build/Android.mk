@@ -17,35 +17,55 @@
 LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
+include $(LOCAL_PATH)/tasks/list/vtslab_apk_package_list.mk
+include $(LOCAL_PATH)/tasks/list/vtslab_bin_package_list.mk
+include $(LOCAL_PATH)/tasks/list/vtslab_lib_package_list.mk
 
 VTSLAB_OUT_ROOT := $(HOST_OUT)/vtslab
 VTSLAB_TESTCASES_OUT := $(VTSLAB_OUT_ROOT)/android-vtslab/testcases
 VTSLAB_TOOLS_OUT := $(VTSLAB_OUT_ROOT)/android-vtslab/tools
+VTSLAB_BIN_LIB_OUT := $(VTSLAB_OUT_ROOT)/android-vtslab/
 
 # Packaging rule for android-vtslab.zip
 test_suite_name := vtslab
 test_suite_readme := test/framework/README.md
 
 include $(LOCAL_PATH)/package.mk
-include test/vts/tools/build/utils/vts_package_utils.mk
-
-vts_lab_required_packages: run adb fastboot
-	echo "radio $(ALL_MODULES.WifiUtil.BUILT_INSTALLED)"
+include $(LOCAL_PATH)/utils/vtslab_package_utils.mk
 
 .PHONY: vtslab
-vtslab: $(compatibility_zip) $(vts_lab_required_packages)
+vtslab: $(compatibility_zip)
 $(call dist-for-goals, vtslab, $(compatibility_zip))
 
+# Packaging rule for android-vtslab.zip's testcases dir (DATA subdir).
+vtslab_apk_modules := \
+  $(vtslab_apk_packages) \
 
+vtslab_apk_modules_copy_pairs := \
+  $(call target-native-copy-pairs,$(vtslab_apk_modules),$(VTSLAB_TESTCASES_OUT))
+
+# host controller files.
 host_hc_files := \
-  $(call find-files-in-subdirs,test/framework/harnesses/host_controller,"*.py" -and -type f,.)
+  $(call find-files-in-subdirs,test/framework/harnesses/host_controller,"*.py" -and -type f -not -path "./gsi/*",.) \
 
 host_hc_copy_pairs := \
   $(foreach f,$(host_hc_files),\
       test/framework/harnesses/host_controller/$(f):$(VTSLAB_TESTCASES_OUT)/host_controller/$(f))
 
+# gsi security patch scripts.
+host_hc_gsispl_files := \
+  $(call find-files-in-subdirs,test/framework/harnesses/host_controller/gsi,"*.sh" -and -type f,.) \
+
+host_hc_gsispl_copy_pairs := \
+  $(foreach f,$(host_hc_gsispl_files),\
+    test/framework/harnesses/host_controller/gsi/$(f):$(VTSLAB_BIN_LIB_OUT)/bin/$(f))
+
+# host controller scripts.
 host_hc_extra_copy_pairs := \
   test/framework/tools/host_controller/run:$(VTSLAB_TOOLS_OUT)/run \
+  test/vts/script/diagnose.py:$(VTSLAB_BIN_LIB_OUT)/bin/diagnose.py \
+  test/vts/script/pip_requirements.txt:$(VTSLAB_BIN_LIB_OUT)/bin/pip_requirements.txt \
+  test/vts/script/setup.sh:$(VTSLAB_BIN_LIB_OUT)/bin/setup.sh \
 
 host_acloud_files := \
   $(call find-files-in-subdirs,tools/acloud,"*.py" -and -type f,.) \
@@ -81,18 +101,23 @@ vts_host_python_copy_pairs := \
   $(foreach f,$(vts_host_python_files),\
     test/vts/$(f):$(VTSLAB_TESTCASES_OUT)/vts/$(f))
 
-vtslab_apk_modules := \
-  WifiUtil \
-  CtsVerifier \
+# Packaging rule for host-controller's dependencies
+host_hc_bin_lib := \
+  $(vtslab_bin_packages) \
+  $(vtslab_lib_packages) \
+
+host_hc_bin_lib_copy_pairs := \
+  $(call host-native-copy-pairs,$(host_hc_bin_lib),$(VTSLAB_BIN_LIB_OUT))
 
 vtslab_copy_pairs := \
-  $(call copy-many-files,$(vtslab_apk_modules)) \
+  $(call copy-many-files,$(vtslab_apk_modules_copy_pairs)) \
   $(call copy-many-files,$(host_hc_copy_pairs)) \
+  $(call copy-many-files,$(host_hc_gsispl_copy_pairs)) \
   $(call copy-many-files,$(host_hc_extra_copy_pairs)) \
   $(call copy-many-files,$(host_acloud_copy_pairs)) \
   $(call copy-many-files,$(host_vti_proto_copy_pairs)) \
   $(call copy-many-files,$(vts_host_python_copy_pairs)) \
+  $(call copy-many-files,$(host_hc_bin_lib_copy_pairs)) \
   $(host_vti_extra_copy_pairs) \
 
 $(compatibility_zip): $(vtslab_copy_pairs)
-
