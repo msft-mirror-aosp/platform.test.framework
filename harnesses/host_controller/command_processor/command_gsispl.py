@@ -120,7 +120,7 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
             os.path.dirname(os.path.abspath(gsi_path)),
             "system-{}.img".format(version))
         command = "{} {} {} {}".format(
-            os.path.join(os.getcwd(), "host_controller", "gsi",
+            os.path.join(os.getcwd(), "..", "bin",
                          "change_security_patch_ver.sh"), gsi_path,
             output_path, version)
         stdout, stderr, err_code = cmd_utils.ExecuteOneShellCommand(command)
