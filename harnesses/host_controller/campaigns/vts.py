@@ -124,6 +124,9 @@ def EmitConsoleCommands(**kwargs):
                 new_cmd_list.append(
                     "flash --current --serial %s --skip-vbmeta=True " %
                     serials[shard_index])
+                new_cmd_list.append(
+                    "dut --operation=wifi_on --serial=%s --ap=%s" %
+                    (serials[shard_index], common._DEFAULT_WIFI_AP))
                 test_command += " --serial %s" % serials[shard_index]
                 sub_commands.append(new_cmd_list)
         result.append(sub_commands)
@@ -131,6 +134,8 @@ def EmitConsoleCommands(**kwargs):
     else:
         result.append(
             "flash --current --serial %s --skip-vbmeta=True" % serials[0])
+        result.append("dut --operation=wifi_on --serial=%s --ap=%s" %
+                      (serials[0], common._DEFAULT_WIFI_AP))
         if serials:
             result.append(
                 "test --keep-result -- %s --serial %s --shards %s %s" %
