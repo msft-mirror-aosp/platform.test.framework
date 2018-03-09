@@ -90,7 +90,7 @@ class CommandFlash(base_command_processor.BaseCommandProcessor):
         self.arg_parser.add_argument(
             "--wait-for-boot",
             default="true",
-            help="false to not wait for devie booting.")
+            help="false to not wait for device booting.")
         self.arg_parser.add_argument(
             "--reboot", default="false", help="true to reboot the device(s).")
         self.arg_parser.add_argument(
