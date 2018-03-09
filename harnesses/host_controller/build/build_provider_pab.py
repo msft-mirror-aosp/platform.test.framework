@@ -520,3 +520,34 @@ class BuildProviderPAB(build_provider.BuildProvider):
 
         return (self.GetDeviceImage(), self.GetTestSuitePackage(),
                 artifact_info, self.GetConfigPackage())
+
+    def FetchLatestBuiltHCPackage(self, account_id, branch, target):
+        """Fetchs the latest <artifact_name> file and return the path.
+
+        Args:
+            account_id: string, Partner Android Build account_id to use.
+            branch: string, branch to grab the artifact from.
+            targets: string, a comma-separate list of build target product(s).
+
+        Returns:
+            path to the fetched file. None if the fetching has failed.
+        """
+        listed_builds = self.GetBuildList(
+            account_id=account_id,
+            branch=branch,
+            target=target,
+            page_token="",
+            max_results=1,
+            method="GET")
+        if listed_builds and len(listed_builds) > 0:
+            for listed_build in listed_builds:
+                if listed_build["successful"]:
+                    self.GetArtifact(
+                        account_id=account_id,
+                        branch=branch,
+                        target=target,
+                        artifact_name="android-vtslab.zip",
+                        build_id=listed_build["build_id"],
+                        method="GET")
+
+                    return self.GetHostControllerPackage("vtslab")
