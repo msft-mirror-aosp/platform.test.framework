@@ -97,29 +97,59 @@ if [ "$VENDOR_VERSION" != "" ] && [ "$OUTPUT_SYSTEM_IMG" == "" ]; then
   exit 1
 fi
 
-# First, check whether environment is set by lunch.
-if [ -d "${ANDROID_HOST_OUT}" ]; then
-  BIN_PATH="${ANDROID_HOST_OUT}/bin"
+REQUIRED_BINARIES_LIST=(
+  "img2simg"
+  "simg2img"
+)
+if [ ! -z "${FILE_CONTEXTS_BIN}" ]; then
+  REQUIRED_BINARIES_LIST+=("mkuserimg_mke2fs.sh")
 fi
 
-# If BIN_PATH is not a directory, or cannot find simg2img binary then
-# try to get bin path from the current location.
-if [ ! -d "${BIN_PATH}" ] || [ ! -f "${BIN_PATH}/simg2img" ]; then
-  BASE="${PWD##*/}"
-  if [ "${BASE}" == "testcases" ]; then
-    # If shell is executed through 'run', its base path is "testcases"
-    BIN_PATH="${PWD}/host/bin"
-  elif [ "${BASE}" == "gsi" ]; then
-    # If current path is "gsi" then we assume current path is
-    # testcases/host_controller/gsi
-    BIN_PATH="${PWD}/../../host/bin"
+# number of binaries to find.
+BIN_COUNT=${#REQUIRED_BINARIES_LIST[@]}
+
+# use an associative array to store binary path
+declare -A BIN_PATH
+for bin in ${REQUIRED_BINARIES_LIST[@]}; do
+  BIN_PATH[${bin}]=""
+done
+
+# check current PATH environment first
+for bin in ${REQUIRED_BINARIES_LIST[@]}; do
+  if command -v ${bin} >/dev/null 2>&1; then
+    echo "found ${bin} in PATH."
+    BIN_PATH[${bin}]=${bin}
+    ((BIN_COUNT--))
   fi
+done
+
+if [ ${BIN_COUNT} -gt 0 ]; then
+  # listed in the recommended order.
+  PATH_LIST=("${PWD}")
+  if [ "${PWD##*/}" == "testcases" ] && [ -d "${PWD}/../bin" ]; then
+    PATH_LIST+=("${PWD}/../bin")
+  fi
+  if [ -d "${ANDROID_HOST_OUT}" ]; then
+    PATH_LIST+=("${ANDROID_HOST_OUT}/bin")
+  fi
+
+  for dir in ${PATH_LIST[@]}; do
+    for bin in ${REQUIRED_BINARIES_LIST[@]}; do
+      if [ -z "${BIN_PATH[${bin}]}" ] && [ -f "${dir}/${bin}" ]; then
+        echo "found ${bin} in ${dir}."
+        BIN_PATH[${bin}]=${dir}/${bin}
+        ((BIN_COUNT--))
+        if [ ${BIN_COUNT} -eq 0 ]; then break; fi
+      fi
+    done
+  done
 fi
 
-if [ ! -d "${BIN_PATH}" ] || [ ! -f "${BIN_PATH}/simg2img" ]; then
-  echo "Cannot find the required binaries. Need lunch; or run in a correct path"
+if [ ${BIN_COUNT} -gt 0 ]; then
+  echo "Cannot find the required binaries. Need lunch; or run in a correct path."
   exit 1
 fi
+echo "Found all binaries."
 
 UNSPARSED_SYSTEM_IMG="${SYSTEM_IMG}.raw"
 MOUNT_POINT="${PWD}/temp_mnt"
@@ -129,7 +159,7 @@ VNDK_VERSION_PROPERTY="ro.vndk.version"
 VNDK_VERSION_PROPERTY_OMR1="${VNDK_VERSION_PROPERTY}=27"
 
 echo "Unsparsing ${SYSTEM_IMG}..."
-$BIN_PATH/simg2img "$SYSTEM_IMG" "$UNSPARSED_SYSTEM_IMG"
+${BIN_PATH["simg2img"]} "$SYSTEM_IMG" "$UNSPARSED_SYSTEM_IMG"
 IMG_SIZE=$(stat -c%s "$UNSPARSED_SYSTEM_IMG")
 
 echo "Mounting..."
@@ -224,7 +254,7 @@ if [ "$OUTPUT_SYSTEM_IMG" != "" ]; then
     unmount
 
     echo "Writing ${OUTPUT_SYSTEM_IMG}..."
-    $BIN_PATH/img2simg "$UNSPARSED_SYSTEM_IMG" "$OUTPUT_SYSTEM_IMG"
+    ${BIN_PATH["img2simg"]} "$UNSPARSED_SYSTEM_IMG" "$OUTPUT_SYSTEM_IMG"
   fi
 else
   unmount
