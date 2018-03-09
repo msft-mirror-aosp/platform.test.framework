@@ -42,6 +42,9 @@ class BuildProvider(object):
                         path.
         _test_suites: dict where the key is test suite type and value is the
                       test suite package file path.
+        _host_controller_package: dict where the key is a host controller
+                                  package and the value is the path
+                                  to a package file.
         _tmp_dirpath: string, the temp dir path created to keep artifacts.
     """
     _CONFIG_FILE_EXTENSION = ".zip"
@@ -52,6 +55,7 @@ class BuildProvider(object):
         self._additional_files = {}
         self._device_images = {}
         self._test_suites = {}
+        self._host_controller_package = {}
         self._configs = {}
         tempdir_base = os.path.join(os.getcwd(), "tmp")
         if not os.path.exists(tempdir_base):
@@ -145,6 +149,30 @@ class BuildProvider(object):
             return self._test_suites
         return self._test_suites[type]
 
+    def SetHostControllerPackage(self, package_type, path):
+        """Sets host controller package `path` for the specified `type`.
+
+        Args:
+            package_type: string, host controller type such as 'vtslab'.
+            path: string, the path of a package file.
+        """
+        self._host_controller_package[package_type] = path
+
+    def GetHostControllerPackage(self, package_type=None):
+        """Returns host controller package info.
+
+        Args:
+            package_type: string, key value to self._host_controller_package
+                          dict.
+
+        Returns:
+            the whole dict if package_type is None, otherwise a string which is
+            the path to the fetched host controller package.
+        """
+        if package_type is None:
+            return self._host_controller_package
+        return self._host_controller_package[package_type]
+
     def SetConfigPackage(self, config_type, path):
         """Sets test suite package `path` for the specified `type`.
 
@@ -217,6 +245,8 @@ class BuildProvider(object):
             self.SetDeviceImage(file_name, file_path)
         elif file_name == "android-vts.zip":
             self.SetTestSuitePackage("vts", file_path)
+        elif file_name == "android-vtslab.zip":
+            self.SetHostControllerPackage("vtslab", file_path)
         elif file_name.startswith("vti-global-config"):
             self.SetConfigPackage(
                 "prod" if "prod" in file_name else "test", file_path)
