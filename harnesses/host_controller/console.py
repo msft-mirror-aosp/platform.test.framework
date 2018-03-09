@@ -41,6 +41,7 @@ from host_controller.command_processor import command_gsispl
 from host_controller.command_processor import command_info
 from host_controller.command_processor import command_lease
 from host_controller.command_processor import command_list
+from host_controller.command_processor import command_release
 from host_controller.command_processor import command_retry
 from host_controller.command_processor import command_request
 from host_controller.command_processor import command_test
@@ -66,6 +67,7 @@ COMMAND_PROCESSORS = [
     command_info.CommandInfo,
     command_lease.CommandLease,
     command_list.CommandList,
+    command_release.CommandRelease,
     command_retry.CommandRetry,
     command_request.CommandRequest,
     command_test.CommandTest,
@@ -250,6 +252,11 @@ class Console(cmd.Cmd):
     def device_status(self, device_status):
         """setter for self._device_status"""
         self._device_status = device_status
+
+    @property
+    def build_provider(self):
+        """getter for self._build_provider"""
+        return self._build_provider
 
     def InitCommandModuleParsers(self):
         """Init all console command modules"""
