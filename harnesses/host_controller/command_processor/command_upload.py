@@ -57,8 +57,14 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
                 value = self.console.fetch_info[name]
             elif name in ("result_full", "result_zip", "suite_plan"):
                 value = self.console.test_result[name]
-            elif name in ("timestamp"):
-                value = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+            elif name in ("timestamp", "timestamp_date"):
+                current_datetime = datetime.datetime.now()
+                value_date = current_datetime.strftime("%Y%m%d")
+                value_time = current_datetime.strftime("%H%M%S")
+                if "_date" in name:
+                    value = value_date
+                else:
+                    value = "%s-%s" % (value_date, value_time)
             else:
                 value = None
 

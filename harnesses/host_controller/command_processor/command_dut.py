@@ -28,7 +28,6 @@ class CommandDUT(base_command_processor.BaseCommandProcessor):
         console: cmd.Cmd console object.
         command: string, command name which this processor will handle.
         command_detail: string, detailed explanation for the command.
-        update_thread: threading.Thread that updates device state regularly.
     """
 
     command = "dut"
