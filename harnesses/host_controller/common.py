@@ -27,11 +27,18 @@ _DEFAULT_ACCOUNT_ID_INTERNAL = '541462473'
 
 # The key value used for getting a fetched .zip android img file.
 FULL_ZIPFILE = "full-zipfile"
+# The key of an item that stores the unziped files of a full image zip file.
 FULL_ZIPFILE_DIR = "full-zipfile-dir"
+
+# The key of an item that stores the fetch GSI image (.zip) file.
+GSI_ZIPFILE = "gsi-zipfile"
+# The key of an item that stores the unziped files of a GSI image zip file.
+GSI_ZIPFILE_DIR = "gsi-zipfile-dir"
 
 # The default value for "flash --current".
 _DEFAULT_FLASH_IMAGES = [
     FULL_ZIPFILE,
+    FULL_ZIPFILE_DIR,
     "bootloader.img",
     "boot.img",
     "cache.img",
@@ -122,3 +129,4 @@ _MODULES_TOTAL_ATTR_KEY = "modules_total"
 
 # The key value for retrieving run module count
 _MODULES_DONE_ATTR_KEY = "modules_done"
+
