@@ -192,12 +192,14 @@ class BuildFlasher(object):
             self.device.log.info(self.device.fastboot.reboot())
         return True
 
-    def FlashImage(self, device_images, reboot=False):
+    def FlashImage(self, device_images, image_partition=None, reboot=False):
         """Flash specified image(s) to the device.
 
         Args:
             device_images: dict, where the key is partition name and value is
                            image file path.
+            image_partition: string, set to flash only an image in a specified
+                             partition.
             reboot: boolean, true to reboot the device.
 
         Returns:
@@ -212,6 +214,8 @@ class BuildFlasher(object):
             self.device.log.info(self.device.adb.reboot_bootloader())
 
         for partition, image_path in device_images.iteritems():
+            if image_partition and image_partition != partition:
+                continue
             if partition.endswith(".img"):
                 partition = partition[:-4]
             self.device.log.info(
