@@ -213,6 +213,9 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
                 session_id = former_result_count - 1 + result_index
                 latest_result_xml_path = os.path.join(results_path, "latest",
                                                       _TEST_RESULT_XML)
+                if not os.path.exists(latest_result_xml_path):
+                    latest_result_xml_path = os.path.join(
+                        results_path, former_results[-1], _TEST_RESULT_XML)
 
             self.ParseXml(latest_result_xml_path)
             if (result_index >= force_retry_count
@@ -226,3 +229,11 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
             retry_test_command = "test --keep-result -- %s --retry %d" % (
                 self._result_suite_plan, session_id)
             self.console.onecmd(retry_test_command)
+
+            for result in os.listdir(results_path):
+                new_result = os.path.join(results_path, result)
+                if (os.path.isdir(new_result)
+                        and not os.path.islink(new_result)
+                        and result not in former_results):
+                    former_results.append(result)
+                    break
