@@ -85,8 +85,9 @@ def EmitConsoleCommands(**kwargs):
             gsi_build_id = "latest"
         result.append(
             "fetch --type=pab --branch=%s --target=%s "
-            "--artifact_name=aosp_arm64_ab-img-{build_id}.zip --build_id=%s" %
-            (kwargs["gsi_branch"], kwargs["gsi_build_target"], gsi_build_id))
+            "--artifact_name=%s-img-{build_id}.zip --build_id=%s" %
+            (kwargs["gsi_branch"], kwargs["gsi_build_target"],
+             kwargs["gsi_build_target"].split("-")[0], gsi_build_id))
         if "gsi_pab_account_id" in kwargs and kwargs["gsi_pab_account_id"] != "":
             result[-1] += " --account_id=%s" % kwargs["gsi_pab_account_id"]
 
