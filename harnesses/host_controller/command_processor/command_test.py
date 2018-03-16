@@ -22,9 +22,8 @@ import tempfile
 import threading
 import zipfile
 
-from xml.etree import ElementTree
-
 from host_controller.command_processor import base_command_processor
+from host_controller.utils.parser import xml_utils
 from vts.runners.host import utils
 
 
@@ -40,6 +39,7 @@ class CommandTest(base_command_processor.BaseCommandProcessor):
 
     command = "test"
     command_detail = "Executes a command on TF."
+    _RESULT_TAG = "Result"
     _RESULT_ATTRIBUTES = ["suite_plan"]
 
     # @Override
@@ -140,31 +140,6 @@ class CommandTest(base_command_processor.BaseCommandProcessor):
         out_thread.join()
         err_thread.join()
 
-    def _LoadReport(self, report_file):
-        """Loads information from a report.
-
-        Args:
-            report_file: The file object of the XML report.
-
-        Returns:
-            A dict containing the attributes loaded from the report.
-        """
-        result = {}
-        for event, elem in ElementTree.iterparse(report_file, ("start", )):
-            if elem.tag == "Result":
-                result = {
-                    key: elem.attrib[key]
-                    for key in self._RESULT_ATTRIBUTES if key in elem.attrib
-                }
-                if len(result) != len(self._RESULT_ATTRIBUTES):
-                    logging.warning("Incomplete <Result>: %s", elem.attrib)
-                break
-
-        if not result:
-            logging.warning("Nothing loaded from report.")
-
-        return result
-
     # @Override
     def Run(self, arg_line):
         """Executes a command using a VTS-TF instance.
@@ -211,12 +186,17 @@ class CommandTest(base_command_processor.BaseCommandProcessor):
                                     result_paths)
 
                 self.console.test_result.clear()
+                result = {}
                 if len(result_paths) > 0:
                     with zipfile.ZipFile(
                             result_paths[0], mode="r") as result_zip:
                         with result_zip.open(
                                 "log-result.xml", mode="rU") as result_xml:
-                            result = self._LoadReport(result_xml)
+                            result = xml_utils.GetAttributes(
+                                result_xml, self._RESULT_TAG,
+                                self._RESULT_ATTRIBUTES)
+                            if not result:
+                                logging.warning("Nothing loaded from report.")
                     result["result_zip"] = result_paths[0]
 
                 result_paths_full = [
