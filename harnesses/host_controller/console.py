@@ -93,7 +93,7 @@ class NonDaemonizedPool(multiprocessing.pool.Pool):
     Process = NonDaemonizedProcess
 
 
-def JobMain(vti_address, in_queue, out_queue, device_status):
+def JobMain(vti_address, in_queue, out_queue, device_status, password):
     """Main() for a child process that executes a leased job.
 
     Currently, lease jobs must use VTI (not TFC).
@@ -105,6 +105,7 @@ def JobMain(vti_address, in_queue, out_queue, device_status):
         device_status: SharedDict, contains device status information.
                        shared between processes.
     """
+
     def SigTermHandler(signum, frame):
         """Signal handler for exiting pool process explicitly.
 
@@ -122,6 +123,7 @@ def JobMain(vti_address, in_queue, out_queue, device_status):
         None,
         job_pool=True)
     console.device_status = device_status
+    console.password = password
     multiprocessing.util.Finalize(console, console.__exit__, exitpriority=0)
 
     while True:
@@ -192,6 +194,8 @@ class Console(cmd.Cmd):
                         contains status data on each devices.
         _job_pool: bool, True if Console is created from job pool process
                    context.
+        _password: string, password which is to be passed to the prompt
+                   when executing certain command as root user.
     """
 
     def __init__(self,
@@ -202,7 +206,8 @@ class Console(cmd.Cmd):
                  vti_address=None,
                  in_file=sys.stdin,
                  out_file=sys.stdout,
-                 job_pool=False):
+                 job_pool=False,
+                 password=None):
         """Initializes the attributes and the parsers."""
         # cmd.Cmd is old-style class.
         cmd.Cmd.__init__(self, stdin=in_file, stdout=out_file)
@@ -220,6 +225,7 @@ class Console(cmd.Cmd):
         self._hosts = host_controllers
         self._in_file = in_file
         self._out_file = out_file
+        self._password = password
         self.prompt = "> "
         self.command_processors = {}
         self.device_image_info = build_info.BuildInfo()
@@ -257,6 +263,15 @@ class Console(cmd.Cmd):
     def build_provider(self):
         """getter for self._build_provider"""
         return self._build_provider
+
+    @property
+    def password(self):
+        """getter for self._password"""
+        return self._password
+
+    @password.setter
+    def password(self, password):
+        self._password = password
 
     def InitCommandModuleParsers(self):
         """Init all console command modules"""
@@ -492,7 +507,7 @@ class Console(cmd.Cmd):
         self._job_pool = NonDaemonizedPool(
             common._MAX_LEASED_JOBS, JobMain,
             (self._vti_address, self._job_in_queue, self._job_out_queue,
-             self._device_status))
+             self._device_status, self._password))
 
         self._job_thread = threading.Thread(target=self.JobThread)
         self._job_thread.daemon = True
