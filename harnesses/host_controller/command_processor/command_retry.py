@@ -20,11 +20,15 @@ import zipfile
 
 from host_controller.build import build_provider_gcs
 from host_controller.command_processor import base_command_processor
+from host_controller.utils.parser import xml_utils
 
 from vts.utils.python.common import cmd_utils
 
 # Test result file contains invoked test plan results.
 _TEST_RESULT_XML = "test_result.xml"
+
+# XML tag name whose attribute is test plan.
+_RESULT_TAG = "Result"
 
 # XML tag name whose attributes are pass/fail count, modules run/total count.
 _SUMMARY_TAG = "Summary"
@@ -43,37 +47,10 @@ _SUITE_PLAN_ATTR_KEY = "suite_plan"
 
 
 class CommandRetry(base_command_processor.BaseCommandProcessor):
-    """Command processor for retry command.
-
-    Attributes:
-        _result_suite_plan: string, test plan info from latest/downloaded
-                            test result.
-        _result_skip_count: int, number of skipped module from the result.
-        _result_fail_count: int, number of failed test cases from the result.
-    """
+    """Command processor for retry command."""
 
     command = "retry"
     command_detail = "Retry last run test plan for certain times."
-
-    def __init__(self):
-        self._result_suite_plan = ""
-        self._result_skip_count = 0
-        self._result_fail_count = 0
-
-    def ParseXml(self, path_to_xml_file):
-        """Parses test_result.xml file and get information about the test.
-
-        Args:
-            path_to_xml_file: string, path to the test_result.xml file
-        """
-        tree = ET.parse(path_to_xml_file)
-        root = tree.getroot()
-        self._result_suite_plan = root.attrib[_SUITE_PLAN_ATTR_KEY]
-
-        summary = root.find(_SUMMARY_TAG).attrib
-        self._result_fail_count = int(summary[_FAILED_ATTR_KEY])
-        self._result_skip_count = int(summary[_MODULES_TOTAL_ATTR_KEY]) - int(
-            summary[_MODULES_DONE_ATTR_KEY])
 
     def IsResultZipFile(self, zip_ref):
         """Determines whether the given zip_ref is the right result archive.
@@ -217,17 +194,29 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
                     latest_result_xml_path = os.path.join(
                         results_path, former_results[-1], _TEST_RESULT_XML)
 
-            self.ParseXml(latest_result_xml_path)
-            if (result_index >= force_retry_count
-                    and self._result_skip_count == 0
-                    and self._result_fail_count == 0):
+            result_attrs = xml_utils.GetAttributes(
+                latest_result_xml_path, _RESULT_TAG, [_SUITE_PLAN_ATTR_KEY])
+
+            summary_attrs = xml_utils.GetAttributes(
+                latest_result_xml_path, _SUMMARY_TAG, [
+                    _FAILED_ATTR_KEY, _MODULES_TOTAL_ATTR_KEY,
+                    _MODULES_DONE_ATTR_KEY
+                ])
+
+            result_fail_count = int(summary_attrs[_FAILED_ATTR_KEY])
+            result_skip_count = int(
+                summary_attrs[_MODULES_TOTAL_ATTR_KEY]) - int(
+                    summary_attrs[_MODULES_DONE_ATTR_KEY])
+
+            if (result_index >= force_retry_count and result_skip_count == 0
+                    and result_fail_count == 0):
                 print("All modules have run and passed. "
                       "Skipping remaining %d retry runs." %
                       (retry_count - result_index))
                 break
 
             retry_test_command = "test --keep-result -- %s --retry %d" % (
-                self._result_suite_plan, session_id)
+                result_attrs[_SUITE_PLAN_ATTR_KEY], session_id)
             self.console.onecmd(retry_test_command)
 
             for result in os.listdir(results_path):
