@@ -125,6 +125,10 @@ def main():
     parser.add_argument("--console", action="store_true",
                         help="Whether to start a console after processing "
                              "a script.")
+    parser.add_argument("--password",
+                        default=None,
+                        help="Password string to pass to the prompt "
+                             "when running certain command as root previlege.")
     args = parser.parse_args()
     if args.config_file:
         config_json = json.load(args.config_file)
@@ -186,7 +190,8 @@ def main():
             sys.stdin.readline()
     else:
         main_console = console.Console(vti_endpoint, tfc, pab, hosts,
-                                       vti_address=args.vti)
+                                       vti_address=args.vti,
+                                       password=args.password)
         if args.vti:
             main_console.StartJobThreadAndProcessPool()
         else:
