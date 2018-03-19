@@ -17,13 +17,16 @@
 import cmd
 import datetime
 import imp  # Python v2 compatibility
+import logging
 import multiprocessing
 import multiprocessing.pool
 import os
 import re
+import shutil
 import signal
 import socket
 import sys
+import tempfile
 import threading
 import time
 import urlparse
@@ -53,6 +56,7 @@ from host_controller.build import build_provider_local_fs
 from host_controller.build import build_provider_pab
 from host_controller.utils.ipc import shared_dict
 from host_controller.vti_interface import vti_endpoint_client
+from vts.runners.host import logger
 
 COMMAND_PROCESSORS = [
     command_build.CommandBuild,
@@ -134,7 +138,7 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
             break
         elif command == "lease":
             filepath, kwargs = vti_client.LeaseJob(socket.gethostname(), True)
-            print("Job %s -> %s" % (os.getpid(), kwargs))
+            logging.info("Job %s -> %s" % (os.getpid(), kwargs))
             if filepath is not None:
                 # TODO: redirect console output and add
                 # console command to access them.
@@ -147,7 +151,7 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
                     sys.stdout = out
                     sys.stderr = err
 
-                ret = console.ProcessConfigurableScript(
+                ret, gcs_log_url = console.ProcessConfigurableScript(
                     os.path.join(os.getcwd(), "host_controller", "campaigns",
                                  filepath), **kwargs)
                 if ret:
@@ -155,9 +159,9 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
                 else:
                     job_status = "infra-err"
 
-                vti_client.StopHeartbeat(job_status)
-                print("Job execution complete. "
-                      "Setting job status to {}".format(job_status))
+                vti_client.StopHeartbeat(job_status, gcs_log_url)
+                logging.info("Job execution complete. "
+                             "Setting job status to {}".format(job_status))
 
                 if not print_to_console:
                     sys.stdout = sys.__stdout__
@@ -167,7 +171,7 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
                     console.device_status[serial] = common._DEVICE_STATUS_DICT[
                         "ready"]
         else:
-            print("Unknown job command %s" % command)
+            logging.error("Unknown job command %s", command)
 
 
 class Console(cmd.Cmd):
@@ -246,10 +250,19 @@ class Console(cmd.Cmd):
         self.InitCommandModuleParsers()
         self.SetUpCommandProcessors()
 
+        tempdir_base = os.path.join(os.getcwd(), "tmp")
+        if not os.path.exists(tempdir_base):
+            os.mkdir(tempdir_base)
+        self._tmp_logdir = tempfile.mkdtemp(dir=tempdir_base)
+        if not self._job_pool:
+            self._logfile_path = logger.setupTestLogger(self._tmp_logdir)
+
     def __exit__(self):
         """Finalizes the build provider attributes explicitly when exited."""
         for bp in self._build_provider:
             self._build_provider[bp].__del__()
+        if os.path.exists(self._tmp_logdir):
+            shutil.rmtree(self._tmp_logdir)
 
     @property
     def device_status(self):
@@ -275,6 +288,11 @@ class Console(cmd.Cmd):
     def password(self, password):
         """getter for self._password"""
         self._password = password
+
+    @property
+    def logfile_path(self):
+        """getter for self._logfile_path"""
+        return self._logfile_path
 
     def InitCommandModuleParsers(self):
         """Init all console command modules"""
@@ -316,13 +334,33 @@ class Console(cmd.Cmd):
         """
 
         def ReplaceVariable(match):
+            """Replacement functioon for re.sub().
+
+            replaces string encased in braces with values in the console's dict.
+
+            Args:
+                match: regex, used for extracting the variable name.
+
+            Returns:
+                string value corresponding to the input variable name.
+            """
             name = match.group(1)
             if name in ("build_id", "branch", "target"):
-                value = self.fetch_info[name]
-            elif name in ("result_zip", "suite_plan"):
-                value = self.test_result[name]
-            elif name in ("timestamp"):
-                value = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+                value = self.console.fetch_info[name]
+            elif name in ("result_full", "result_zip", "suite_plan"):
+                value = self.console.test_result[name]
+            elif name in ("timestamp", "timestamp_date"):
+                current_datetime = datetime.datetime.now()
+                value_date = current_datetime.strftime("%Y%m%d")
+                value_time = current_datetime.strftime("%H%M%S")
+                if "_date" in name:
+                    value = value_date
+                else:
+                    value = "%s-%s" % (value_date, value_time)
+            elif name in ("hc_log", "hc_log_file"):
+                value = self.console.logfile_path
+                if name == "hc_log_file":
+                    value = os.path.basename(value)
             else:
                 value = None
 
@@ -347,7 +385,7 @@ class Console(cmd.Cmd):
             True if successful; False otherwise
         """
         if not script_file_path.endswith(".py"):
-            print("Script file is not .py file: %s" % script_file_path)
+            logging.error("Script file is not .py file: %s" % script_file_path)
             return False
 
         script_module = imp.load_source('script_module', script_file_path)
@@ -374,13 +412,18 @@ class Console(cmd.Cmd):
 
         Returns:
             True if successful; False otherwise
+            String which represents URL to the upload infra log file.
         """
         if script_file_path and "." not in script_file_path:
             script_file_path += ".py"
 
         if not script_file_path.endswith(".py"):
-            print("Script file is not .py file: %s" % script_file_path)
+            logging.error("Script file is not .py file: %s" % script_file_path)
             return False
+
+        ret = True
+
+        self._logfile_path, file_handler = logger.addLogFile(self._tmp_logdir)
 
         script_module = imp.load_source('script_module', script_file_path)
 
@@ -389,10 +432,17 @@ class Console(cmd.Cmd):
             for command in commands:
                 ret = self.onecmd(command)
                 if ret == False:
-                    return False
+                    break
         else:
-            return False
-        return True
+            ret = False
+
+        dest = self.formatString(
+            "gs://vts-report/infra_log/{hostname}/%s_{timestamp}/{hc_log_file}"
+            % kwargs["build_target"])
+        self.onecmd("upload --src={hc_log} --dest=%s" % dest)
+        logging.getLogger().removeHandler(file_handler)
+        os.remove(self._logfile_path)
+        return ret, dest
 
     def _Print(self, string):
         """Prints a string and a new line character.
@@ -445,7 +495,7 @@ class Console(cmd.Cmd):
         path = (parsed.netloc + parsed.path).split('/')
         if parsed.scheme == "pab":
             if len(path) != 5:
-                print("Invalid pab resource locator: %s" % url)
+                logging.error("Invalid pab resource locator: %s" % url)
                 return
             account_id, branch, target, build_id, artifact_name = path
             cmd = ("fetch"
@@ -459,7 +509,7 @@ class Console(cmd.Cmd):
             self.onecmd(cmd)
         elif parsed.scheme == "ab":
             if len(path) != 4:
-                print("Invalid ab resource locator: %s" % url)
+                logging.error("Invalid ab resource locator: %s" % url)
                 return
             branch, target, build_id, artifact_name = path
             cmd = ("fetch"
@@ -474,7 +524,7 @@ class Console(cmd.Cmd):
             cmd = "fetch --type=gcs --path=%s" % url
             self.onecmd(cmd)
         else:
-            print "Invalid URL: %s" % url
+            logging.error("Invalid URL: %s" % url)
 
     def SetSerials(self, serials):
         """Sets the default serial numbers for flashing and testing.
@@ -565,7 +615,7 @@ class Console(cmd.Cmd):
                         return False
             return
 
-        print("Command: %s" % line)
+        logging.info("Command: %s" % line)
         try:
             ret_cmd = cmd.Cmd.onecmd(self, line)
             if ret_cmd == False and ret_out_queue:

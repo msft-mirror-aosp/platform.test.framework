@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
+import logging
+
 from host_controller import common
 
 # The list of the kwargs key. can retrieve informations on the leased job.
@@ -41,7 +43,7 @@ def EmitConsoleCommands(**kwargs):
 
     if not set(_JOB_ATTR_LIST).issubset(kwargs):
         missing_keys = [key for key in _JOB_ATTR_LIST if key not in kwargs]
-        print("Leased job missing attribute(s): {}".format(
+        logging.error("Leased job missing attribute(s): {}".format(
             ", ".join(missing_keys)))
         return None
 

@@ -57,8 +57,8 @@ class BuildFlasher(object):
                     raise android_device.AndroidDeviceError(
                         "ADB and fastboot could not find any target devices.")
             if len(serials) > 1:
-                print(
-                    "ADB or fastboot found more than one device: %s" % serials)
+                logging.info(
+                    "ADB or fastboot found more than one device: %s", serials)
             self.device = android_device.AndroidDevice(
                 serials[0], device_callback_port=-1)
             if customflasher_path:
@@ -74,7 +74,7 @@ class BuildFlasher(object):
             True if successful; False otherwise.
         """
         if not serial:
-            print("no serial is given to BuildFlasher.SetSerial.")
+            logging.error("no serial is given to BuildFlasher.SetSerial.")
             return False
 
         self.device = android_device.AndroidDevice(
@@ -144,10 +144,10 @@ class BuildFlasher(object):
 
         if not self.device.isBootloaderMode:
             self.device.adb.wait_for_device()
-            print("rebooting to bootloader")
+            logging.info("rebooting to bootloader")
             self.device.log.info(self.device.adb.reboot_bootloader())
 
-        print("checking to flash bootloader.img and radio.img")
+        logging.info("checking to flash bootloader.img and radio.img")
         for partition in ["bootloader", "radio"]:
             if partition in device_images:
                 image_path = device_images[partition]
@@ -158,10 +158,10 @@ class BuildFlasher(object):
                 self.device.log.info("fastboot reboot_bootloader")
                 self.device.log.info(self.device.fastboot.reboot_bootloader())
 
-        print("starting to flash vendor and other images...")
+        logging.info("starting to flash vendor and other images...")
         if common.FULL_ZIPFILE in device_images:
-            print("fastboot update %s --skip-reboot" %
-                  (device_images[common.FULL_ZIPFILE]))
+            logging.info("fastboot update %s --skip-reboot",
+                         (device_images[common.FULL_ZIPFILE]))
             self.device.log.info(
                 self.device.fastboot.update(device_images[common.FULL_ZIPFILE],
                                             "--skip-reboot"))
@@ -177,7 +177,7 @@ class BuildFlasher(object):
             self.device.log.info(
                 self.device.fastboot.flash(partition, image_path))
 
-        print("starting to flash system and other images...")
+        logging.info("starting to flash system and other images...")
         if "system" in device_images and device_images["system"]:
             system_img = device_images["system"]
             vbmeta_img = device_images["vbmeta"] if (
@@ -266,14 +266,14 @@ class BuildFlasher(object):
 
         if not self.device.isBootloaderMode:
             self.device.adb.wait_for_device()
-            print("rebooting to %s mode" % reboot_mode)
+            logging.info("rebooting to %s mode", reboot_mode)
             self.device.log.info(self.device.adb.reboot(reboot_mode))
 
         start = time.time()
         while not self.device.customflasher._l():
             if time.time() - start >= timeout_secs_for_reboot:
                 logging.error(
-                    "Timeout while waiting for %s mode boot completion." %
+                    "Timeout while waiting for %s mode boot completion.",
                     reboot_mode)
                 return False
             time.sleep(1)
@@ -350,7 +350,7 @@ class BuildFlasher(object):
             os.chdir(current_dir)
         else:
             logging.error(
-                "Please specify correct repackage form: --repackage=%s" %
+                "Please specify correct repackage form: --repackage=%s",
                 repackage_form)
             return False
 
