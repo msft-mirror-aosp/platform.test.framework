@@ -139,6 +139,14 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
             "--result-from-gcs",
             help="Google Cloud Storage URL from which the result is downloaded. "
             "Will retry based on the fetched result data")
+        self.arg_parser.add_argument(
+            "--serial",
+            action="append",
+            default=[],
+            help="Serial number for device. Can pass this flag multiple times."
+        )
+        self.arg_parser.add_argument(
+            "--shards", type=int, default=1, help="Test plan's shard count.")
 
     # @Override
     def Run(self, arg_line):
@@ -215,8 +223,11 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
                       (retry_count - result_index))
                 break
 
-            retry_test_command = "test --keep-result -- %s --retry %d" % (
-                result_attrs[_SUITE_PLAN_ATTR_KEY], session_id)
+            retry_test_command = "test --keep-result -- %s --retry %d --shards %d" % (
+                result_attrs[_SUITE_PLAN_ATTR_KEY], session_id, args.shards)
+            if args.serial:
+                for serial in args.serial:
+                    retry_test_command += " --serial %s" % serial
             self.console.onecmd(retry_test_command)
 
             for result in os.listdir(results_path):
