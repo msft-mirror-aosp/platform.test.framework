@@ -119,17 +119,13 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
         output_path = os.path.join(
             os.path.dirname(os.path.abspath(gsi_path)),
             "system-{}.img".format(version))
+        command = "{} {} {} {}".format(
+            os.path.join(os.getcwd(), "..", "bin",
+                         "change_security_patch_ver.sh"), gsi_path,
+            output_path, version)
         if self.console.password:
-            command = "echo {} | sudo -S {} {} {} {}".format(
-                self.console.password,
-                os.path.join(os.getcwd(), "..", "bin",
-                             "change_security_patch_ver.sh"), gsi_path,
-                output_path, version)
-        else:
-            command = "{} {} {} {}".format(
-                os.path.join(os.getcwd(), "..", "bin",
-                             "change_security_patch_ver.sh"), gsi_path,
-                output_path, version)
+            command = "echo {} | sudo -S {}".format(self.console.password,
+                                                    command)
         stdout, stderr, err_code = cmd_utils.ExecuteOneShellCommand(command)
         if err_code is 0:
             if not args.gsi:

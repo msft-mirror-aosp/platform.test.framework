@@ -104,6 +104,8 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
         out_queue: Queue to put execution results.
         device_status: SharedDict, contains device status information.
                        shared between processes.
+        password: string, password which is to be passed to the prompt
+                  when executing certain command as root user.
     """
 
     def SigTermHandler(signum, frame):
@@ -271,6 +273,7 @@ class Console(cmd.Cmd):
 
     @password.setter
     def password(self, password):
+        """getter for self._password"""
         self._password = password
 
     def InitCommandModuleParsers(self):
