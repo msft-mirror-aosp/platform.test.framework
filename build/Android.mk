@@ -46,7 +46,7 @@ vtslab_apk_modules_copy_pairs := \
 
 # host controller files.
 host_hc_files := \
-  $(call find-files-in-subdirs,test/framework/harnesses/host_controller,"*.py" -and -type f -not -path "./gsi/*",.) \
+  $(call find-files-in-subdirs,test/framework/harnesses/host_controller,"*.py" -and -type f,.) \
 
 host_hc_copy_pairs := \
   $(foreach f,$(host_hc_files),\
