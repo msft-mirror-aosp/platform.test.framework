@@ -147,7 +147,14 @@ def EmitConsoleCommands(**kwargs):
 
     if "retry_count" in kwargs:
         retry_count = int(kwargs["retry_count"])
-        result.append("retry --count %d" % retry_count)
+        retry_command = "retry --count %d" % retry_count
+        if shards > 1:
+            retry_command += " --shards %d" % shards
+            for shard_index in range(shards):
+                retry_command += " --serial %s" % serials[shard_index]
+        else:
+            retry_command += " --serial %s" % serials[0]
+        result.append(retry_command)
 
     result.append(
         "upload --src={result_full} --dest=gs://vts-report/{suite_plan}"
