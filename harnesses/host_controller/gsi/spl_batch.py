@@ -20,6 +20,7 @@ import datetime
 import argparse
 import json
 import zipfile
+import zlib
 
 from host_controller import common
 from host_controller.build import build_provider_ab
@@ -63,21 +64,21 @@ def ValidateValues(args):
     return True
 
 
-def StartBatch(values):
+def StartBatch(values, output_path):
     """Start batch process to fetch images, change spl version, and archive
 
     Args:
         values : a dict containing batch process information
+        output_path : a string, output path
     """
-    if "SPL_BATCH_PATH" in os.environ:
-        output_path = os.path.join(os.environ["SPL_BATCH_PATH"], "splout")
-    else:
-        output_path = os.path.join(os.getcwd(), "splout")
-
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
     print("\noutput path: {}\n".format(output_path))
+    if "build_id" in values:
+        build_id = values["build_id"]
+    else:
+        build_id = "latest"
 
     for target in values["targets"]:
         if values["build_provider"] == "ab":
@@ -87,7 +88,7 @@ def StartBatch(values):
                 branch=values["branch"],
                 target="{}-{}".format(target, values["build_variant"]),
                 artifact_name="{}-img-{}.zip".format(target, "{build_id}"),
-                build_id="latest")
+                build_id=build_id)
         else:
             build_provider = build_provider_pab.BuildProviderPAB()
             device_images, _, _ = build_provider.GetArtifact(
@@ -95,7 +96,7 @@ def StartBatch(values):
                 branch=values["branch"],
                 target="{}-{}".format(target, values["build_variant"]),
                 artifact_name="{}-img-{}.zip".format(target, "{build_id}"),
-                build_id="latest",
+                build_id=build_id,
                 method="GET")
         if "system.img" in device_images:
             print("Downloading completed. system.img path: {}".format(
@@ -115,7 +116,7 @@ def StartBatch(values):
                 print("Change SPL to {} ...".format(version))
                 stdout, _, err_code = cmd_utils.ExecuteOneShellCommand(
                     "{} {} {} {}".format(
-                        os.path.join(os.getcwd(), "host_controller", "gsi",
+                        os.path.join(os.getcwd(), "..", "bin",
                                      "change_security_patch_ver.sh"),
                         device_images["system.img"], output, version))
                 if not err_code:
@@ -134,7 +135,10 @@ def StartBatch(values):
                                     "system-{}.zip".format(target))
             print("archive to {} ...".format(zip_path))
             with zipfile.ZipFile(
-                    zip_path, mode='w', allowZip64=True) as target:
+                    zip_path,
+                    mode='w',
+                    compression=zipfile.ZIP_DEFLATED,
+                    allowZip64=True) as target:
                 # writing each file one by one
                 for file in outputs:
                     target.write(file, os.path.basename(file))
@@ -150,11 +154,12 @@ def StartBatch(values):
 def main():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument(
-        "--ab-key", required=True, help="Path to ab key JSON file")
+        "--ab-key", required=True, help="Path to ab key JSON file.")
     parser.add_argument(
         "--batch",
         type=argparse.FileType('r'),
         help="JSON formatted batch file.")
+    parser.add_argument("--output-path", required=True, help="Output path.")
     args = parser.parse_args()
 
     if os.path.exists(args.ab_key):
@@ -164,7 +169,7 @@ def main():
     if not ValidateValues(values):
         return 1
 
-    return StartBatch(values)
+    return StartBatch(values, args.output_path)
 
 
 if __name__ == '__main__':
