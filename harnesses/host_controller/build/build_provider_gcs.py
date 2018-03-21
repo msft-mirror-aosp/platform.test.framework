@@ -40,7 +40,6 @@ class BuildProviderGCS(build_provider.BuildProvider):
                 if ret_code == 0:
                     logging.info(stderr)
                 else:
-                    print(stderr)
                     logging.error(stderr)
 
     @staticmethod
@@ -117,8 +116,7 @@ class BuildProviderGCS(build_provider.BuildProvider):
             if ret_code == 0:
                 self.SetFetchedFile(dest_path, temp_dir_path)
             else:
-                logging.error("Error in copy file from GCS (code %s)." %
-                              ret_code)
-        return (self.GetDeviceImage(),
-                self.GetTestSuitePackage(),
+                logging.error(
+                    "Error in copy file from GCS (code %s).", ret_code)
+        return (self.GetDeviceImage(), self.GetTestSuitePackage(),
                 self.GetAdditionalFile())

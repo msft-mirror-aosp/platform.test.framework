@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import logging
 import os
 import shutil
 import tempfile
@@ -140,7 +141,7 @@ class BuildProvider(object):
                 os.chmod(bin_path, 0766)
                 path = bin_path
         else:
-            print("unsupported zip file %s" % path)
+            logging.info("unsupported zip file %s", path)
         self._test_suites[type] = path
 
     def GetTestSuitePackage(self, type=None):
@@ -189,7 +190,7 @@ class BuildProvider(object):
                 zip_ref.extractall(dest_path)
                 path = dest_path
         else:
-            print("unsupported config package file %s" % path)
+            logging.info("unsupported config package file %s", path)
         self._configs[config_type] = path
 
     def GetConfigPackage(self, config_type=None):
@@ -259,8 +260,8 @@ class BuildProvider(object):
 
     def PrintDeviceImageInfo(self):
         """Prints device image info."""
-        print("%s" % self.GetDeviceImage())
+        logging.info(self.GetDeviceImage())
 
     def PrintGetTestSuitePackageInfo(self):
         """Prints test suite package info."""
-        print("%s" % self.GetTestSuitePackage())
+        logging.info(self.GetTestSuitePackage())

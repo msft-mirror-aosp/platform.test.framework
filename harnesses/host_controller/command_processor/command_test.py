@@ -157,8 +157,8 @@ class CommandTest(base_command_processor.BaseCommandProcessor):
 
         if args.test_exec_mode == "subprocess":
             if "vts" not in self.console.test_suite_info:
-                print("test_suite_info doesn't have 'vts': %s" %
-                      self.console.test_suite_info)
+                logging.error("test_suite_info doesn't have 'vts': %s",
+                              self.console.test_suite_info)
                 return
 
             if args.keep_result:
@@ -170,7 +170,7 @@ class CommandTest(base_command_processor.BaseCommandProcessor):
             cmd = self._GenerateVtsCommand(self.console.test_suite_info["vts"],
                                            args.command, serials, result_dir)
 
-            print("Command: %s" % cmd)
+            logging.info("Command: %s", cmd)
             self._ExecuteCommand(cmd)
 
             if result_dir:
@@ -208,7 +208,7 @@ class CommandTest(base_command_processor.BaseCommandProcessor):
                 logging.debug(result)
                 self.console.test_result.update(result)
         else:
-            print("unsupported exec mode: %s", args.test_exec_mode)
+            logging.error("unsupported exec mode: %s", args.test_exec_mode)
             return False
 
     # @Override
