@@ -19,6 +19,7 @@ import os
 import datetime
 import argparse
 import json
+import logging
 import zipfile
 import zlib
 
@@ -43,22 +44,23 @@ def ValidateValues(args):
                                                       "%Y-%m")
 
         if not args["startMonth"] <= args["endMonth"]:
-            print "startMonth should be earlier than or equals to endMonth"
+            logging.error(
+                "startMonth should be earlier than or equals to endMonth")
             return False
     except ValueError:
-        print "Wrong value for startMonth/endMonth"
+        logging.error("Wrong value for startMonth/endMonth")
         return False
     try:
         args["days"] = map(int, args["days"].split(','))
         if not set(args["days"]) <= set([1, 5]):
-            print "days should be either 1 or 5"
+            logging.error("days should be either 1 or 5")
             return False
     except ValueError:
-        print "Wrong value for days"
+        logging.error("Wrong value for days")
         return False
 
     if not args["build_provider"] in ["ab", "pab"]:
-        print "build_provider should be either \"ab\" or \"pab\""
+        logging.error("build_provider should be either \"ab\" or \"pab\"")
         return False
 
     return True
@@ -74,7 +76,7 @@ def StartBatch(values, output_path):
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
-    print("\noutput path: {}\n".format(output_path))
+    logging.info("\noutput path: {}\n".format(output_path))
     if "build_id" in values:
         build_id = values["build_id"]
     else:
@@ -83,7 +85,7 @@ def StartBatch(values, output_path):
     for target in values["targets"]:
         if values["build_provider"] == "ab":
             build_provider = build_provider_ab.BuildProviderAB()
-            print("Start downloading target:{} ...".format(target))
+            logging.info("Start downloading target:{} ...".format(target))
             device_images, _, _ = build_provider.Fetch(
                 branch=values["branch"],
                 target="{}-{}".format(target, values["build_variant"]),
@@ -99,10 +101,10 @@ def StartBatch(values, output_path):
                 build_id=build_id,
                 method="GET")
         if "system.img" in device_images:
-            print("Downloading completed. system.img path: {}".format(
+            logging.info("Downloading completed. system.img path: {}".format(
                 device_images["system.img"]))
         else:
-            print("Could not download system image.")
+            logging.error("Could not download system image.")
             continue
 
         outputs = []
@@ -113,7 +115,7 @@ def StartBatch(values, output_path):
                     version_month.year, version_month.month, day)
                 output = os.path.join(output_path, "system-{}-{}.img".format(
                     target, version))
-                print("Change SPL to {} ...".format(version))
+                logging.info("Change SPL to {} ...".format(version))
                 stdout, _, err_code = cmd_utils.ExecuteOneShellCommand(
                     "{} {} {} {}".format(
                         os.path.join(os.getcwd(), "..", "bin",
@@ -122,7 +124,7 @@ def StartBatch(values, output_path):
                 if not err_code:
                     outputs.append(output)
                 else:
-                    print(stdout)
+                    logging.error(stdout)
             version_month = version_month.replace(
                 year=version_month.year + (version_month.month - 1) / 12,
                 month=(version_month.month + 1) % 12)
@@ -133,7 +135,7 @@ def StartBatch(values, output_path):
         if values["archive"] == "zip":
             zip_path = os.path.join(output_path,
                                     "system-{}.zip".format(target))
-            print("archive to {} ...".format(zip_path))
+            logging.info("archive to {} ...".format(zip_path))
             with zipfile.ZipFile(
                     zip_path,
                     mode='w',
@@ -143,7 +145,7 @@ def StartBatch(values, output_path):
                 for file in outputs:
                     target.write(file, os.path.basename(file))
                     os.remove(file)
-            print("archive completed.")
+            logging.info("archive completed.")
 
         # Delete build provider so temp directory will be removed.
         del build_provider

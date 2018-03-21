@@ -38,6 +38,7 @@ class CommandExit(base_command_processor.BaseCommandProcessor):
             True, which stops the cmdloop.
         """
         self.console.StopJobThreadAndProcessPool()
+        self.console.__exit__()
         return True
 
     def Help(self):
