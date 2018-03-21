@@ -15,6 +15,7 @@
 #
 
 import json
+import logging
 import requests
 import threading
 import time
@@ -71,7 +72,7 @@ class VtiEndpointClient(object):
             response = requests.post(url, data=json.dumps(build),
                                      headers=self._headers)
             if response.status_code != requests.codes.ok:
-                print("UploadBuildInfo error: %s" % response)
+                logging.error("UploadBuildInfo error: %s", response)
                 fail = True
         if fail:
             return False
@@ -101,7 +102,7 @@ class VtiEndpointClient(object):
         response = requests.post(url, data=json.dumps(payload),
                                  headers=self._headers)
         if response.status_code != requests.codes.ok:
-            print("UploadDeviceInfo error: %s" % response)
+            logging.error("UploadDeviceInfo error: %s", response)
             return False
         return True
 
@@ -123,7 +124,7 @@ class VtiEndpointClient(object):
             url, data=json.dumps({"manifest_branch": "na"}),
             headers=self._headers)
         if response.status_code != requests.codes.ok:
-            print("UploadScheduleInfo error: %s" % response)
+            logging.error("UploadScheduleInfo error: %s", response)
             succ = False
 
         if not succ:
@@ -153,7 +154,8 @@ class VtiEndpointClient(object):
                     response = requests.post(url, data=json.dumps(schedule),
                                              headers=self._headers)
                     if response.status_code != requests.codes.ok:
-                        print("UploadScheduleInfo error: %s" % response)
+                        logging.error(
+                            "UploadScheduleInfo error: %s", response)
                         succ = False
         return succ
 
@@ -174,7 +176,7 @@ class VtiEndpointClient(object):
         response = requests.post(url, data=json.dumps({"name": "na"}),
                                  headers=self._headers)
         if response.status_code != requests.codes.ok:
-            print("UploadLabInfo error: %s" % response)
+            logging.error("UploadLabInfo error: %s", response)
             succ = False
 
         if not succ:
@@ -202,7 +204,7 @@ class VtiEndpointClient(object):
             response = requests.post(url, data=json.dumps(lab),
                                      headers=self._headers)
             if response.status_code != requests.codes.ok:
-                print("UploadLabInfo error: %s" % response)
+                logging.error("UploadLabInfo error: %s", response)
                 succ = False
         return succ
 
@@ -225,17 +227,18 @@ class VtiEndpointClient(object):
         response = requests.post(url, data=json.dumps({"hostname": hostname}),
                                  headers=self._headers)
         if response.status_code != requests.codes.ok:
-            print("LeaseJob error: %s" % response.status_code)
+            logging.error("LeaseJob error: %s", response.status_code)
             return None, {}
 
         response_json = json.loads(response.text)
-        if ("return_code" in response_json and
-            response_json["return_code"] != "SUCCESS"):
-            print("LeaseJob error: %s" % response_json)
+        if ("return_code" in response_json
+                and response_json["return_code"] != "SUCCESS"):
+            logging.error("LeaseJob error: %s", response_json)
             return None, {}
 
         if "jobs" not in response_json:
-            print("LeaseJob jobs not found in response json %s" % response.text)
+            logging.error(
+                "LeaseJob jobs not found in response json %s", response.text)
             return None, {}
 
         jobs = response_json["jobs"]
@@ -257,7 +260,7 @@ class VtiEndpointClient(object):
             a string which is path to a script file for onecmd().
             a dict contains info on the leased job, will be passed to onecmd().
         """
-        print("Job info : {}".format(json.dumps(job)))
+        logging.info("Job info : {}".format(json.dumps(job)))
         if job is not None:
             self._job = job
             self.StartHeartbeat("leased", 60)
@@ -283,7 +286,7 @@ class VtiEndpointClient(object):
             response = requests.post(url, data=json.dumps(self._job),
                                      headers=self._headers)
             if response.status_code != requests.codes.ok:
-                print("UpdateLeasedJobStatus error: %s" % response)
+                logging.error("UpdateLeasedJobStatus error: %s", response)
             time.sleep(update_interval)
 
     def StartHeartbeat(self, status="leased", update_interval=60):
@@ -294,7 +297,7 @@ class VtiEndpointClient(object):
             update_interval: int, time between heartbeats in second.
         """
         if (self._heartbeat_thread is None
-            or hasattr(self._heartbeat_thread, 'keep_running')):
+                or hasattr(self._heartbeat_thread, 'keep_running')):
             self._heartbeat_thread = threading.Thread(
                 target=self.UpdateLeasedJobStatus,
                 args=(
@@ -304,11 +307,12 @@ class VtiEndpointClient(object):
             self._heartbeat_thread.daemon = True
             self._heartbeat_thread.start()
 
-    def StopHeartbeat(self, status="complete"):
+    def StopHeartbeat(self, status="complete", gcs_log_url=""):
         """Stops the hearbeat_thread and sets current job's status.
 
         Args:
             status: string, status value.
+            gcs_log_url: string, URL to the uploaded infra log.
         """
         self._heartbeat_thread.keep_running = False
 
@@ -319,10 +323,11 @@ class VtiEndpointClient(object):
         if (self._job is not None and
             self._job["status"] == JOB_STATUS_DICT["leased"]):
             self._job["status"] = JOB_STATUS_DICT[status]
+        self._job["infra_log_url"] = gcs_log_url
 
-        response = requests.post(url, data=json.dumps(self._job),
-                                 headers=self._headers)
+        response = requests.post(
+            url, data=json.dumps(self._job), headers=self._headers)
         if response.status_code != requests.codes.ok:
-            print("StopHeartbeat error: %s" % response)
+            logging.error("StopHeartbeat error: %s", response)
 
         self._job = None

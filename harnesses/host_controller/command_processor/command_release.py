@@ -16,6 +16,7 @@
 
 import os
 import datetime
+import logging
 import threading
 
 from host_controller import common
@@ -69,7 +70,7 @@ class CommandRelease(base_command_processor.BaseCommandProcessor):
         args = self.arg_parser.ParseLine(arg_line)
 
         if args.print_all:
-            print(self._timers)
+            logging.info(self._timers)
             return
 
         if not args.cancel:
@@ -79,13 +80,13 @@ class CommandRelease(base_command_processor.BaseCommandProcessor):
                 return
 
             elif len(args.schedule_for.split(":")) != 2:
-                print("The format of --schedule-for flag is %H:%M")
+                logging.error("The format of --schedule-for flag is %H:%M")
                 return False
 
             if (int(args.schedule_for.split(":")[0]) not in range(24)
                     or int(args.schedule_for.split(":")[-1]) not in range(60)):
-                print("The value of --schedule-for flag must be in "
-                      "\"00:00\"..\"23:59\" inclusive")
+                logging.error("The value of --schedule-for flag must be in "
+                              "\"00:00\"..\"23:59\" inclusive")
                 return False
 
             if not args.schedule_for in self._timers:
@@ -104,7 +105,7 @@ class CommandRelease(base_command_processor.BaseCommandProcessor):
                      args.target, args.dest))
                 self._timers[args.schedule_for].daemon = True
                 self._timers[args.schedule_for].start()
-                print("Release job scheduled for {}".format(
+                logging.info("Release job scheduled for {}".format(
                     datetime.datetime.now() + delta_time))
         else:
             self.CancelAllEvents()
@@ -168,7 +169,7 @@ class CommandRelease(base_command_processor.BaseCommandProcessor):
                 (schedule_for, account_id, branch, target, dest))
             self._timers[schedule_for].daemon = True
             self._timers[schedule_for].start()
-            print("Release job scheduled for {}".format(
+            logging.info("Release job scheduled for {}".format(
                 datetime.datetime.now() + delta_time))
 
     def CancelAllEvents(self):

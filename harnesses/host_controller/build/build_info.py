@@ -15,6 +15,7 @@
 #
 
 import collections
+import logging
 import os
 import shutil
 
@@ -36,16 +37,16 @@ class BuildInfo(dict):
             value: string, path to the newly fetched file.
         """
         if key in self and value != self[key]:
-            print("Removing pre-fetched item: %s" % self[key])
+            logging.info("Removing pre-fetched item: %s", self[key])
             try:
                 if os.path.isfile(self[key]):
                     os.remove(self[key])
                 elif os.path.isdir(self[key]):
                     shutil.rmtree(self[key])
                 else:
-                    print("%s is not found" % self[key])
+                    logging.error("%s is not found", self[key])
             except OSError as e:
-                print("ERROR: error on file remove %s" % e)
+                logging.error("ERROR: error on file remove %s", e)
 
         super(BuildInfo, self).__setitem__(key, value)
 

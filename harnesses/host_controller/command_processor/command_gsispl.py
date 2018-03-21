@@ -15,6 +15,7 @@
 #
 
 import datetime
+import logging
 import os
 import tempfile
 import zipfile
@@ -64,12 +65,12 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
             if os.path.isfile(args.gsi):
                 gsi_path = args.gsi
             else:
-                print "Cannot find system image in given path"
+                logging.error("Cannot find system image in given path")
                 return
         elif "system.img" in self.console.device_image_info:
             gsi_path = self.console.device_image_info["system.img"]
         else:
-            print "Cannot find system image."
+            logging.error("Cannot find system image.")
             return False
 
         if args.version:
@@ -79,7 +80,7 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
                 version = "{:04d}-{:02d}-{:02d}".format(
                     version_date.year, version_date.month, version_date.day)
             except ValueError as e:
-                print "version ID should be YYYY-mm-dd format."
+                logging.error("version ID should be YYYY-mm-dd format.")
                 return
         elif args.version_from_path:
             if os.path.isabs(args.version_from_path) and os.path.exists(
@@ -101,7 +102,7 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
                     zip_ref.extractall(dest_path)
                     img_path = os.path.join(dest_path, "boot.img")
             else:
-                print("Cannot find %s file." % args.version_from_path)
+                logging.error("Cannot find %s file.", args.version_from_path)
                 return False
 
             version_dict = img_utils.GetSPLVersionFromBootImg(img_path)
@@ -110,10 +111,11 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
                     version_dict["year"], version_dict["month"],
                     common._SPL_DEFAULT_DAY)
             else:
-                print("Failed to fetch SPL version from %s file." % img_path)
+                logging.error(
+                    "Failed to fetch SPL version from %s file.", img_path)
                 return False
         else:
-            print("version ID or path of .img file must be given.")
+            logging.error("version ID or path of .img file must be given.")
             return False
 
         output_path = os.path.join(
@@ -129,8 +131,9 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
         stdout, stderr, err_code = cmd_utils.ExecuteOneShellCommand(command)
         if err_code is 0:
             if not args.gsi:
-                print("system.img path is updated to : {}".format(output_path))
+                logging.info(
+                    "system.img path is updated to : {}".format(output_path))
                 self.console.device_image_info["system.img"] = output_path
         else:
-            print "gsispl error: {} {}".format(stdout, stderr)
+            logging.error("gsispl error: {} {}".format(stdout, stderr))
             return False

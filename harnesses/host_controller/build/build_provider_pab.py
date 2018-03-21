@@ -476,7 +476,7 @@ class BuildProviderPAB(build_provider.BuildProvider):
                                              branch=branch,
                                              target=target,
                                              method=method)
-            print("latest build ID = %s" % build_id)
+            logging.info("latest build ID = %s", build_id)
         artifact_info["build_id"] = build_id
 
         if "build_id" in artifact_name:
