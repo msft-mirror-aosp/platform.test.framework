@@ -57,13 +57,14 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
 
             stdout, stderr, returncode = cmd_utils.ExecuteOneShellCommand(
                 "adb devices")
-            lines_adb = stdout.split("\n")[1:]
+            lines_adb = stdout.split("\n")
             stdout, stderr, returncode = cmd_utils.ExecuteOneShellCommand(
                 "fastboot devices")
             lines_fastboot = stdout.split("\n")
 
             for line in lines_adb:
-                if len(line.strip()):
+                if (len(line.strip()) and
+                    not(line.startswith("* ") or line.startswith("List "))):
                     device = {}
                     device["serial"] = line.split()[0]
                     serial = device["serial"]
