@@ -521,6 +521,76 @@ class BuildProviderPAB(build_provider.BuildProvider):
         return (self.GetDeviceImage(), self.GetTestSuitePackage(),
                 artifact_info, self.GetConfigPackage())
 
+    def GetSignedBuildArtifact(self,
+                               account_id,
+                               branch,
+                               target,
+                               artifact_name,
+                               build_id='latest',
+                               method=GET):
+        """Get an signed build artifact from the PAB bulid list.
+
+        Args:
+            account_id: int, ID associated with the PAB account.
+            branch: string, branch to pull resource from.
+            target: string, "latest" or a specific version.
+            artifact_name: name of artifact, e.g. aosp_arm64_ab-img-4353141.zip
+                ({id} will automatically get replaced with build ID)
+            build_id: string, build ID of an artifact to fetch (or 'latest').
+            method: 'GET' or 'POST', which endpoint to query.
+
+        Returns:
+            a dict containing the device image info.
+            a dict containing the test suite package info.
+            a dict containing the artifact info.
+            a dict containing the global config info.
+        """
+        artifact_info = {}
+        build_ids = []
+        if build_id == 'latest':
+            build_list = self.GetBuildList(
+                account_id=account_id,
+                branch=branch,
+                target=target,
+                method=method)
+            for build in build_list:
+                build_ids.append(build["build_id"])
+        else:
+            build_ids.append(build_id)
+
+        for build_id in build_ids:
+            _artifact_name = artifact_name
+            if "build_id" in _artifact_name:
+                _artifact_name = _artifact_name.format(build_id=build_id)
+            _artifact_name = "signed%2Fsigned-" + _artifact_name
+            url = self.GetArtifactURL(
+                account_id=account_id,
+                build_id=build_id,
+                target=target,
+                artifact_name=_artifact_name,
+                branch=branch,
+                internal=False,
+                method=method)
+
+            if self.tmp_dirpath:
+                artifact_path = os.path.join(self.tmp_dirpath, _artifact_name)
+            else:
+                artifact_path = _artifact_name
+            try:
+                ret = self.DownloadArtifact(url, artifact_path)
+            except requests.HTTPError as e:
+                logging.exception(e)
+                continue
+
+            if ret:
+                artifact_info["build_id"] = build_id
+                break
+
+        self.SetFetchedFile(artifact_path)
+
+        return (self.GetDeviceImage(), self.GetTestSuitePackage(),
+                artifact_info, self.GetConfigPackage())
+
     def FetchLatestBuiltHCPackage(self, account_id, branch, target):
         """Fetchs the latest <artifact_name> file and return the path.
 
