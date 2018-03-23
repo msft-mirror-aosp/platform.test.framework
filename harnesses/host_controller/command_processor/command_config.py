@@ -61,13 +61,17 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
 
         self.console._build_provider["pab"].Authenticate()
         for target in targets.split(","):
-            listed_builds = self.console._build_provider["pab"].GetBuildList(
-                account_id=account_id,
-                branch=branch,
-                target=target,
-                page_token="",
-                max_results=1,
-                method="GET")
+            try:
+                listed_builds = self.console._build_provider["pab"].GetBuildList(
+                    account_id=account_id,
+                    branch=branch,
+                    target=target,
+                    page_token="",
+                    max_results=1,
+                    method="GET")
+            except ValueError as e:
+                logging.exception(e)
+                continue
 
             if listed_builds and len(listed_builds) > 0:
                 listed_build = listed_builds[0]
