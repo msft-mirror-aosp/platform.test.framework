@@ -136,6 +136,8 @@ class VtiEndpointClient(object):
             schedule["manifest_branch"] = pb.manifest_branch
             for build_target in pb.build_target:
                 schedule["build_target"] = build_target.name
+                schedule["require_signed_device_build"] = (
+                    build_target.require_signed_device_build)
                 for test_schedule in build_target.test_schedule:
                     schedule["test_name"] = test_schedule.test_name
                     schedule["period"] = test_schedule.period
