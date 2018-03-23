@@ -63,13 +63,17 @@ class CommandBuild(base_command_processor.BaseCommandProcessor):
             userinfo_file=userinfo_file,
             noauth_local_webserver=noauth_local_webserver)
         for target in targets.split(","):
-            listed_builds = self.console._build_provider["pab"].GetBuildList(
-                account_id=account_id,
-                branch=branch,
-                target=target,
-                page_token="",
-                max_results=100,
-                method=method)
+            try:
+                listed_builds = self.console._build_provider["pab"].GetBuildList(
+                    account_id=account_id,
+                    branch=branch,
+                    target=target,
+                    page_token="",
+                    max_results=100,
+                    method=method)
+            except ValueError as e:
+                logging.exception(e)
+                continue
 
             for listed_build in listed_builds:
                 if method == "GET":
