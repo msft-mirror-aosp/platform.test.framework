@@ -63,13 +63,17 @@ class CommandBuild(base_command_processor.BaseCommandProcessor):
             userinfo_file=userinfo_file,
             noauth_local_webserver=noauth_local_webserver)
         for target in targets.split(","):
-            listed_builds = self.console._build_provider["pab"].GetBuildList(
-                account_id=account_id,
-                branch=branch,
-                target=target,
-                page_token="",
-                max_results=100,
-                method=method)
+            try:
+                listed_builds = self.console._build_provider["pab"].GetBuildList(
+                    account_id=account_id,
+                    branch=branch,
+                    target=target,
+                    page_token="",
+                    max_results=100,
+                    method=method)
+            except ValueError as e:
+                logging.exception(e)
+                continue
 
             for listed_build in listed_builds:
                 if method == "GET":
@@ -88,7 +92,7 @@ class CommandBuild(base_command_processor.BaseCommandProcessor):
                             build["artifacts"] = []
                             builds.append(build)
                     else:
-                        print("Error: listed_build %s" % listed_build)
+                        logging.error("Error: listed_build %s", listed_build)
                 else:  # POST
                     build = {}
                     build["manifest_branch"] = branch
@@ -189,9 +193,9 @@ class CommandBuild(base_command_processor.BaseCommandProcessor):
                              args.artifact_type, args.method,
                              args.userinfo_file, args.noauth_local_webserver)
         elif args.update == "list":
-            print("Running build update sessions:")
+            logging.info("Running build update sessions:")
             for id in self.build_thread:
-                print("  ID %d", id)
+                logging.info("  ID %d", id)
         elif args.update == "start":
             if args.interval <= 0:
                 raise ConsoleArgumentError("update interval must be positive")
@@ -206,8 +210,9 @@ class CommandBuild(base_command_processor.BaseCommandProcessor):
                 args.id = int(args.id)
             if args.id in self.build_thread and not hasattr(
                     self.build_thread[args.id], 'keep_running'):
-                print('build update (session ID: %s) already running. '
-                      'run build --update stop first.' % args.id)
+                logging.warning(
+                    'build update (session ID: %s) already running. '
+                    'run build --update stop first.', args.id)
                 return
             self.build_thread[args.id] = threading.Thread(
                 target=self.UpdateBuildLoop,
@@ -225,6 +230,6 @@ class CommandBuild(base_command_processor.BaseCommandProcessor):
             self.build_thread[args.id].start()
         elif args.update == "stop":
             if args.id is None:
-                print("--id must be set for stop")
+                logging.error("--id must be set for stop")
             else:
                 self.build_thread[int(args.id)].keep_running = False

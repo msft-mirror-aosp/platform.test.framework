@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import logging
 import os
 import xml.etree.ElementTree as ET
 import zipfile
@@ -89,16 +90,17 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
         """
         gsutil_path = build_provider_gcs.BuildProviderGCS.GetGsutilPath()
         if not gsutil_path:
-            print("Please check gsutil is installed and on your PATH")
+            logging.error("Please check gsutil is installed and on your PATH")
             return None
 
         if (not gcs_result_path.startswith("gs://")
                 or not build_provider_gcs.BuildProviderGCS.IsGcsFile(
                     gsutil_path, gcs_result_path)):
-            print("%s is not correct GCS url." % gcs_result_path)
+            logging.error("%s is not correct GCS url.", gcs_result_path)
             return None
         if not gcs_result_path.endswith(".zip"):
-            print("%s is not a correct result archive file." % gcs_result_path)
+            logging.error(
+                "%s is not a correct result archive file.", gcs_result_path)
             return None
 
         if not os.path.exists(local_results_dir):
@@ -108,7 +110,7 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
         stdout, stderr, err_code = cmd_utils.ExecuteOneShellCommand(
             copy_command)
         if err_code != 0:
-            print("Error in copy file from %s (code %s)." % err_code)
+            logging.error("Error in copy file from %s (code %s).", err_code)
             return None
         result_zip = os.path.join(local_results_dir,
                                   gcs_result_path.split("/")[-1])
@@ -118,7 +120,7 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
                 zip_ref.extractall(local_results_dir)
                 return unzipped_result_dir
             else:
-                print("Not a correct vts-tf result archive file.")
+                logging.error("Not a correct vts-tf result archive file.")
                 return None
 
     # @Override
@@ -139,6 +141,14 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
             "--result-from-gcs",
             help="Google Cloud Storage URL from which the result is downloaded. "
             "Will retry based on the fetched result data")
+        self.arg_parser.add_argument(
+            "--serial",
+            action="append",
+            default=[],
+            help="Serial number for device. Can pass this flag multiple times."
+        )
+        self.arg_parser.add_argument(
+            "--shards", type=int, default=1, help="Test plan's shard count.")
 
     # @Override
     def Run(self, arg_line):
@@ -148,8 +158,8 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
         force_retry_count = args.force_count
 
         if "vts" not in self.console.test_suite_info:
-            print("test_suite_info doesn't have 'vts': %s" %
-                  self.console.test_suite_info)
+            logging.error("test_suite_info doesn't have 'vts': %s",
+                          self.console.test_suite_info)
             return False
 
         tools_path = os.path.dirname(self.console.test_suite_info["vts"])
@@ -171,8 +181,9 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
         ]
         former_result_count = len(former_results)
         if former_result_count < 1:
-            print("No test plan has been run yet, former results count is %d" %
-                  former_result_count)
+            logging.error(
+                "No test plan has been run yet, former results count is %d",
+                former_result_count)
             return False
 
         if unzipped_result_dir:
@@ -210,13 +221,16 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
 
             if (result_index >= force_retry_count and result_skip_count == 0
                     and result_fail_count == 0):
-                print("All modules have run and passed. "
-                      "Skipping remaining %d retry runs." %
-                      (retry_count - result_index))
+                logging.info("All modules have run and passed. "
+                             "Skipping remaining %d retry runs.",
+                             (retry_count - result_index))
                 break
 
-            retry_test_command = "test --keep-result -- %s --retry %d" % (
-                result_attrs[_SUITE_PLAN_ATTR_KEY], session_id)
+            retry_test_command = "test --keep-result -- %s --retry %d --shards %d" % (
+                result_attrs[_SUITE_PLAN_ATTR_KEY], session_id, args.shards)
+            if args.serial:
+                for serial in args.serial:
+                    retry_test_command += " --serial %s" % serial
             self.console.onecmd(retry_test_command)
 
             for result in os.listdir(results_path):

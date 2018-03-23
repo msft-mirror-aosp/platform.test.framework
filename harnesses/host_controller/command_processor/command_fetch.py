@@ -77,6 +77,11 @@ class CommandFetch(base_command_processor.BaseCommandProcessor):
             default=False,
             type=bool,
             help="True to not use a local webserver for authentication.")
+        self.arg_parser.add_argument(
+            "--fetch_signed_build",
+            default=False,
+            type=bool,
+            help="True to fetch only signed build images.")
 
     # @Override
     def Run(self, arg_line):
@@ -84,7 +89,7 @@ class CommandFetch(base_command_processor.BaseCommandProcessor):
         args = self.arg_parser.ParseLine(arg_line)
 
         if args.type not in self.console._build_provider:
-            print("ERROR: uninitialized fetch type %s" % args.type)
+            logging.error("ERROR: uninitialized fetch type %s", args.type)
             return False
 
         provider = self.console._build_provider[args.type]
@@ -92,14 +97,25 @@ class CommandFetch(base_command_processor.BaseCommandProcessor):
             # do we want this somewhere else? No harm in doing multiple times
             provider.Authenticate(args.userinfo_file,
                                   args.noauth_local_webserver)
-            (device_images, test_suites, fetch_environment,
-             _) = provider.GetArtifact(
-                 account_id=args.account_id,
-                 branch=args.branch,
-                 target=args.target,
-                 artifact_name=args.artifact_name,
-                 build_id=args.build_id,
-                 method=args.method)
+            if not args.fetch_signed_build:
+                (device_images, test_suites, fetch_environment,
+                 _) = provider.GetArtifact(
+                     account_id=args.account_id,
+                     branch=args.branch,
+                     target=args.target,
+                     artifact_name=args.artifact_name,
+                     build_id=args.build_id,
+                     method=args.method)
+            else:
+                (device_images, test_suites, fetch_environment,
+                 _) = provider.GetSignedBuildArtifact(
+                    account_id=args.account_id,
+                    branch=args.branch,
+                    target=args.target,
+                    artifact_name=args.artifact_name,
+                    build_id=args.build_id,
+                    method=args.method)
+
             self.console.fetch_info["build_id"] = fetch_environment["build_id"]
         elif args.type == "local_fs":
             device_images, test_suites = provider.Fetch(args.path)
@@ -115,7 +131,7 @@ class CommandFetch(base_command_processor.BaseCommandProcessor):
                 build_id=args.build_id)
             self.console.fetch_info["build_id"] = fetch_environment["build_id"]
         else:
-            print("ERROR: unknown fetch type %s" % args.type)
+            logging.error("ERROR: unknown fetch type %s", args.type)
             return False
 
         self.console.fetch_info["branch"] = args.branch

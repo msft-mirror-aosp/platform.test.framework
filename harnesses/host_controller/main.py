@@ -162,8 +162,8 @@ def main():
                     api_version=config_json["tfc_api_version"],
                     scopes=config_json["tfc_scopes"])
         else:
-            print("WARN: If --use_tfc is set, --config_file argument value "
-                  "must be provided. Starting without TFC.")
+            logging.warning("WARN: If --use_tfc is set, --config_file argument "
+                            "value must be provided. Starting without TFC.")
 
     pab = build_provider_pab.BuildProviderPAB()
 
@@ -195,7 +195,8 @@ def main():
         if args.vti:
             main_console.StartJobThreadAndProcessPool()
         else:
-            print("vti address is not set. example : $ run --vti=<url>")
+            logging.warning("vti address is not set. example : "
+                            "$ run --vti=<url>")
 
         try:
             if args.serial:

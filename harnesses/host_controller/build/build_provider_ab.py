@@ -26,7 +26,8 @@ class BuildProviderAB(build_provider.BuildProvider):
     def __init__(self):
         super(BuildProviderAB, self).__init__()
         if 'run_ab_key' in os.environ:
-            print("For AB, use the key at %s" % os.environ['run_ab_key'])
+            logging.info(
+                "For AB, use the key at %s", os.environ['run_ab_key'])
             self._artifact_fetcher = artifact_fetcher.AndroidBuildClient(
                 os.environ['run_ab_key'])
         else:

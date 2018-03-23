@@ -57,13 +57,14 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
 
             stdout, stderr, returncode = cmd_utils.ExecuteOneShellCommand(
                 "adb devices")
-            lines_adb = stdout.split("\n")[1:]
+            lines_adb = stdout.split("\n")
             stdout, stderr, returncode = cmd_utils.ExecuteOneShellCommand(
                 "fastboot devices")
             lines_fastboot = stdout.split("\n")
 
             for line in lines_adb:
-                if len(line.strip()):
+                if (len(line.strip()) and
+                    not(line.startswith("* ") or line.startswith("List "))):
                     device = {}
                     device["serial"] = line.split()[0]
                     serial = device["serial"]
@@ -114,7 +115,8 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                 host._cluster_ids[0], host.hostname, devices)
             self.console._tfc_client.SubmitHostEvents([snapshots])
         else:
-            print "Error: unknown server_type %s for UpdateDevice" % server_type
+            logging.error(
+                "Error: unknown server_type %s for UpdateDevice", server_type)
 
     def UpdateDeviceRepeat(self, server_type, host, lease, update_interval):
         """Regularly updates the device state of devices on a given host.
@@ -171,7 +173,7 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
         args = self.arg_parser.ParseLine(arg_line)
         if args.set_serial:
             self.console.SetSerials(args.set_serial.split(","))
-            print("serials: %s" % self.console._serials)
+            logging.info("serials: %s", self.console._serials)
         if args.update:
             if args.host is None:
                 if len(self.console._hosts) > 1:
@@ -188,8 +190,8 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                 # thread if one is currently running
                 if self.update_thread is not None and not hasattr(
                         self.update_thread, 'keep_running'):
-                    print('device update already running. '
-                          'run device --update stop first.')
+                    logging.warning('device update already running. '
+                                    'run device --update stop first.')
                     return
                 self.update_thread = threading.Thread(
                     target=self.UpdateDeviceRepeat,
