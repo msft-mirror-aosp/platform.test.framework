@@ -14,10 +14,8 @@
 # limitations under the License.
 #
 
-import datetime
 import logging
 import os
-import re
 
 from host_controller.build import build_provider_gcs
 from host_controller.command_processor import base_command_processor

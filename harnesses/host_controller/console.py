@@ -346,9 +346,9 @@ class Console(cmd.Cmd):
             """
             name = match.group(1)
             if name in ("build_id", "branch", "target"):
-                value = self.console.fetch_info[name]
+                value = self.fetch_info[name]
             elif name in ("result_full", "result_zip", "suite_plan"):
-                value = self.console.test_result[name]
+                value = self.test_result[name]
             elif name in ("timestamp", "timestamp_date"):
                 current_datetime = datetime.datetime.now()
                 value_date = current_datetime.strftime("%Y%m%d")
@@ -358,9 +358,11 @@ class Console(cmd.Cmd):
                 else:
                     value = "%s-%s" % (value_date, value_time)
             elif name in ("hc_log", "hc_log_file"):
-                value = self.console.logfile_path
+                value = self._logfile_path
                 if name == "hc_log_file":
                     value = os.path.basename(value)
+            elif name in ("hostname"):
+                value = socket.gethostname()
             else:
                 value = None
 
@@ -436,13 +438,14 @@ class Console(cmd.Cmd):
         else:
             ret = False
 
-        dest = self.formatString(
+        src = self.FormatString("{hc_log}")
+        dest = self.FormatString(
             "gs://vts-report/infra_log/{hostname}/%s_{timestamp}/{hc_log_file}"
             % kwargs["build_target"])
-        self.onecmd("upload --src={hc_log} --dest=%s" % dest)
+        self.onecmd("upload --src=%s --dest=%s" % (src, dest))
         logging.getLogger().removeHandler(file_handler)
         os.remove(self._logfile_path)
-        return ret, dest
+        return (ret != False), dest
 
     def _Print(self, string):
         """Prints a string and a new line character.
