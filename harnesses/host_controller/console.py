@@ -255,7 +255,8 @@ class Console(cmd.Cmd):
             os.mkdir(tempdir_base)
         self._tmp_logdir = tempfile.mkdtemp(dir=tempdir_base)
         if not self._job_pool:
-            self._logfile_path = logger.setupTestLogger(self._tmp_logdir)
+            self._logfile_path = logger.setupTestLogger(
+                self._tmp_logdir, create_symlink=False)
 
     def __exit__(self):
         """Finalizes the build provider attributes explicitly when exited."""
