@@ -309,12 +309,12 @@ class VtiEndpointClient(object):
             self._heartbeat_thread.daemon = True
             self._heartbeat_thread.start()
 
-    def StopHeartbeat(self, status="complete", gcs_log_url=""):
+    def StopHeartbeat(self, status="complete", infra_log_url=""):
         """Stops the hearbeat_thread and sets current job's status.
 
         Args:
             status: string, status value.
-            gcs_log_url: string, URL to the uploaded infra log.
+            infra_log_url: string, URL to the uploaded infra log.
         """
         self._heartbeat_thread.keep_running = False
 
@@ -325,7 +325,7 @@ class VtiEndpointClient(object):
         if (self._job is not None and
             self._job["status"] == JOB_STATUS_DICT["leased"]):
             self._job["status"] = JOB_STATUS_DICT[status]
-        self._job["infra_log_url"] = gcs_log_url
+        self._job["infra_log_url"] = infra_log_url
 
         response = requests.post(
             url, data=json.dumps(self._job), headers=self._headers)
