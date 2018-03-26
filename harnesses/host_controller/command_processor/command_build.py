@@ -44,7 +44,7 @@ class CommandBuild(base_command_processor.BaseCommandProcessor):
     command_detail = "Specifies branches and targets to monitor."
 
     def UpdateBuild(self, account_id, branch, targets, artifact_type, method,
-                    userinfo_file, noauth_local_webserver):
+                    userinfo_file, noauth_local_webserver, verify_signed):
         """Updates the build state.
 
         Args:
@@ -56,6 +56,7 @@ class CommandBuild(base_command_processor.BaseCommandProcessor):
             userinfo_file: string, the path of a file containing email and
                            password (if method == POST).
             noauth_local_webserver: boolean, True to not use a local websever.
+            verify_signed: A Boolean indicating whether to verify signed build.
         """
         builds = []
 
@@ -70,7 +71,8 @@ class CommandBuild(base_command_processor.BaseCommandProcessor):
                     target=target,
                     page_token="",
                     max_results=100,
-                    method=method)
+                    method=method,
+                    verify_signed=verify_signed)
             except ValueError as e:
                 logging.exception(e)
                 continue
@@ -90,6 +92,10 @@ class CommandBuild(base_command_processor.BaseCommandProcessor):
                                 build["build_type"] = ""
                             build["artifact_type"] = artifact_type
                             build["artifacts"] = []
+                            if "signed" in listed_build:
+                                build["signed"] = listed_build["signed"]
+                            else:
+                                build["signed"] = False
                             builds.append(build)
                     else:
                         logging.error("Error: listed_build %s", listed_build)
@@ -105,12 +111,13 @@ class CommandBuild(base_command_processor.BaseCommandProcessor):
                         build["build_type"] = ""
                     build["artifact_type"] = artifact_type
                     build["artifacts"] = []
+                    build["signed"] = False
                     builds.append(build)
         self.console._vti_endpoint_client.UploadBuildInfo(builds)
 
     def UpdateBuildLoop(self, account_id, branch, target, artifact_type,
                         method, userinfo_file, noauth_local_webserver,
-                        update_interval):
+                        update_interval, verify_signed):
         """Regularly updates the build information.
 
         Args:
@@ -128,7 +135,8 @@ class CommandBuild(base_command_processor.BaseCommandProcessor):
         while getattr(thread, 'keep_running', True):
             try:
                 self.UpdateBuild(account_id, branch, target, artifact_type,
-                                 method, userinfo_file, noauth_local_webserver)
+                                 method, userinfo_file, noauth_local_webserver,
+                                 verify_signed)
             except (socket.error, remote_operation.RemoteOperationException,
                     httplib2.HttpLib2Error, errors.HttpError) as e:
                 logging.exception(e)
@@ -183,7 +191,11 @@ class CommandBuild(base_command_processor.BaseCommandProcessor):
             default=False,
             type=bool,
             help="True to not use a local webserver for authentication.")
-
+        self.arg_parser.add_argument(
+            "--verify-signed-build",
+            default=False,
+            type=bool,
+            help="True to verify whether the build is signed.")
     # @Override
     def Run(self, arg_line):
         """Updates build info."""
@@ -191,7 +203,8 @@ class CommandBuild(base_command_processor.BaseCommandProcessor):
         if args.update == "single":
             self.UpdateBuild(args.account_id, args.branch, args.target,
                              args.artifact_type, args.method,
-                             args.userinfo_file, args.noauth_local_webserver)
+                             args.userinfo_file, args.noauth_local_webserver,
+                             args.verify_signed_build)
         elif args.update == "list":
             logging.info("Running build update sessions:")
             for id in self.build_thread:
@@ -225,6 +238,7 @@ class CommandBuild(base_command_processor.BaseCommandProcessor):
                     args.userinfo_file,
                     args.noauth_local_webserver,
                     args.interval,
+                    args.verify_signed_build,
                 ))
             self.build_thread[args.id].daemon = True
             self.build_thread[args.id].start()
