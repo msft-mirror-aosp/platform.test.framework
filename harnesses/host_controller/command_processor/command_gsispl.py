@@ -17,6 +17,7 @@
 import datetime
 import logging
 import os
+import shutil
 import tempfile
 import zipfile
 
@@ -106,6 +107,8 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
                 return False
 
             version_dict = img_utils.GetSPLVersionFromBootImg(img_path)
+            if dest_path:
+                shutil.rmtree(dest_path)
             if "year" in version_dict and "month" in version_dict:
                 version = "{:04d}-{:02d}-{:02d}".format(
                     version_dict["year"], version_dict["month"],
