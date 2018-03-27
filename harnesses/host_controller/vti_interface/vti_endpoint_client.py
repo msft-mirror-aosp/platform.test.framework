@@ -144,6 +144,7 @@ class VtiEndpointClient(object):
                     schedule["priority"] = test_schedule.priority
                     schedule["device"] = []
                     schedule["device"].extend(test_schedule.device)
+                    schedule["device_pab_account_id"] = pb.pab_account_id
                     schedule["shards"] = test_schedule.shards
                     schedule["param"] = test_schedule.param
                     schedule["retry_count"] = test_schedule.retry_count
