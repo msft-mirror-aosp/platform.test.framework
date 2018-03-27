@@ -112,11 +112,13 @@ class BuildProvider(object):
         with zipfile.ZipFile(path, 'r') as zip_ref:
             if self._IsFullDeviceImage(zip_ref.namelist()):
                 self.SetDeviceImage(common.FULL_ZIPFILE, path)
+                dir_key = common.FULL_ZIPFILE_DIR
             else:
                 self.SetDeviceImage("gsi-zipfile", path)
-                zip_ref.extractall(dest_path)
-                self.SetFetchedDirectory(dest_path)
-                self.SetDeviceImage("gsi-zipfile-dir", dest_path)
+                dir_key = "gsi-zipfile-dir"
+            zip_ref.extractall(dest_path)
+            self.SetFetchedDirectory(dest_path)
+            self.SetDeviceImage(dir_key, dest_path)
 
     def GetDeviceImage(self, name=None):
         """Returns device image info."""
