@@ -69,4 +69,5 @@ class CommandDUT(base_command_processor.BaseCommandProcessor):
             elif args.operation == "wifi_off":
                 adb_proxy.shell("svc wifi disable")
         except adb.AdbError as e:
+            logging.exception(e)
             return False
