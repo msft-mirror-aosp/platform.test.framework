@@ -58,3 +58,6 @@ _MAX_LEASED_JOBS = 14
 
 # Defualt access point for dut wifi_on command.
 _DEFAULT_WIFI_AP = "GoogleGuest"
+
+# SoC name list.
+SDM845 = "sdm845"
