@@ -43,6 +43,11 @@ class CommandFastboot(base_command_processor.BaseCommandProcessor):
             default=None,
             help="The target device serial to run the command.")
         self.arg_parser.add_argument(
+            "--retry",
+            type=int,
+            default=2,
+            help="The number of times to retry if a command fails.")
+        self.arg_parser.add_argument(
             "command",
             metavar="COMMAND",
             nargs="+",
@@ -61,11 +66,14 @@ class CommandFastboot(base_command_processor.BaseCommandProcessor):
                 return False
             cmd_list.append("-s %s" % args.serial)
         cmd_list.extend(self.ReplaceVars(args.command))
-        stdout, stderr, retcode = cmd_utils.ExecuteOneShellCommand(
-            " ".join(cmd_list))
-        if stdout:
-            logging.info(stdout)
-        if stderr:
-            logging.error(stderr)
-        if retcode != 0:
-            return False
+        cmd = " ".join(cmd_list)
+        for _ in range(args.retry + 1):
+            stdout, stderr, retcode = cmd_utils.ExecuteOneShellCommand(cmd)
+            if stdout:
+                logging.info(stdout)
+            if stderr:
+                logging.error(stderr)
+            if retcode == 0:
+                return
+            logging.warn("Retrying... (%s)", cmd)
+        return False
