@@ -134,6 +134,7 @@ class VtiEndpointClient(object):
         for pb in pbs:
             schedule = {}
             schedule["manifest_branch"] = pb.manifest_branch
+            schedule["build_storage_type"] = pb.build_storage_type
             for build_target in pb.build_target:
                 schedule["build_target"] = build_target.name
                 schedule["require_signed_device_build"] = (
@@ -148,9 +149,11 @@ class VtiEndpointClient(object):
                     schedule["shards"] = test_schedule.shards
                     schedule["param"] = test_schedule.param
                     schedule["retry_count"] = test_schedule.retry_count
+                    schedule["gsi_storage_type"] = test_schedule.gsi_storage_type
                     schedule["gsi_branch"] = test_schedule.gsi_branch
                     schedule["gsi_build_target"] = test_schedule.gsi_build_target
                     schedule["gsi_pab_account_id"] = test_schedule.gsi_pab_account_id
+                    schedule["test_storage_type"] = test_schedule.test_storage_type
                     schedule["test_branch"] = test_schedule.test_branch
                     schedule["test_build_target"] = test_schedule.test_build_target
                     schedule["test_pab_account_id"] = test_schedule.test_pab_account_id
