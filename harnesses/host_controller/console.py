@@ -229,11 +229,11 @@ class Console(cmd.Cmd):
         cmd.Cmd.__init__(self, stdin=in_file, stdout=out_file)
         self._build_provider = {}
         self._build_provider["pab"] = pab
+        self._build_provider["gcs"] = build_provider_gcs.BuildProviderGCS()
         self._job_pool = job_pool
         if not self._job_pool:
             self._build_provider[
                 "local_fs"] = build_provider_local_fs.BuildProviderLocalFS()
-            self._build_provider["gcs"] = build_provider_gcs.BuildProviderGCS()
             self._build_provider["ab"] = build_provider_ab.BuildProviderAB()
         self._vti_endpoint_client = vti_endpoint_client
         self._vti_address = vti_address

@@ -17,6 +17,9 @@
 # The default Partner Android Build (PAB) public account.
 # To obtain access permission, please reach out to Android partner engineering
 # department of Google LLC.
+
+from vti.test_serving.proto import TestScheduleConfigMessage_pb2 as pb
+
 _DEFAULT_ACCOUNT_ID = '543365459'
 
 # The default Partner Android Build (PAB) internal account.
@@ -49,6 +52,18 @@ _DEVICE_STATUS_DICT = {
     "ready": 3,
     "use": 4,
     "error": 5}
+
+_STORAGE_TYPE_DICT = {
+    pb.UNKNOWN_BUILD_STORAGE_TYPE: "unknown",
+    pb.BUILD_STORAGE_TYPE_PAB: "pab",
+    pb.BUILD_STORAGE_TYPE_GCS: "gcs",
+}
+
+_STORAGE_TYPE_DICT_REVERSE = {
+    "unknown": pb.UNKNOWN_BUILD_STORAGE_TYPE,
+    "pab": pb.BUILD_STORAGE_TYPE_PAB,
+    "gcs": pb.BUILD_STORAGE_TYPE_GCS,
+}
 
 # Default SPL date, used for gsispl command
 _SPL_DEFAULT_DAY = 5
