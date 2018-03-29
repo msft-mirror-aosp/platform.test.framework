@@ -80,7 +80,21 @@ def EmitConsoleCommands(**kwargs):
     else:
         gsi = False
 
+    shards = int(kwargs["shards"])
+    serials = kwargs["serial"]
     if gsi:
+        if common.SDM845 in build_target:
+            if shards > 1:
+                sub_commands = []
+                if shards <= len(serials):
+                    for shard_index in range(shards):
+                        sub_commands.append(
+                            GenerateSdm845SetupCommands(serials[shard_index]))
+                result.append(sub_commands)
+            else:
+                result.extend(
+                    GenerateSdm845SetupCommands(serials[0]))
+
         if "gsi_build_id" in kwargs and kwargs["gsi_build_id"]:
             gsi_build_id = kwargs["gsi_build_id"]
         else:
@@ -109,9 +123,7 @@ def EmitConsoleCommands(**kwargs):
         result.append("gsispl --version_from_path=boot.img")
         result.append("info")
 
-    shards = int(kwargs["shards"])
     test_name = kwargs["test_name"].split("/")[-1]
-    serials = kwargs["serial"]
     param = ""
     if "param" in kwargs and kwargs["param"]:
         param = " ".join(kwargs["param"])
@@ -124,9 +136,13 @@ def EmitConsoleCommands(**kwargs):
         if shards <= len(serials):
             for shard_index in range(shards):
                 new_cmd_list = []
-                new_cmd_list.append(
-                    "flash --current --serial %s --skip-vbmeta=True " %
-                    serials[shard_index])
+                if common.SDM845 in build_target and gsi:
+                    new_cmd_list.extend(
+                        GenerateSdm845GsiFlashingCommands(serials[shard_index]))
+                else:
+                    new_cmd_list.append(
+                        "flash --current --serial %s --skip-vbmeta=True " %
+                        serials[shard_index])
                 new_cmd_list.append(
                     "dut --operation=wifi_on --serial=%s --ap=%s" %
                     (serials[shard_index], common._DEFAULT_WIFI_AP))
@@ -135,8 +151,11 @@ def EmitConsoleCommands(**kwargs):
         result.append(sub_commands)
         result.append(test_command)
     else:
-        result.append(
-            "flash --current --serial %s --skip-vbmeta=True" % serials[0])
+        if common.SDM845 in build_target and gsi:
+            result.extend(GenerateSdm845GsiFlashingCommands(serials[0]))
+        else:
+            result.append(
+                "flash --current --serial %s --skip-vbmeta=True" % serials[0])
         result.append("dut --operation=wifi_on --serial=%s --ap=%s" %
                       (serials[0], common._DEFAULT_WIFI_AP))
         if serials:
@@ -163,3 +182,93 @@ def EmitConsoleCommands(**kwargs):
         "/{branch}/{target}/%s_{build_id}_{timestamp}/" % build_target)
 
     return result
+
+
+def GenerateSdm845SetupCommands(serial):
+    """Returns a sequence of console commands to setup a device.
+
+    Args:
+        serial: string, the target device serial number.
+
+    Returns:
+        a list of strings, each string is a console command.
+    """
+    return [
+        ("fastboot -s %s flash boot "
+         "{device-image[full-zipfile-dir]}/boot.img" % serial),
+        ("fastboot -s %s flash dtbo "
+         "{device-image[full-zipfile-dir]}/dtbo.img" % serial),
+        ("fastboot -s %s flash system "
+         "{device-image[full-zipfile-dir]}/system.img" % serial),
+        ("fastboot -s %s flash userdata "
+         "{device-image[full-zipfile-dir]}/userdata.img" % serial),
+        ("fastboot -s %s flash vbmeta "
+         "{device-image[full-zipfile-dir]}/vbmeta.img "
+         "-- --disable-verity" % serial),
+        ("fastboot -s %s flash vendor "
+         "{device-image[full-zipfile-dir]}/vendor.img" % serial),
+        "fastboot -s %s reboot" % serial,
+        "sleep 90",  # wait for boot_complete (success)
+        "adb -s %s root" % serial,
+        # TODO: to make sure {tmp_dir} is unique per session and
+        #       is cleaned up at exit.
+        "shell -- mkdir -p {tmp_dir}/%s" % serial,
+        ("adb -s %s pull /system/lib64/libdrm.so "
+         "{tmp_dir}/%s" % (serial, serial)),
+        ("adb -s %s pull /system/lib64/vendor.display.color@1.0.so "
+         "{tmp_dir}/%s" % (serial, serial)),
+        ("adb -s %s pull /system/lib64/vendor.display.config@1.0.so "
+         "{tmp_dir}/%s" % (serial, serial)),
+        ("adb -s %s pull /system/lib64/vendor.display.config@1.1.so "
+         "{tmp_dir}/%s" % (serial, serial)),
+        ("adb -s %s pull /system/lib64/vendor.display.postproc@1.0.so "
+         "{tmp_dir}/%s" % (serial, serial)),
+        ("adb -s %s pull /system/lib64/vendor.qti.hardware.perf@1.0.so "
+         "{tmp_dir}/%s" % (serial, serial)),
+        "adb -s %s reboot bootloader" % serial,
+        ("fastboot -s %s flash vbmeta "
+         "{device-image[full-zipfile-dir]}/vbmeta.img "
+         "-- --disable-verity" % serial),
+      ]
+
+
+def GenerateSdm845GsiFlashingCommands(serial):
+    """Returns a sequence of console commands to flash GSI to a device.
+
+    Args:
+        serial: string, the target device serial number.
+
+    Returns:
+        a list of strings, each string is a console command.
+    """
+    return [
+        "fastboot -s %s flash system {device-image[system.img]}" % serial,
+        "fastboot -s %s -- -w reboot" % serial,
+        "sleep 90",  # wait until adb shell (not boot complete)
+        "adb -s %s root" % serial,
+        "adb -s %s remount" % serial,
+        "adb -s %s shell setenforce 0" % serial,
+        "adb -s %s shell mkdir /bt_firmware" % serial,
+        "adb -s %s shell chown system:system /bt_firmware" % serial,
+        "adb -s %s shell chmod 650 /bt_firmware" % serial,
+        "adb -s %s shell setenforce 1" % serial,
+        ("adb -s %s shell ln -- -s /system/lib64/vndk-sp-P/libhidltransport.so "
+         "/system/lib64/vndk-P/android.hidl.base@1.0.so" % serial),
+        ("adb -s %s shell ln -- -s /system/lib/vndk-sp-P/libhidltransport.so "
+         "/system/lib/vndk-P/android.hidl.base@1.0.so" % serial),
+        "adb -s %s push libdrm.so /system/lib64" % serial,
+        ("adb -s %s push {tmp_dir}/%s/vendor.display.color@1.0.so "
+         "/system/lib64" % (serial, serial)),
+        ("adb -s %s push {tmp_dir}/%s/vendor.display.config@1.0.so "
+         "/system/lib64" % (serial, serial)),
+        ("adb -s %s push {tmp_dir}/%s/vendor.display.config@1.1.so "
+         "/system/lib64" % (serial, serial)),
+        ("adb -s %s push {tmp_dir}/%s/vendor.display.postproc@1.0.so "
+         "/system/lib64" % (serial, serial)),
+        ("adb -s %s push {tmp_dir}/%s/vendor.qti.hardware.perf@1.0.so "
+         "/system/lib64" % (serial, serial)),
+        "adb -s %s reboot bootloader" % serial,
+        "sleep 5",
+        "fastboot -s %s  -- -w reboot" % serial,
+        "sleep 300",  # wait for boot_complete (success)
+    ]
