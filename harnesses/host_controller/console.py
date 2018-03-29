@@ -44,6 +44,7 @@ from host_controller.command_processor import command_gsispl
 from host_controller.command_processor import command_info
 from host_controller.command_processor import command_lease
 from host_controller.command_processor import command_list
+from host_controller.command_processor import command_password
 from host_controller.command_processor import command_release
 from host_controller.command_processor import command_retry
 from host_controller.command_processor import command_request
@@ -71,6 +72,7 @@ COMMAND_PROCESSORS = [
     command_info.CommandInfo,
     command_lease.CommandLease,
     command_list.CommandList,
+    command_password.CommandPassword,
     command_release.CommandRelease,
     command_retry.CommandRetry,
     command_request.CommandRequest,
