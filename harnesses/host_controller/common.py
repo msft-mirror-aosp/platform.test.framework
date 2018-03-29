@@ -24,6 +24,7 @@ _DEFAULT_ACCOUNT_ID_INTERNAL = '541462473'
 
 # The key value used for getting a fetched .zip android img file.
 FULL_ZIPFILE = "full-zipfile"
+FULL_ZIPFILE_DIR = "full-zipfile-dir"
 
 # The default value for "flash --current".
 _DEFAULT_FLASH_IMAGES = [
