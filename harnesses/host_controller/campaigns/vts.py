@@ -35,10 +35,8 @@ _JOB_ATTR_LIST = [
 
 
 def HasAttr(attr, **kwargs):
-    if attr in kwargs:
-        if kwargs[attr]:
-            return True
-    return False
+    """Returns True if 'attr' is in 'kwargs' as an arg."""
+    return True if attr in kwargs and kwargs[attr] else False
 
 
 def EmitConsoleCommands(**kwargs):
