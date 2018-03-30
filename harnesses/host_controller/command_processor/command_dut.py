@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
+import logging
+
 from host_controller.command_processor import base_command_processor
 
 from vts.utils.python.common import cmd_utils
