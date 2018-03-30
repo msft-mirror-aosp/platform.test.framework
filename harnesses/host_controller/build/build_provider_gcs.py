@@ -81,7 +81,7 @@ class BuildProviderGCS(build_provider.BuildProvider):
         _, _, ret_code = cmd_utils.ExecuteOneShellCommand(check_command)
         return ret_code == 0
 
-    def Fetch(self, path):
+    def Fetch(self, path, full_device_images=False):
         """Fetches Android device artifact file(s) from GCS.
 
         Args:
@@ -114,7 +114,8 @@ class BuildProviderGCS(build_provider.BuildProvider):
 
             _, _, ret_code = cmd_utils.ExecuteOneShellCommand(copy_command)
             if ret_code == 0:
-                self.SetFetchedFile(dest_path, temp_dir_path)
+                self.SetFetchedFile(dest_path, temp_dir_path,
+                                    full_device_images)
             else:
                 logging.error(
                     "Error in copy file from GCS (code %s).", ret_code)

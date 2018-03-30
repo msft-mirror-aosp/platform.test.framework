@@ -61,3 +61,5 @@ _DEFAULT_WIFI_AP = "GoogleGuest"
 
 # SoC name list.
 SDM845 = "sdm845"
+
+UNIVERSAL9810 = "universal9810"

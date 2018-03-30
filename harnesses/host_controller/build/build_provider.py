@@ -99,7 +99,7 @@ class BuildProvider(object):
         return any(file_path.endswith(ext)
                    for ext in self._IMAGE_FILE_EXTENSIONS)
 
-    def SetDeviceImageZip(self, path):
+    def SetDeviceImageZip(self, path, full_device_images=False):
         """Sets device image(s) using files in a given zip file.
 
         It extracts image files inside the given zip file and selects
@@ -110,7 +110,7 @@ class BuildProvider(object):
         """
         dest_path = path + ".dir"
         with zipfile.ZipFile(path, 'r') as zip_ref:
-            if self._IsFullDeviceImage(zip_ref.namelist()):
+            if full_device_images or self._IsFullDeviceImage(zip_ref.namelist()):
                 self.SetDeviceImage(common.FULL_ZIPFILE, path)
                 dir_key = common.FULL_ZIPFILE_DIR
             else:
@@ -216,7 +216,10 @@ class BuildProvider(object):
             return self._additional_files
         return self._additional_files[rel_path]
 
-    def SetFetchedDirectory(self, dir_path, root_path=None):
+    def SetFetchedDirectory(self,
+                            dir_path,
+                            root_path=None,
+                            full_device_images=False):
         """Adds every file in a directory to one of the dictionaries.
 
         This method follows symlink to file, but skips symlink to directory.
@@ -228,10 +231,14 @@ class BuildProvider(object):
         """
         for dir_name, file_name in utils.iterate_files(dir_path):
             full_path = os.path.join(dir_name, file_name)
-            self.SetFetchedFile(full_path,
-                                (root_path if root_path else dir_path))
+            self.SetFetchedFile(full_path, (root_path
+                                            if root_path else dir_path),
+                                full_device_images)
 
-    def SetFetchedFile(self, file_path, root_dir=None):
+    def SetFetchedFile(self,
+                       file_path,
+                       root_dir=None,
+                       full_device_images=False):
         """Adds a file to one of the dictionaries.
 
         Args:
@@ -243,7 +250,7 @@ class BuildProvider(object):
         """
         file_name = os.path.basename(file_path)
         if os.path.isdir(file_path):
-            self.SetFetchedDirectory(file_path, root_dir)
+            self.SetFetchedDirectory(file_path, root_dir, full_device_images)
         elif self._IsImageFile(file_path):
             self.SetDeviceImage(file_name, file_path)
         elif file_name == "android-vts.zip":
@@ -254,7 +261,7 @@ class BuildProvider(object):
             self.SetConfigPackage(
                 "prod" if "prod" in file_name else "test", file_path)
         elif file_path.endswith(".zip"):
-            self.SetDeviceImageZip(file_path)
+            self.SetDeviceImageZip(file_path, full_device_images)
         else:
             rel_path = (os.path.relpath(file_path, root_dir) if root_dir else
                         os.path.basename(file_path))
