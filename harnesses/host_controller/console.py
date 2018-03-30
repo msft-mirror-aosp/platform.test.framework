@@ -32,21 +32,26 @@ import time
 import urlparse
 
 from host_controller import common
+from host_controller.command_processor import command_adb
 from host_controller.command_processor import command_build
 from host_controller.command_processor import command_config
 from host_controller.command_processor import command_copy
 from host_controller.command_processor import command_device
 from host_controller.command_processor import command_dut
 from host_controller.command_processor import command_exit
+from host_controller.command_processor import command_fastboot
 from host_controller.command_processor import command_fetch
 from host_controller.command_processor import command_flash
 from host_controller.command_processor import command_gsispl
 from host_controller.command_processor import command_info
 from host_controller.command_processor import command_lease
 from host_controller.command_processor import command_list
+from host_controller.command_processor import command_password
 from host_controller.command_processor import command_release
 from host_controller.command_processor import command_retry
 from host_controller.command_processor import command_request
+from host_controller.command_processor import command_shell
+from host_controller.command_processor import command_sleep
 from host_controller.command_processor import command_test
 from host_controller.command_processor import command_upload
 from host_controller.build import build_info
@@ -59,21 +64,26 @@ from host_controller.vti_interface import vti_endpoint_client
 from vts.runners.host import logger
 
 COMMAND_PROCESSORS = [
+    command_adb.CommandAdb,
     command_build.CommandBuild,
     command_config.CommandConfig,
     command_copy.CommandCopy,
     command_device.CommandDevice,
     command_dut.CommandDUT,
     command_exit.CommandExit,
+    command_fastboot.CommandFastboot,
     command_fetch.CommandFetch,
     command_flash.CommandFlash,
     command_gsispl.CommandGsispl,
     command_info.CommandInfo,
     command_lease.CommandLease,
     command_list.CommandList,
+    command_password.CommandPassword,
     command_release.CommandRelease,
     command_retry.CommandRetry,
     command_request.CommandRequest,
+    command_shell.CommandShell,
+    command_sleep.CommandSleep,
     command_test.CommandTest,
     command_upload.CommandUpload,
 ]
@@ -219,11 +229,11 @@ class Console(cmd.Cmd):
         cmd.Cmd.__init__(self, stdin=in_file, stdout=out_file)
         self._build_provider = {}
         self._build_provider["pab"] = pab
+        self._build_provider["gcs"] = build_provider_gcs.BuildProviderGCS()
         self._job_pool = job_pool
         if not self._job_pool:
             self._build_provider[
                 "local_fs"] = build_provider_local_fs.BuildProviderLocalFS()
-            self._build_provider["gcs"] = build_provider_gcs.BuildProviderGCS()
             self._build_provider["ab"] = build_provider_ab.BuildProviderAB()
         self._vti_endpoint_client = vti_endpoint_client
         self._vti_address = vti_address
@@ -253,6 +263,7 @@ class Console(cmd.Cmd):
         tempdir_base = os.path.join(os.getcwd(), "tmp")
         if not os.path.exists(tempdir_base):
             os.mkdir(tempdir_base)
+        self._tmpdir_default = tempfile.mkdtemp(dir=tempdir_base)
         self._tmp_logdir = tempfile.mkdtemp(dir=tempdir_base)
         if not self._job_pool:
             self._logfile_path = logger.setupTestLogger(
@@ -279,6 +290,16 @@ class Console(cmd.Cmd):
     def build_provider(self):
         """getter for self._build_provider"""
         return self._build_provider
+
+    @property
+    def tmpdir_default(self):
+        """getter for self._password"""
+        return self._tmpdir_default
+
+    @tmpdir_default.setter
+    def tmpdir_default(self, tmpdir):
+        """getter for self._password"""
+        self._tmpdir_default = tmpdir
 
     @property
     def password(self):

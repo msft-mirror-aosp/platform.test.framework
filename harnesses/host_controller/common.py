@@ -17,6 +17,9 @@
 # The default Partner Android Build (PAB) public account.
 # To obtain access permission, please reach out to Android partner engineering
 # department of Google LLC.
+
+from vti.test_serving.proto import TestScheduleConfigMessage_pb2 as pb
+
 _DEFAULT_ACCOUNT_ID = '543365459'
 
 # The default Partner Android Build (PAB) internal account.
@@ -24,6 +27,7 @@ _DEFAULT_ACCOUNT_ID_INTERNAL = '541462473'
 
 # The key value used for getting a fetched .zip android img file.
 FULL_ZIPFILE = "full-zipfile"
+FULL_ZIPFILE_DIR = "full-zipfile-dir"
 
 # The default value for "flash --current".
 _DEFAULT_FLASH_IMAGES = [
@@ -49,6 +53,18 @@ _DEVICE_STATUS_DICT = {
     "use": 4,
     "error": 5}
 
+_STORAGE_TYPE_DICT = {
+    pb.UNKNOWN_BUILD_STORAGE_TYPE: "unknown",
+    pb.BUILD_STORAGE_TYPE_PAB: "pab",
+    pb.BUILD_STORAGE_TYPE_GCS: "gcs",
+}
+
+_STORAGE_TYPE_DICT_REVERSE = {
+    "unknown": pb.UNKNOWN_BUILD_STORAGE_TYPE,
+    "pab": pb.BUILD_STORAGE_TYPE_PAB,
+    "gcs": pb.BUILD_STORAGE_TYPE_GCS,
+}
+
 # Default SPL date, used for gsispl command
 _SPL_DEFAULT_DAY = 5
 
@@ -57,3 +73,8 @@ _MAX_LEASED_JOBS = 14
 
 # Defualt access point for dut wifi_on command.
 _DEFAULT_WIFI_AP = "GoogleGuest"
+
+# SoC name list.
+SDM845 = "sdm845"
+
+UNIVERSAL9810 = "universal9810"
