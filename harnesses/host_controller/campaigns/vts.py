@@ -132,7 +132,8 @@ def EmitConsoleCommands(**kwargs):
                  kwargs["gsi_build_target"].split("-")[0], gsi_build_id))
         elif gsi_storage_type == pb.BUILD_STORAGE_TYPE_GCS:
             result.append("fetch --type=gcs --path=%s/%s-img-%s.zip" %
-                          (kwargs["gsi_branch"], kwargs["gsi_build_target"],
+                          (kwargs["gsi_branch"],
+                           kwargs["gsi_build_target"].split("-")[0],
                            gsi_build_id))
         else:
             logging.error("unknown gsi storage type is given: %d",
@@ -219,9 +220,9 @@ def EmitConsoleCommands(**kwargs):
             for serial in serials:
                 result.append("adb -s %s root" % serial)
                 serial_arg_list.append("--serial %s" % serial)
-            result.append(
-                "test --keep-result -- %s %s --shards %s %s" %
-                (test_name, " ".join(serial_arg_list), shards, param))
+            result.append("test --keep-result -- %s %s --shards %s %s" %
+                          (test_name, " ".join(serial_arg_list), shards,
+                           param))
         else:
             result.append("test --keep-result -- %s --shards %s %s" %
                           (test_name, shards, param))
