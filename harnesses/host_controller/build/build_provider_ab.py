@@ -51,7 +51,12 @@ class BuildProviderAB(build_provider.BuildProvider):
 
         return recent_build_ids[0]
 
-    def Fetch(self, branch, target, artifact_name, build_id="latest"):
+    def Fetch(self,
+              branch,
+              target,
+              artifact_name,
+              build_id="latest",
+              full_device_images=False):
         """Fetches Android device artifact file(s) from Android Build.
 
         Args:
@@ -83,6 +88,6 @@ class BuildProviderAB(build_provider.BuildProvider):
             branch, target, build_id, artifact_name,
             dest_filepath=dest_filepath)
 
-        self.SetFetchedFile(dest_filepath)
+        self.SetFetchedFile(dest_filepath, full_device_images)
 
         return self.GetDeviceImage(), self.GetTestSuitePackage(), fetch_info

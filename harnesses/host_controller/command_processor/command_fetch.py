@@ -82,6 +82,12 @@ class CommandFetch(base_command_processor.BaseCommandProcessor):
             default=False,
             type=bool,
             help="True to fetch only signed build images.")
+        self.arg_parser.add_argument(
+            "--full_device_images",
+            default=False,
+            type=bool,
+            help="True to skip checking whether the fetched artifacts are "
+                 "fully packaged device images.")
 
     # @Override
     def Run(self, arg_line):
@@ -105,7 +111,8 @@ class CommandFetch(base_command_processor.BaseCommandProcessor):
                      target=args.target,
                      artifact_name=args.artifact_name,
                      build_id=args.build_id,
-                     method=args.method)
+                     method=args.method,
+                     full_device_images=args.full_device_images)
             else:
                 (device_images, test_suites, fetch_environment,
                  _) = provider.GetSignedBuildArtifact(
@@ -114,21 +121,27 @@ class CommandFetch(base_command_processor.BaseCommandProcessor):
                     target=args.target,
                     artifact_name=args.artifact_name,
                     build_id=args.build_id,
-                    method=args.method)
+                    method=args.method,
+                    full_device_images=args.full_device_images)
 
             self.console.fetch_info["build_id"] = fetch_environment["build_id"]
         elif args.type == "local_fs":
-            device_images, test_suites = provider.Fetch(args.path)
+            device_images, test_suites = provider.Fetch(
+                args.path,
+                args.full_device_images)
             self.console.fetch_info["build_id"] = None
         elif args.type == "gcs":
-            device_images, test_suites, tools = provider.Fetch(args.path)
+            device_images, test_suites, tools = provider.Fetch(
+                args.path,
+                args.full_device_images)
             self.console.fetch_info["build_id"] = None
         elif args.type == "ab":
             device_images, test_suites, fetch_environment = provider.Fetch(
                 branch=args.branch,
                 target=args.target,
                 artifact_name=args.artifact_name,
-                build_id=args.build_id)
+                build_id=args.build_id,
+                full_device_images=args.full_device_images)
             self.console.fetch_info["build_id"] = fetch_environment["build_id"]
         else:
             logging.error("ERROR: unknown fetch type %s", args.type)
