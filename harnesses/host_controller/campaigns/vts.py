@@ -196,6 +196,7 @@ def EmitConsoleCommands(**kwargs):
                     new_cmd_list.append(
                         "flash --current --serial %s --skip-vbmeta=True " %
                         serials[shard_index])
+                new_cmd_list.append("adb -s %s root" % serials[shard_index])
                 new_cmd_list.append(
                     "dut --operation=wifi_on --serial=%s --ap=%s" %
                     (serials[shard_index], common._DEFAULT_WIFI_AP))
@@ -214,9 +215,13 @@ def EmitConsoleCommands(**kwargs):
         result.append("dut --operation=wifi_on --serial=%s --ap=%s" %
                       (serials[0], common._DEFAULT_WIFI_AP))
         if serials:
+            serial_arg_list = []
+            for serial in serials:
+                result.append("adb -s %s root" % serial)
+                serial_arg_list.append("--serial %s" % serial)
             result.append(
-                "test --keep-result -- %s --serial %s --shards %s %s" %
-                (test_name, ",".join(serials), shards, param))
+                "test --keep-result -- %s %s --shards %s %s" %
+                (test_name, " ".join(serial_arg_list), shards, param))
         else:
             result.append("test --keep-result -- %s --shards %s %s" %
                           (test_name, shards, param))
