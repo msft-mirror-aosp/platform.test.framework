@@ -17,6 +17,7 @@
 import logging
 
 from host_controller import common
+from vti.test_serving.proto import TestScheduleConfigMessage_pb2 as pb
 
 # The list of the kwargs key. can retrieve informations on the leased job.
 _JOB_ATTR_LIST = [
@@ -31,6 +32,13 @@ _JOB_ATTR_LIST = [
     "test_branch",
     "test_build_target",
 ]
+
+
+def HasAttr(attr, **kwargs):
+    if attr in kwargs:
+        if kwargs[attr]:
+            return True
+    return False
 
 
 def EmitConsoleCommands(**kwargs):
@@ -52,30 +60,44 @@ def EmitConsoleCommands(**kwargs):
     else:
         build_target = kwargs["build_target"]
 
-    if "pab_account_id" in kwargs and kwargs["pab_account_id"]:
+    if HasAttr("pab_account_id", **kwargs):
         pab_account_id = kwargs["pab_account_id"]
     else:
         pab_account_id = common._DEFAULT_ACCOUNT_ID_INTERNAL
 
     manifest_branch = kwargs["manifest_branch"]
     build_id = kwargs["build_id"]
-    result.append(
-        "fetch --type=pab --branch=%s --target=%s --artifact_name=%s-img-%s.zip "
-        "--build_id=%s --account_id=%s" %
-        (manifest_branch, build_target, build_target.split("-")[0], build_id
-         if build_id != "latest" else "{build_id}", build_id, pab_account_id))
+    build_storage_type = pb.BUILD_STORAGE_TYPE_PAB
+    if HasAttr("build_storage_type", **kwargs):
+        build_storage_type = int(kwargs["build_storage_type"])
 
-    result.append(
-        "fetch --type=pab --branch=%s --target=%s --artifact_name=bootloader.img "
-        "--build_id=%s --account_id=%s" % (manifest_branch, build_target,
-                                           build_id, pab_account_id))
+    if build_storage_type == pb.BUILD_STORAGE_TYPE_PAB:
+        result.append(
+            "fetch --type=pab --branch=%s --target=%s --artifact_name=%s-img-%s.zip "
+            "--build_id=%s --account_id=%s" %
+            (manifest_branch, build_target, build_target.split("-")[0],
+             build_id if build_id != "latest" else "{build_id}", build_id,
+             pab_account_id))
 
-    result.append(
-        "fetch --type=pab --branch=%s --target=%s --artifact_name=radio.img "
-        "--build_id=%s --account_id=%s" % (manifest_branch, build_target,
-                                           build_id, pab_account_id))
+        result.append(
+            "fetch --type=pab --branch=%s --target=%s --artifact_name=bootloader.img "
+            "--build_id=%s --account_id=%s" % (manifest_branch, build_target,
+                                               build_id, pab_account_id))
 
-    if "gsi_branch" in kwargs and kwargs["gsi_branch"]:
+        result.append(
+            "fetch --type=pab --branch=%s --target=%s --artifact_name=radio.img "
+            "--build_id=%s --account_id=%s" % (manifest_branch, build_target,
+                                               build_id, pab_account_id))
+    elif build_storage_type == pb.BUILD_STORAGE_TYPE_GCS:
+        result.append("fetch --type=gcs --path=%s" % (manifest_branch))
+        if common.UNIVERSAL9810 in build_target:
+            result[-1] += " --full_device_images=True"
+    else:
+        logging.error("unknown build storage type is given: %d",
+                      build_storage_type)
+        return None
+
+    if HasAttr("gsi_branch", **kwargs):
         gsi = True
     else:
         gsi = False
@@ -92,30 +114,56 @@ def EmitConsoleCommands(**kwargs):
                             GenerateSdm845SetupCommands(serials[shard_index]))
                 result.append(sub_commands)
             else:
-                result.extend(
-                    GenerateSdm845SetupCommands(serials[0]))
+                result.extend(GenerateSdm845SetupCommands(serials[0]))
 
-        if "gsi_build_id" in kwargs and kwargs["gsi_build_id"]:
+        if HasAttr("gsi_build_id", **kwargs):
             gsi_build_id = kwargs["gsi_build_id"]
         else:
             gsi_build_id = "latest"
-        result.append(
-            "fetch --type=pab --branch=%s --target=%s "
-            "--artifact_name=%s-img-{build_id}.zip --build_id=%s" %
-            (kwargs["gsi_branch"], kwargs["gsi_build_target"],
-             kwargs["gsi_build_target"].split("-")[0], gsi_build_id))
-        if "gsi_pab_account_id" in kwargs and kwargs["gsi_pab_account_id"] != "":
+        gsi_storage_type = pb.BUILD_STORAGE_TYPE_PAB
+        if HasAttr("gsi_storage_type", **kwargs):
+            gsi_storage_type = int(kwargs["gsi_storage_type"])
+
+        if gsi_storage_type == pb.BUILD_STORAGE_TYPE_PAB:
+            result.append(
+                "fetch --type=pab --branch=%s --target=%s "
+                "--artifact_name=%s-img-{build_id}.zip --build_id=%s" %
+                (kwargs["gsi_branch"], kwargs["gsi_build_target"],
+                 kwargs["gsi_build_target"].split("-")[0], gsi_build_id))
+        elif gsi_storage_type == pb.BUILD_STORAGE_TYPE_GCS:
+            result.append("fetch --type=gcs --path=%s/%s-img-%s.zip" %
+                          (kwargs["gsi_branch"], kwargs["gsi_build_target"],
+                           gsi_build_id))
+        else:
+            logging.error("unknown gsi storage type is given: %d",
+                          gsi_storage_type)
+            return None
+
+        if HasAttr("gsi_pab_account_id", **kwargs):
             result[-1] += " --account_id=%s" % kwargs["gsi_pab_account_id"]
 
-    if "test_build_id" in kwargs and kwargs["test_build_id"]:
+    if HasAttr("test_build_id", **kwargs):
         test_build_id = kwargs["test_build_id"]
     else:
         test_build_id = "latest"
-    result.append("fetch --type=pab --branch=%s --target=%s "
-                  "--artifact_name=android-vts.zip --build_id=%s" %
-                  (kwargs["test_branch"], kwargs["test_build_target"],
-                   test_build_id))
-    if "test_pab_account_id" in kwargs and kwargs["test_pab_account_id"] != "":
+    test_storage_type = pb.BUILD_STORAGE_TYPE_PAB
+    if HasAttr("test_storage_type", **kwargs):
+        test_storage_type = int(kwargs["test_storage_type"])
+
+    if test_storage_type == pb.BUILD_STORAGE_TYPE_PAB:
+        result.append("fetch --type=pab --branch=%s --target=%s "
+                      "--artifact_name=android-vts.zip --build_id=%s" %
+                      (kwargs["test_branch"], kwargs["test_build_target"],
+                       test_build_id))
+    elif test_storage_type == pb.BUILD_STORAGE_TYPE_GCS:
+        result.append("fetch --type=gcs --path=%s/%s.zip" %
+                      (kwargs["test_branch"], kwargs["test_build_target"]))
+    else:
+        logging.error("unknown test storage type is given: %d",
+                      test_storage_type)
+        return None
+
+    if HasAttr("test_pab_account_id", **kwargs):
         result[-1] += " --account_id=%s" % kwargs["test_pab_account_id"]
 
     result.append("info")
@@ -125,7 +173,7 @@ def EmitConsoleCommands(**kwargs):
 
     test_name = kwargs["test_name"].split("/")[-1]
     param = ""
-    if "param" in kwargs and kwargs["param"]:
+    if HasAttr("param", **kwargs):
         param = " ".join(kwargs["param"])
 
     if shards > 1:
@@ -138,10 +186,12 @@ def EmitConsoleCommands(**kwargs):
                 new_cmd_list = []
                 if common.SDM845 in build_target and gsi:
                     new_cmd_list.extend(
-                        GenerateSdm845GsiFlashingCommands(serials[shard_index]))
+                        GenerateSdm845GsiFlashingCommands(
+                            serials[shard_index]))
                 elif common.UNIVERSAL9810 in build_target and gsi:
                     new_cmd_list.extend(
-                        GenerateUniversal9810GsiFlashingCommands(serials[shard_index]))
+                        GenerateUniversal9810GsiFlashingCommands(
+                            serials[shard_index]))
                 else:
                     new_cmd_list.append(
                         "flash --current --serial %s --skip-vbmeta=True " %
@@ -234,7 +284,7 @@ def GenerateSdm845SetupCommands(serial):
         ("fastboot -s %s flash vbmeta "
          "{device-image[full-zipfile-dir]}/vbmeta.img "
          "-- --disable-verity" % serial),
-      ]
+    ]
 
 
 def GenerateSdm845GsiFlashingCommands(serial):
