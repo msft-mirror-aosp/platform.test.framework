@@ -139,6 +139,9 @@ def EmitConsoleCommands(**kwargs):
                 if common.SDM845 in build_target and gsi:
                     new_cmd_list.extend(
                         GenerateSdm845GsiFlashingCommands(serials[shard_index]))
+                elif common.UNIVERSAL9810 in build_target and gsi:
+                    new_cmd_list.extend(
+                        GenerateUniversal9810GsiFlashingCommands(serials[shard_index]))
                 else:
                     new_cmd_list.append(
                         "flash --current --serial %s --skip-vbmeta=True " %
@@ -153,6 +156,8 @@ def EmitConsoleCommands(**kwargs):
     else:
         if common.SDM845 in build_target and gsi:
             result.extend(GenerateSdm845GsiFlashingCommands(serials[0]))
+        elif common.UNIVERSAL9810 in build_target and gsi:
+            result.extend(GenerateUniversal9810GsiFlashingCommands(serials[0]))
         else:
             result.append(
                 "flash --current --serial %s --skip-vbmeta=True" % serials[0])
@@ -270,5 +275,38 @@ def GenerateSdm845GsiFlashingCommands(serial):
         "adb -s %s reboot bootloader" % serial,
         "sleep 5",
         "fastboot -s %s  -- -w reboot" % serial,
+        "sleep 300",  # wait for boot_complete (success)
+    ]
+
+
+def GenerateUniversal9810GsiFlashingCommands(serial):
+    """Returns a sequence of console commands to flash device imgs and GSI.
+
+    Args:
+        serial: string, the target device serial number.
+
+    Returns:
+        a list of strings, each string is a console command.
+    """
+    return [
+        ("fastboot -s %s flash el3_mon "
+         "{device-image[full-zipfile-dir]}/el3_mon.img" % serial),
+        ("fastboot -s %s flash epbl "
+         "{device-image[full-zipfile-dir]}/epbl.img" % serial),
+        ("fastboot -s %s flash bootloader "
+         "{device-image[full-zipfile-dir]}/u-boot.img" % serial),
+        ("fastboot -s %s flash dtb "
+         "{device-image[full-zipfile-dir]}/dtb.img" % serial),
+        ("fastboot -s %s flash dtbo "
+         "{device-image[full-zipfile-dir]}/dtbo.img" % serial),
+        ("fastboot -s %s flash kernel "
+         "{device-image[full-zipfile-dir]}/kernel.img" % serial),
+        ("fastboot -s %s flash ramdisk "
+         "{device-image[full-zipfile-dir]}/ramdisk.img" % serial),
+        ("fastboot -s %s flash vendor "
+         "{device-image[full-zipfile-dir]}/vendor.img -- -S 300M" % serial),
+        ("fastboot -s %s flash system "
+         "{device-image[gsi-zipfile-dir]}/system.img -- -S 512M" % serial),
+        ("fastboot -s %s reboot -- -w" % serial),
         "sleep 300",  # wait for boot_complete (success)
     ]

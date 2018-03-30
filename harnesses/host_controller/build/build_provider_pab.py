@@ -480,7 +480,8 @@ class BuildProviderPAB(build_provider.BuildProvider):
                     target,
                     artifact_name,
                     build_id='latest',
-                    method=GET):
+                    method=GET,
+                    full_device_images=False):
         """Get an artifact for an account, branch, target and name and build id.
 
         If build_id not given, get latest.
@@ -546,7 +547,8 @@ class BuildProviderPAB(build_provider.BuildProvider):
             artifact_path = artifact_name
         self.DownloadArtifact(url, artifact_path)
 
-        self.SetFetchedFile(artifact_path)
+        self.SetFetchedFile(
+            artifact_path, full_device_images=full_device_images)
 
         return (self.GetDeviceImage(), self.GetTestSuitePackage(),
                 artifact_info, self.GetConfigPackage())
@@ -557,7 +559,8 @@ class BuildProviderPAB(build_provider.BuildProvider):
                                target,
                                artifact_name,
                                build_id='latest',
-                               method=GET):
+                               method=GET,
+                               full_device_images=False):
         """Get an signed build artifact from the PAB bulid list.
 
         Args:
@@ -612,7 +615,8 @@ class BuildProviderPAB(build_provider.BuildProvider):
                 artifact_info["build_id"] = build_id
                 break
 
-        self.SetFetchedFile(artifact_path)
+        self.SetFetchedFile(
+            artifact_path, full_device_images=full_device_images)
 
         return (self.GetDeviceImage(), self.GetTestSuitePackage(),
                 artifact_info, self.GetConfigPackage())
