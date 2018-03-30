@@ -76,6 +76,8 @@ def EmitConsoleCommands(**kwargs):
             (manifest_branch, build_target, build_target.split("-")[0],
              build_id if build_id != "latest" else "{build_id}", build_id,
              pab_account_id))
+        if HasAttr("require_signed_device_build", **kwargs):
+            result[-1] += " --fetch_signed_build=True"
 
         result.append(
             "fetch --type=pab --branch=%s --target=%s --artifact_name=bootloader.img "
