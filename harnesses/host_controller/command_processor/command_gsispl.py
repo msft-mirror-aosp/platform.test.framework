@@ -84,6 +84,7 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
                 logging.error("version ID should be YYYY-mm-dd format.")
                 return
         elif args.version_from_path:
+            dest_path = None
             if os.path.isabs(args.version_from_path) and os.path.exists(
                     args.version_from_path):
                 img_path = args.version_from_path
