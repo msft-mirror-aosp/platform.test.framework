@@ -78,6 +78,8 @@ def EmitConsoleCommands(**kwargs):
              pab_account_id))
         if HasAttr("require_signed_device_build", **kwargs):
             result[-1] += " --fetch_signed_build=True"
+        if common.UNIVERSAL9810 in build_target:
+            result[-1] += " --full_device_images=True"
 
         result.append(
             "fetch --type=pab --branch=%s --target=%s --artifact_name=bootloader.img "
