@@ -78,6 +78,8 @@ def EmitConsoleCommands(**kwargs):
              pab_account_id))
         if HasAttr("require_signed_device_build", **kwargs):
             result[-1] += " --fetch_signed_build=True"
+        if common.UNIVERSAL9810 in build_target:
+            result[-1] += " --full_device_images=True"
 
         result.append(
             "fetch --type=pab --branch=%s --target=%s --artifact_name=bootloader.img "
@@ -132,7 +134,8 @@ def EmitConsoleCommands(**kwargs):
                  kwargs["gsi_build_target"].split("-")[0], gsi_build_id))
         elif gsi_storage_type == pb.BUILD_STORAGE_TYPE_GCS:
             result.append("fetch --type=gcs --path=%s/%s-img-%s.zip" %
-                          (kwargs["gsi_branch"], kwargs["gsi_build_target"],
+                          (kwargs["gsi_branch"],
+                           kwargs["gsi_build_target"].split("-")[0],
                            gsi_build_id))
         else:
             logging.error("unknown gsi storage type is given: %d",
@@ -196,6 +199,7 @@ def EmitConsoleCommands(**kwargs):
                     new_cmd_list.append(
                         "flash --current --serial %s --skip-vbmeta=True " %
                         serials[shard_index])
+                new_cmd_list.append("adb -s %s root" % serials[shard_index])
                 new_cmd_list.append(
                     "dut --operation=wifi_on --serial=%s --ap=%s" %
                     (serials[shard_index], common._DEFAULT_WIFI_AP))
@@ -214,9 +218,13 @@ def EmitConsoleCommands(**kwargs):
         result.append("dut --operation=wifi_on --serial=%s --ap=%s" %
                       (serials[0], common._DEFAULT_WIFI_AP))
         if serials:
-            result.append(
-                "test --keep-result -- %s --serial %s --shards %s %s" %
-                (test_name, ",".join(serials), shards, param))
+            serial_arg_list = []
+            for serial in serials:
+                result.append("adb -s %s root" % serial)
+                serial_arg_list.append("--serial %s" % serial)
+            result.append("test --keep-result -- %s %s --shards %s %s" %
+                          (test_name, " ".join(serial_arg_list), shards,
+                           param))
         else:
             result.append("test --keep-result -- %s --shards %s %s" %
                           (test_name, shards, param))
