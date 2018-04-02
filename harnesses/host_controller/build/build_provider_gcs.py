@@ -105,8 +105,27 @@ class BuildProviderGCS(build_provider.BuildProvider):
             # cp command returns non-zero if path doesn't exist.
             if not BuildProviderGCS.IsGcsFile(gsutil_path, path):
                 dest_path = temp_dir_path
-                copy_command = "%s cp -r %s/* %s" % (gsutil_path, path,
-                                                     temp_dir_path)
+                if "latest.zip" in path:
+                    gsutil_ls_path = re.sub("latest.zip", "*.zip", path)
+                    ls_command = "%s ls %s" % (gsutil_path, gsutil_ls_path)
+                    std_out, _, ret_code = cmd_utils.ExecuteOneShellCommand(
+                        ls_command)
+                    if ret_code == 0 and std_out:
+                        lines_gsutil_ls = std_out.split("\n")
+                        lines_gsutil_ls.sort()
+                        path = lines_gsutil_ls[-1]
+                        copy_command = "%s cp %s %s" % (gsutil_path, path,
+                                                        temp_dir_path)
+                    else:
+                        logging.error(
+                            "There is no file(s) that matches the URL %s.",
+                            path)
+                        return (self.GetDeviceImage(),
+                                self.GetTestSuitePackage(),
+                                self.GetAdditionalFile())
+                else:
+                    copy_command = "%s cp -r %s/* %s" % (gsutil_path, path,
+                                                         temp_dir_path)
             else:
                 dest_path = os.path.join(temp_dir_path, os.path.basename(path))
                 copy_command = "%s cp %s %s" % (gsutil_path, path,
@@ -117,7 +136,7 @@ class BuildProviderGCS(build_provider.BuildProvider):
                 self.SetFetchedFile(dest_path, temp_dir_path,
                                     full_device_images)
             else:
-                logging.error(
-                    "Error in copy file from GCS (code %s).", ret_code)
+                logging.error("Error in copy file from GCS (code %s).",
+                              ret_code)
         return (self.GetDeviceImage(), self.GetTestSuitePackage(),
                 self.GetAdditionalFile())
