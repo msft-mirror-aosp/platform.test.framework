@@ -15,6 +15,7 @@
 #
 
 import cmd
+import ctypes
 import datetime
 import imp  # Python v2 compatibility
 import logging
@@ -118,8 +119,10 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
         out_queue: Queue to put execution results.
         device_status: SharedDict, contains device status information.
                        shared between processes.
-        password: string, password which is to be passed to the prompt
-                  when executing certain command as root user.
+        password: multiprocessing.managers.ValueProxy, a proxy instance of a
+                  string(ctypes.c_char_p) represents the password which is
+                  to be passed to the prompt when executing certain command
+                  as root user.
     """
 
     def SigTermHandler(signum, frame):
@@ -210,8 +213,12 @@ class Console(cmd.Cmd):
                         contains status data on each devices.
         _job_pool: bool, True if Console is created from job pool process
                    context.
-        _password: string, password which is to be passed to the prompt
-                   when executing certain command as root user.
+        _password: multiprocessing.managers.ValueProxy, a proxy instance of a
+                   string(ctypes.c_char_p) represents the password which is
+                   to be passed to the prompt when executing certain command
+                   as root user.
+        _manager: SyncManager. an instance of a manager for shared objects and
+                  values between processes.
     """
 
     def __init__(self,
@@ -235,13 +242,15 @@ class Console(cmd.Cmd):
             self._build_provider[
                 "local_fs"] = build_provider_local_fs.BuildProviderLocalFS()
             self._build_provider["ab"] = build_provider_ab.BuildProviderAB()
+            self._manager = multiprocessing.Manager()
+            self._device_status = shared_dict.SharedDict(self._manager)
+            self._password = self._manager.Value(ctypes.c_char_p, password)
         self._vti_endpoint_client = vti_endpoint_client
         self._vti_address = vti_address
         self._tfc_client = tfc
         self._hosts = host_controllers
         self._in_file = in_file
         self._out_file = out_file
-        self._password = password
         self.prompt = "> "
         self.command_processors = {}
         self.device_image_info = build_info.BuildInfo()
@@ -250,7 +259,6 @@ class Console(cmd.Cmd):
         self.tools_info = build_info.BuildInfo()
         self.fetch_info = {}
         self.test_results = {}
-        self._device_status = shared_dict.SharedDict()
 
         if common._ANDROID_SERIAL in os.environ:
             self._serials = [os.environ[common._ANDROID_SERIAL]]
