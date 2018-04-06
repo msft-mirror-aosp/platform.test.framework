@@ -158,8 +158,7 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
             return False
 
         tools_path = os.path.dirname(self.console.test_suite_info["vts"])
-        vts_root_path = os.path.dirname(tools_path)
-        results_path = os.path.join(vts_root_path, "results")
+        results_path = os.path.join(tools_path, common._RESULTS_BASE_PATH)
 
         unzipped_result_dir = ""
         unzipped_result_session_id = -1
