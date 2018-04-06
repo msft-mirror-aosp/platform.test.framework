@@ -20,6 +20,7 @@ from host_controller.command_processor import base_command_processor
 
 from vts.utils.python.common import cmd_utils
 from vts.utils.python.controllers import adb
+from vts.utils.python.controllers import android_device
 
 
 class CommandDUT(base_command_processor.BaseCommandProcessor):
@@ -58,6 +59,8 @@ class CommandDUT(base_command_processor.BaseCommandProcessor):
     def Run(self, arg_line):
         """Performs the requested operation on the selected DUT."""
         args = self.arg_parser.ParseLine(arg_line)
+        device = android_device.AndroidDevice(args.serial, device_callback_port=-1)
+        device.waitForBootCompletion()
         adb_proxy = adb.AdbProxy(serial=args.serial)
         adb_proxy.root()
         try:
