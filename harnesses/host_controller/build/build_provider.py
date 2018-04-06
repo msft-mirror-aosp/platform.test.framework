@@ -16,6 +16,7 @@
 
 import logging
 import os
+import re
 import shutil
 import tempfile
 import zipfile
@@ -126,25 +127,27 @@ class BuildProvider(object):
             return self._device_images
         return self._device_images[name]
 
-    def SetTestSuitePackage(self, type, path):
+    def SetTestSuitePackage(self, test_suite, path):
         """Sets test suite package `path` for the specified `type`.
 
         Args:
-            type: string, test suite type such as 'vts' or 'cts'.
+            test_suite: string, test suite type such as 'vts' or 'cts', etc.
             path: string, the path of a file. if a file is a zip file,
                   it's unziped and its main binary is set.
         """
-        if path.endswith("android-vts.zip"):
-            dest_path = os.path.join(self.tmp_dirpath, "android-vts")
+        if re.match("[vcgs]ts", test_suite):
+            suite_name = "android-%s" % test_suite
+            tradefed_name = "%s-tradefed" % test_suite
+            dest_path = os.path.join(self.tmp_dirpath, suite_name)
             with zipfile.ZipFile(path, 'r') as zip_ref:
                 zip_ref.extractall(dest_path)
-                bin_path = os.path.join(dest_path, "android-vts",
-                                        "tools", "vts-tradefed")
+                bin_path = os.path.join(dest_path, suite_name,
+                                        "tools", tradefed_name)
                 os.chmod(bin_path, 0766)
                 path = bin_path
         else:
             logging.info("unsupported zip file %s", path)
-        self._test_suites[type] = path
+        self._test_suites[test_suite] = path
 
     def GetTestSuitePackage(self, type=None):
         """Returns test suite package info."""
@@ -238,7 +241,8 @@ class BuildProvider(object):
     def SetFetchedFile(self,
                        file_path,
                        root_dir=None,
-                       full_device_images=False):
+                       full_device_images=False,
+                       set_suite_as=None):
         """Adds a file to one of the dictionaries.
 
         Args:
@@ -247,19 +251,25 @@ class BuildProvider(object):
                       The default value is file_path if file_path is a
                       directory. Otherwise, the default value is file_path's
                       parent directory.
+            set_suite_as: string, the test suite name to use for the given
+                          artifact. Used when the file name does not follow
+                          the standard "android-*ts.zip" file name pattern.
         """
         file_name = os.path.basename(file_path)
         if os.path.isdir(file_path):
             self.SetFetchedDirectory(file_path, root_dir, full_device_images)
         elif self._IsImageFile(file_path):
             self.SetDeviceImage(file_name, file_path)
-        elif file_name == "android-vts.zip":
-            self.SetTestSuitePackage("vts", file_path)
+        elif re.match("android-[vcgs]ts.zip", file_name):
+            test_suite = (file_name.split("-")[-1]).split(".")[0]
+            self.SetTestSuitePackage(test_suite, file_path)
         elif file_name == "android-vtslab.zip":
             self.SetHostControllerPackage("vtslab", file_path)
         elif file_name.startswith("vti-global-config"):
             self.SetConfigPackage(
                 "prod" if "prod" in file_name else "test", file_path)
+        elif set_suite_as:
+            self.SetTestSuitePackage(set_suite_as, file_path)
         elif file_path.endswith(".zip"):
             self.SetDeviceImageZip(file_path, full_device_images)
         else:
