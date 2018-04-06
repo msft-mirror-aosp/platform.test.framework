@@ -247,7 +247,11 @@ def EmitConsoleCommands(**kwargs):
         else:
             retry_command += " --serial %s" % serials[0]
         if "cts-on-gsi" in test_name:
-            retry_command += " --cleanup_devices=True"
+            if common.SDM845 in build_target:
+                # TODO(vtslab-dev): remove after b/77664643 is resolved
+                pass
+            else:
+                retry_command += " --cleanup_devices=True"
         result.append(retry_command)
 
     result.append(
