@@ -246,6 +246,8 @@ def EmitConsoleCommands(**kwargs):
                 retry_command += " --serial %s" % serials[shard_index]
         else:
             retry_command += " --serial %s" % serials[0]
+        if "cts-on-gsi" in test_name:
+            retry_command += " --cleanup_devices=True"
         result.append(retry_command)
 
     result.append(
