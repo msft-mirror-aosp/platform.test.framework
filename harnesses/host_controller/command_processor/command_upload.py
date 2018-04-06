@@ -17,10 +17,14 @@
 import logging
 import os
 
+from host_controller import common
 from host_controller.build import build_provider_gcs
 from host_controller.command_processor import base_command_processor
+from host_controller.utils.parser import xml_utils
 
 from vts.utils.python.common import cmd_utils
+
+from vti.dashboard.proto import TestSuiteResultMessage_pb2 as SuiteResMsg
 
 
 class CommandUpload(base_command_processor.BaseCommandProcessor):
@@ -52,6 +56,9 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             "--dest",
             required=True,
             help="Google Cloud Storage URL to which the file is uploaded.")
+        self.arg_parser.add_argument(
+            "--report_path",
+            help="Google Cloud Storage URL, the dest path of a report file")
 
     # @Override
     def Run(self, arg_line):
@@ -75,8 +82,8 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             try:
                 src_paths = self.console.FormatString(args.src)
             except KeyError as e:
-                logging.error(
-                    "Unknown or uninitialized variable in src: %s", e)
+                logging.error("Unknown or uninitialized variable in src: %s",
+                              e)
                 return False
 
         src_path_list = src_paths.split(" ")
@@ -100,5 +107,102 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
         copy_command = "{} cp {} {}".format(gsutil_path, src_paths, dest_path)
         _, stderr, err_code = cmd_utils.ExecuteOneShellCommand(copy_command)
 
+        if err_code:
+            logging.error(stderr)
+
+        if args.report_path:
+            report_path = self.console.FormatString(args.report_path)
+            if not report_path.startswith("gs://"):
+                logging.error("{} is not correct GCS url.".format(report_path))
+                return False
+            self.UploadReport(gsutil_path, report_path, dest_path)
+
+    def UploadReport(self, gsutil_path, report_path, log_path):
+        """Uploads report summary file to the given path.
+
+        Args:
+            gsutil_path: string, the path of a gsutil binary.
+            report_path: string, the dest GCS URL to which the summarized report
+                                 file will be uploaded.
+            log_path: string, GCS URL where the log files from the test run
+                              have been uploaded.
+        """
+
+        tools_path = os.path.dirname(self.console.test_suite_info["vts"])
+        vts_root_path = os.path.dirname(tools_path)
+        results_path = os.path.join(vts_root_path, "results")
+
+        former_results = [
+            result for result in os.listdir(results_path)
+            if os.path.isdir(os.path.join(results_path, result))
+            and not os.path.islink(os.path.join(results_path, result))
+        ]
+
+        if not former_results:
+            logging.error("No test result found.")
+            return False
+
+        former_results.sort()
+        latest_result = former_results[-1]
+        latest_result_xml_path = os.path.join(results_path, latest_result,
+                                              common._TEST_RESULT_XML)
+
+        result_attrs = xml_utils.GetAttributes(
+            latest_result_xml_path, common._RESULT_TAG, [
+                common._SUITE_NAME_ATTR_KEY, common._SUITE_PLAN_ATTR_KEY,
+                common._SUITE_VERSION_ATTR_KEY,
+                common._SUITE_BUILD_NUM_ATTR_KEY, common._START_TIME_ATTR_KEY,
+                common._END_TIME_ATTR_KEY, common._HOST_NAME_ATTR_KEY
+            ])
+        build_attrs = xml_utils.GetAttributes(
+            latest_result_xml_path, common._BUILD_TAG, [
+                common._SYSTEM_FINGERPRINT_ATTR_KEY,
+                common._VENDOR_FINGERPRINT_ATTR_KEY
+            ])
+        summary_attrs = xml_utils.GetAttributes(
+            latest_result_xml_path, common._SUMMARY_TAG, [
+                common._PASSED_ATTR_KEY, common._FAILED_ATTR_KEY,
+                common._MODULES_TOTAL_ATTR_KEY, common._MODULES_DONE_ATTR_KEY
+            ])
+
+        suite_res_msg = SuiteResMsg.TestSuiteResultMessage()
+        suite_res_msg.result_path = log_path
+        suite_res_msg.branch = self.console.FormatString("{branch}")
+        suite_res_msg.target = self.console.FormatString("{target}")
+        suite_res_msg.build_id = result_attrs[common._SUITE_BUILD_NUM_ATTR_KEY]
+        suite_res_msg.suite_name = result_attrs[common._SUITE_NAME_ATTR_KEY]
+        suite_res_msg.suite_plan = result_attrs[common._SUITE_PLAN_ATTR_KEY]
+        suite_res_msg.suite_version = result_attrs[
+            common._SUITE_VERSION_ATTR_KEY]
+        suite_res_msg.suite_build_number = result_attrs[
+            common._SUITE_BUILD_NUM_ATTR_KEY]
+        suite_res_msg.start_time = long(
+            result_attrs[common._START_TIME_ATTR_KEY])
+        suite_res_msg.end_time = long(result_attrs[common._END_TIME_ATTR_KEY])
+        suite_res_msg.host_name = result_attrs[common._HOST_NAME_ATTR_KEY]
+        suite_res_msg.build_system_fingerprint = build_attrs[
+            common._SYSTEM_FINGERPRINT_ATTR_KEY]
+        suite_res_msg.build_vendor_fingerprint = build_attrs[
+            common._VENDOR_FINGERPRINT_ATTR_KEY]
+        suite_res_msg.passed_test_case_count = int(
+            summary_attrs[common._PASSED_ATTR_KEY])
+        suite_res_msg.failed_test_case_count = int(
+            summary_attrs[common._FAILED_ATTR_KEY])
+        suite_res_msg.modules_done = int(
+            summary_attrs[common._MODULES_TOTAL_ATTR_KEY])
+        suite_res_msg.modules_total = int(
+            summary_attrs[common._MODULES_DONE_ATTR_KEY])
+
+        report_file_path = os.path.join(
+            self.console.tmp_logdir,
+            self.console.FormatString("{timestamp_time}.bin"))
+        with open(report_file_path, "w") as fd:
+            fd.write(suite_res_msg.SerializeToString())
+            fd.close()
+
+        copy_command = "{} cp {} {}".format(
+            gsutil_path, report_file_path,
+            os.path.join(report_path + os.path.basename(report_file_path)))
+        _, stderr, err_code = cmd_utils.ExecuteOneShellCommand(copy_command)
         if err_code:
             logging.error(stderr)
