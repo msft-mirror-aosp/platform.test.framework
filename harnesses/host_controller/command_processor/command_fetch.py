@@ -88,6 +88,13 @@ class CommandFetch(base_command_processor.BaseCommandProcessor):
             type=bool,
             help="True to skip checking whether the fetched artifacts are "
                  "fully packaged device images.")
+        self.arg_parser.add_argument(
+            "--set_suite_as",
+            default="",
+            choices=("", "vts", "cts", "gts", "sts"),
+            help="To specify the type of a test suite that is being fetched."
+                 "Used when the artifact's file name does not follow the "
+                 "standard naming convention.")
 
     # @Override
     def Run(self, arg_line):
@@ -133,7 +140,8 @@ class CommandFetch(base_command_processor.BaseCommandProcessor):
         elif args.type == "gcs":
             device_images, test_suites, tools = provider.Fetch(
                 args.path,
-                args.full_device_images)
+                args.full_device_images,
+                args.set_suite_as)
             self.console.fetch_info["build_id"] = None
         elif args.type == "ab":
             device_images, test_suites, fetch_environment = provider.Fetch(
