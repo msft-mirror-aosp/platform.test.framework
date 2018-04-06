@@ -14,11 +14,13 @@
 # limitations under the License.
 #
 
+import itertools
 import logging
 import os
 import xml.etree.ElementTree as ET
 import zipfile
 
+from host_controller import common
 from host_controller.build import build_provider_gcs
 from host_controller.command_processor import base_command_processor
 from host_controller.utils.parser import xml_utils
@@ -45,6 +47,15 @@ _MODULES_DONE_ATTR_KEY = "modules_done"
 
 # The key value for retrieving test plan from the result xml
 _SUITE_PLAN_ATTR_KEY = "suite_plan"
+
+# The command list for cleaning up each devices listed for the retry command.
+_DEVICE_CLEANUP_COMMAND_LIST = [
+    "adb -s {serial} reboot bootloader",
+    "fastboot -s {serial} erase metadata -- -w",
+    "fastboot -s {serial} reboot",
+    "adb -s {serial} wait-for-device",
+    "dut --operation=wifi_on --serial={serial} --ap=" + common._DEFAULT_WIFI_AP,
+]
 
 
 class CommandRetry(base_command_processor.BaseCommandProcessor):
@@ -99,8 +110,8 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
             logging.error("%s is not correct GCS url.", gcs_result_path)
             return None
         if not gcs_result_path.endswith(".zip"):
-            logging.error(
-                "%s is not a correct result archive file.", gcs_result_path)
+            logging.error("%s is not a correct result archive file.",
+                          gcs_result_path)
             return None
 
         if not os.path.exists(local_results_dir):
@@ -149,6 +160,12 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
         )
         self.arg_parser.add_argument(
             "--shards", type=int, default=1, help="Test plan's shard count.")
+        self.arg_parser.add_argument(
+            "--cleanup_devices",
+            default=False,
+            type=bool,
+            help="True to erase metadata and userdata (equivalent to "
+                 "factory reset) between retries.")
 
     # @Override
     def Run(self, arg_line):
@@ -231,6 +248,12 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
             if args.serial:
                 for serial in args.serial:
                     retry_test_command += " --serial %s" % serial
+
+            if args.cleanup_devices:
+                for (command, serial) in itertools.product(
+                        _DEVICE_CLEANUP_COMMAND_LIST, args.serial):
+                    self.console.onecmd(command.format(serial=serial))
+
             self.console.onecmd(retry_test_command)
 
             for result in os.listdir(results_path):
