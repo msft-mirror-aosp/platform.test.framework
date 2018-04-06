@@ -104,6 +104,11 @@ def EmitConsoleCommands(**kwargs):
     else:
         gsi = False
 
+    if HasAttr("gsi_vendor_version", **kwargs):
+        gsi_vendor_version = kwargs["gsi_vendor_version"]
+    else:
+        gsi_vendor_version = None
+
     shards = int(kwargs["shards"])
     serials = kwargs["serial"]
     if gsi:
@@ -171,7 +176,10 @@ def EmitConsoleCommands(**kwargs):
 
     result.append("info")
     if gsi:
-        result.append("gsispl --version_from_path=boot.img")
+        gsispl_command = "gsispl --version_from_path=boot.img"
+        if gsi_vendor_version:
+            gsispl_command += " --vendor_version=%s" % gsi_vendor_version
+        result.append(gsispl_command)
         result.append("info")
 
     test_name = kwargs["test_name"].split("/")[-1]
@@ -238,6 +246,12 @@ def EmitConsoleCommands(**kwargs):
                 retry_command += " --serial %s" % serials[shard_index]
         else:
             retry_command += " --serial %s" % serials[0]
+        if "cts-on-gsi" in test_name:
+            if common.SDM845 in build_target:
+                # TODO(vtslab-dev): remove after b/77664643 is resolved
+                pass
+            else:
+                retry_command += " --cleanup_devices=True"
         result.append(retry_command)
 
     result.append(

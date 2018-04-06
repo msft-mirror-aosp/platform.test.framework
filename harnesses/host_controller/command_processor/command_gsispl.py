@@ -57,6 +57,9 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
             help="Path to vendor provided image file to retrieve SPL version. "
             "If just a file name is given, the most recently fetched .img "
             "file will be used.")
+        self.arg_parser.add_argument(
+            "--vendor_version",
+            help="The version of vendor.img that will be used (e.g., 8.1.0).")
 
     # @Override
     def Run(self, arg_line):
@@ -129,8 +132,10 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
             os.path.join(os.getcwd(), "..", "bin",
                          "change_security_patch_ver.sh"), gsi_path,
             output_path, version)
-        if self.console.password:
-            command = "echo {} | sudo -S {}".format(self.console.password,
+        if args.vendor_version:
+            command = command + " -v " + args.vendor_version
+        if self.console.password.value:
+            command = "echo {} | sudo -S {}".format(self.console.password.value,
                                                     command)
         stdout, stderr, err_code = cmd_utils.ExecuteOneShellCommand(command)
         if err_code is 0:

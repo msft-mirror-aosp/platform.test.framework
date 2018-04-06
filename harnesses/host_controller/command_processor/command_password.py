@@ -37,7 +37,7 @@ class CommandPassword(base_command_processor.BaseCommandProcessor):
         """Gets a new password."""
         new_password = getpass.getpass()
         if new_password:
-            self.console.password = new_password
+            self.console.password.value = new_password
             logging.info("new password set.")
         else:
             logging.warn("password is not updated.")
