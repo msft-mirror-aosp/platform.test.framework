@@ -75,16 +75,19 @@ host_acloud_copy_pairs := \
   $(foreach f,$(host_acloud_files),\
     tools/acloud/$(f):$(VTSLAB_TESTCASES_OUT)/acloud/$(f))
 
-host_vti_proto_files := \
+host_vti_dashboard_proto_files := \
+  $(call find-files-in-subdirs,test/vti/dashboard/proto,"*.py" -and -type f,.)
+
+host_vti_test_serving_proto_files := \
   $(call find-files-in-subdirs,test/vti/test_serving/proto,"*.py" -and -type f,.)
 
-host_vti_proto_copy_pairs := \
-  $(foreach f,$(host_vti_proto_files),\
-    test/vti/test_serving/proto/$(f):$(VTSLAB_TESTCASES_OUT)/vti/test_serving/proto/$(f))
-
-$(VTSLAB_TESTCASES_OUT)/vti/test_serving/__init__.py:
-	@mkdir -p $(VTSLAB_TESTCASES_OUT)/vti/test_serving
-	@touch $(VTSLAB_TESTCASES_OUT)/vti/test_serving/__init__.py
+host_vti_copy_pairs := \
+  $(foreach f,$(host_vti_test_serving_proto_files),\
+    test/vti/test_serving/proto/$(f):$(VTSLAB_TESTCASES_OUT)/vti/test_serving/proto/$(f)) \
+  $(foreach f,$(host_vti_dashboard_proto_files),\
+    test/vti/dashboard/proto/$(f):$(VTSLAB_TESTCASES_OUT)/vti/dashboard/proto/$(f)) \
+  test/vti/dashboard/__init__.py:$(VTSLAB_TESTCASES_OUT)/vti/dashboard/__init__.py \
+  test/vti/test_serving/__init__.py:$(VTSLAB_TESTCASES_OUT)/vti/test_serving/__init__.py \
 
 $(VTSLAB_TESTCASES_OUT)/vti/__init__.py:
 	@mkdir -p $(VTSLAB_TESTCASES_OUT)/vti
@@ -92,7 +95,6 @@ $(VTSLAB_TESTCASES_OUT)/vti/__init__.py:
 
 host_vti_extra_copy_pairs := \
   $(VTSLAB_TESTCASES_OUT)/vti/__init__.py \
-  $(VTSLAB_TESTCASES_OUT)/vti/test_serving/__init__.py \
 
 vts_host_python_files := \
   $(call find-files-in-subdirs,test/vts,"*.py" -and -type f,.)
@@ -115,7 +117,7 @@ vtslab_copy_pairs := \
   $(call copy-many-files,$(host_hc_gsispl_copy_pairs)) \
   $(call copy-many-files,$(host_hc_extra_copy_pairs)) \
   $(call copy-many-files,$(host_acloud_copy_pairs)) \
-  $(call copy-many-files,$(host_vti_proto_copy_pairs)) \
+  $(call copy-many-files,$(host_vti_copy_pairs)) \
   $(call copy-many-files,$(vts_host_python_copy_pairs)) \
   $(call copy-many-files,$(host_hc_bin_lib_copy_pairs)) \
   $(host_vti_extra_copy_pairs) \
