@@ -17,7 +17,6 @@
 import itertools
 import logging
 import os
-import xml.etree.ElementTree as ET
 import zipfile
 
 from host_controller import common
@@ -26,27 +25,6 @@ from host_controller.command_processor import base_command_processor
 from host_controller.utils.parser import xml_utils
 
 from vts.utils.python.common import cmd_utils
-
-# Test result file contains invoked test plan results.
-_TEST_RESULT_XML = "test_result.xml"
-
-# XML tag name whose attribute is test plan.
-_RESULT_TAG = "Result"
-
-# XML tag name whose attributes are pass/fail count, modules run/total count.
-_SUMMARY_TAG = "Summary"
-
-# The key value for retrieving failed testcase count
-_FAILED_ATTR_KEY = "failed"
-
-# The key value for retrieving total module count
-_MODULES_TOTAL_ATTR_KEY = "modules_total"
-
-# The key value for retrieving run module count
-_MODULES_DONE_ATTR_KEY = "modules_done"
-
-# The key value for retrieving test plan from the result xml
-_SUITE_PLAN_ATTR_KEY = "suite_plan"
 
 # The command list for cleaning up each devices listed for the retry command.
 _DEVICE_CLEANUP_COMMAND_LIST = [
@@ -80,7 +58,7 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
         """
         if len(zip_ref.namelist()) > 1:
             for name in zip_ref.namelist():
-                if _TEST_RESULT_XML in name:
+                if common._TEST_RESULT_XML in name:
                     return True
         return False
 
@@ -213,28 +191,30 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
                 session_id = unzipped_result_session_id
                 unzipped_result_session_id = -1
                 latest_result_xml_path = os.path.join(
-                    results_path, unzipped_result_dir, _TEST_RESULT_XML)
+                    results_path, unzipped_result_dir, common._TEST_RESULT_XML)
             else:
                 session_id = former_result_count - 1 + result_index
                 latest_result_xml_path = os.path.join(results_path, "latest",
-                                                      _TEST_RESULT_XML)
+                                                      common._TEST_RESULT_XML)
                 if not os.path.exists(latest_result_xml_path):
                     latest_result_xml_path = os.path.join(
-                        results_path, former_results[-1], _TEST_RESULT_XML)
+                        results_path, former_results[-1],
+                        common._TEST_RESULT_XML)
 
             result_attrs = xml_utils.GetAttributes(
-                latest_result_xml_path, _RESULT_TAG, [_SUITE_PLAN_ATTR_KEY])
+                latest_result_xml_path, common._RESULT_TAG,
+                [common._SUITE_PLAN_ATTR_KEY])
 
             summary_attrs = xml_utils.GetAttributes(
-                latest_result_xml_path, _SUMMARY_TAG, [
-                    _FAILED_ATTR_KEY, _MODULES_TOTAL_ATTR_KEY,
-                    _MODULES_DONE_ATTR_KEY
+                latest_result_xml_path, common._SUMMARY_TAG, [
+                    common._FAILED_ATTR_KEY, common._MODULES_TOTAL_ATTR_KEY,
+                    common._MODULES_DONE_ATTR_KEY
                 ])
 
-            result_fail_count = int(summary_attrs[_FAILED_ATTR_KEY])
+            result_fail_count = int(summary_attrs[common._FAILED_ATTR_KEY])
             result_skip_count = int(
-                summary_attrs[_MODULES_TOTAL_ATTR_KEY]) - int(
-                    summary_attrs[_MODULES_DONE_ATTR_KEY])
+                summary_attrs[common._MODULES_TOTAL_ATTR_KEY]) - int(
+                    summary_attrs[common._MODULES_DONE_ATTR_KEY])
 
             if (result_index >= force_retry_count and result_skip_count == 0
                     and result_fail_count == 0):
@@ -244,7 +224,8 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
                 break
 
             retry_test_command = "test --keep-result -- %s --retry %d --shards %d" % (
-                result_attrs[_SUITE_PLAN_ATTR_KEY], session_id, args.shards)
+                result_attrs[common._SUITE_PLAN_ATTR_KEY], session_id,
+                args.shards)
             if args.serial:
                 for serial in args.serial:
                     retry_test_command += " --serial %s" % serial

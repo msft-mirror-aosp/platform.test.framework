@@ -324,6 +324,11 @@ class Console(cmd.Cmd):
         """getter for self._logfile_path"""
         return self._logfile_path
 
+    @property
+    def tmp_logdir(self):
+        """getter for self._tmp_logdir"""
+        return self._tmp_logdir
+
     def InitCommandModuleParsers(self):
         """Init all console command modules"""
         for name in dir(self):
@@ -379,12 +384,20 @@ class Console(cmd.Cmd):
                 value = self.fetch_info[name]
             elif name in ("result_full", "result_zip", "suite_plan"):
                 value = self.test_result[name]
-            elif name in ("timestamp", "timestamp_date"):
+            elif "timestamp" in name:
                 current_datetime = datetime.datetime.now()
                 value_date = current_datetime.strftime("%Y%m%d")
                 value_time = current_datetime.strftime("%H%M%S")
                 if "_date" in name:
                     value = value_date
+                elif "_time" in name:
+                    value = value_time
+                elif "_year" in name:
+                    value = value_date[0:4]
+                elif "_month" in name:
+                    value = value_date[4:6]
+                elif "_day" in name:
+                    value = value_date[6:8]
                 else:
                     value = "%s-%s" % (value_date, value_time)
             elif name in ("hc_log", "hc_log_file"):

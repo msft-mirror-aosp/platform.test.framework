@@ -78,3 +78,47 @@ _DEFAULT_WIFI_AP = "GoogleGuest"
 SDM845 = "sdm845"
 
 UNIVERSAL9810 = "universal9810"
+
+# Test result file contains invoked test plan results.
+_TEST_RESULT_XML = "test_result.xml"
+
+# XML tag name whose attribute is test plan.
+_RESULT_TAG = "Result"
+
+# XML tag name whose attributes are about the build info of the device.
+_BUILD_TAG = "Build"
+
+# XML tag name whose attributes are pass/fail count, modules run/total count.
+_SUMMARY_TAG = "Summary"
+
+# The key value for retrieving test plan and etc. from the result xml
+_SUITE_PLAN_ATTR_KEY = "suite_plan"
+
+_SUITE_BUILD_NUM_ATTR_KEY = "suite_build_number"
+
+_SUITE_VERSION_ATTR_KEY = "suite_version"
+
+_HOST_NAME_ATTR_KEY = "host_name"
+
+_START_TIME_ATTR_KEY = "start"
+
+_END_TIME_ATTR_KEY = "end"
+
+_SUITE_NAME_ATTR_KEY = "suite_name"
+
+# The key value for retrieving build fingerprint values from the result xml.
+_SYSTEM_FINGERPRINT_ATTR_KEY = "build_system_fingerprint"
+
+_VENDOR_FINGERPRINT_ATTR_KEY = "build_vendor_fingerprint"
+
+# The key value for retrieving passed testcase count
+_PASSED_ATTR_KEY = "pass"
+
+# The key value for retrieving failed testcase count
+_FAILED_ATTR_KEY = "failed"
+
+# The key value for retrieving total module count
+_MODULES_TOTAL_ATTR_KEY = "modules_total"
+
+# The key value for retrieving run module count
+_MODULES_DONE_ATTR_KEY = "modules_done"

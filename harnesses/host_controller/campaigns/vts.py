@@ -150,6 +150,7 @@ def EmitConsoleCommands(**kwargs):
         if HasAttr("gsi_pab_account_id", **kwargs):
             result[-1] += " --account_id=%s" % kwargs["gsi_pab_account_id"]
 
+    suite_name, test_name = kwargs["test_name"].split("/")
     if HasAttr("test_build_id", **kwargs):
         test_build_id = kwargs["test_build_id"]
     else:
@@ -164,8 +165,9 @@ def EmitConsoleCommands(**kwargs):
                       (kwargs["test_branch"], kwargs["test_build_target"],
                        test_build_id))
     elif test_storage_type == pb.BUILD_STORAGE_TYPE_GCS:
-        result.append("fetch --type=gcs --path=%s/%s.zip" %
-                      (kwargs["test_branch"], kwargs["test_build_target"]))
+        result.append("fetch --type=gcs --path=%s/%s.zip --set_suite_as=%s" %
+                      (kwargs["test_branch"], kwargs["test_build_target"],
+                       suite_name))
     else:
         logging.error("unknown test storage type is given: %d",
                       test_storage_type)
@@ -182,7 +184,6 @@ def EmitConsoleCommands(**kwargs):
         result.append(gsispl_command)
         result.append("info")
 
-    test_name = kwargs["test_name"].split("/")[-1]
     param = ""
     if HasAttr("param", **kwargs):
         param = " ".join(kwargs["param"])
@@ -255,8 +256,11 @@ def EmitConsoleCommands(**kwargs):
         result.append(retry_command)
 
     result.append(
-        "upload --src={result_full} --dest=gs://vts-report/{suite_plan}"
-        "/{branch}/{target}/%s_{build_id}_{timestamp}/" % build_target)
+        "upload --src={result_full} --dest=gs://vts-report/{suite_plan}/"
+        "{branch}/{target}/%s_{build_id}_{timestamp}/ --report_path=gs://"
+        "vts-report/suite_result/{timestamp_year}/{timestamp_month}/"
+        "{timestamp_day}"
+        % build_target)
 
     return result
 
