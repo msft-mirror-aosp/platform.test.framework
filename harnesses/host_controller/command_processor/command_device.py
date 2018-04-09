@@ -73,7 +73,8 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                             common._DEVICE_STATUS_DICT["use"]):
                         stdout, _, retcode = cmd_utils.ExecuteOneShellCommand(
                             "adb -s %s reboot bootloader" % device["serial"])
-                        lines_fastboot.append(line)
+                        if retcode == 0:
+                            lines_fastboot.append(line)
 
             for line in lines_fastboot:
                 if len(line.strip()):
