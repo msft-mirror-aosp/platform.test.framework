@@ -255,12 +255,19 @@ def EmitConsoleCommands(**kwargs):
                 retry_command += " --cleanup_devices=True"
         result.append(retry_command)
 
-    result.append(
-        "upload --src={result_full} --dest=gs://vts-report/{suite_plan}/"
-        "{branch}/{target}/%s_{build_id}_{timestamp}/ --report_path=gs://"
-        "vts-report/suite_result/{timestamp_year}/{timestamp_month}/"
-        "{timestamp_day}"
-        % build_target)
+    upload_command = "upload --src={result_full}"
+    if test_storage_type == pb.BUILD_STORAGE_TYPE_PAB:
+        upload_command += (
+            " --dest=gs://vts-report/{suite_plan}/{branch}/"
+            "{target}/%s_{build_id}_{timestamp}/" % build_target)
+    elif test_storage_type == pb.BUILD_STORAGE_TYPE_GCS:
+        upload_command += (" --dest=gs://vts-report/{suite_plan}/"
+                           "%s/%s/%s_%s_{timestamp}/" %
+                           (kwargs["test_branch"], kwargs["test_build_target"],
+                            build_target, test_build_id))
+    upload_command += (" --report_path=gs://vts-report/suite_result/"
+                       "{timestamp_year}/{timestamp_month}/{timestamp_day}")
+    result.append(upload_command)
 
     return result
 
