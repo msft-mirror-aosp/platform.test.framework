@@ -209,7 +209,7 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
 
         copy_command = "{} cp {} {}".format(
             gsutil_path, report_file_path,
-            os.path.join(report_path + os.path.basename(report_file_path)))
+            os.path.join(report_path, os.path.basename(report_file_path)))
         _, stderr, err_code = cmd_utils.ExecuteOneShellCommand(copy_command)
         if err_code:
             logging.error(stderr)
