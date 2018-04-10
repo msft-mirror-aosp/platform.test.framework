@@ -18,7 +18,7 @@ from host_controller.campaigns import campaign_common
 
 
 def EmitConsoleCommands(**kwargs):
-    """Runs a common VTS-on-GSI or CTS-on-GSI test.
+    """Runs a common CTS test.
 
     This uses a given device branch information and automatically
     selects a GSI branch and a test branch.
