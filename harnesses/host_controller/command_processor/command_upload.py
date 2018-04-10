@@ -16,6 +16,7 @@
 
 import logging
 import os
+import shutil
 
 from host_controller import common
 from host_controller.build import build_provider_gcs
@@ -59,6 +60,10 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
         self.arg_parser.add_argument(
             "--report_path",
             help="Google Cloud Storage URL, the dest path of a report file")
+        self.arg_parser.add_argument(
+            "--clear_results",
+            default=False,
+            help="True to clear all the results after the upload.")
 
     # @Override
     def Run(self, arg_line):
@@ -110,14 +115,19 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
         if err_code:
             logging.error(stderr)
 
+        tools_path = os.path.dirname(self.console.test_suite_info["vts"])
+        results_base_path = os.path.join(tools_path, common._RESULTS_BASE_PATH)
         if args.report_path:
             report_path = self.console.FormatString(args.report_path)
             if not report_path.startswith("gs://"):
                 logging.error("{} is not correct GCS url.".format(report_path))
-                return False
-            self.UploadReport(gsutil_path, report_path, dest_path)
+            else:
+                self.UploadReport(gsutil_path, report_path, dest_path, results_base_path)
 
-    def UploadReport(self, gsutil_path, report_path, log_path):
+        if args.clear_results:
+            shutil.rmtree(results_base_path, ignore_errors=True)
+
+    def UploadReport(self, gsutil_path, report_path, log_path, results_path):
         """Uploads report summary file to the given path.
 
         Args:
@@ -126,11 +136,8 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
                                  file will be uploaded.
             log_path: string, GCS URL where the log files from the test run
                               have been uploaded.
+            results_path: string, the base path for the results.
         """
-
-        tools_path = os.path.dirname(self.console.test_suite_info["vts"])
-        vts_root_path = os.path.dirname(tools_path)
-        results_path = os.path.join(vts_root_path, "results")
 
         former_results = [
             result for result in os.listdir(results_path)
