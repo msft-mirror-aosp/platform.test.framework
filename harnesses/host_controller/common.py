@@ -86,6 +86,9 @@ SDM845 = "sdm845"
 
 UNIVERSAL9810 = "universal9810"
 
+# Relative path to the "results" directory from the tools directory.
+_RESULTS_BASE_PATH = "../results"
+
 # Test result file contains invoked test plan results.
 _TEST_RESULT_XML = "test_result.xml"
 
