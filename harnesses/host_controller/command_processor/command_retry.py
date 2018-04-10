@@ -32,7 +32,8 @@ _DEVICE_CLEANUP_COMMAND_LIST = [
     "fastboot -s {serial} erase metadata -- -w",
     "fastboot -s {serial} reboot",
     "adb -s {serial} wait-for-device",
-    "dut --operation=wifi_on --serial={serial} --ap=" + common._DEFAULT_WIFI_AP,
+    "dut --operation=wifi_on --serial={serial} --ap=" +
+    common._DEFAULT_WIFI_AP,
 ]
 
 
@@ -116,6 +117,11 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
     def SetUp(self):
         """Initializes the parser for retry command."""
         self.arg_parser.add_argument(
+            "--suite",
+            default="vts",
+            choices=("vts", "cts", "gts", "sts"),
+            help="To specify the type of a test suite to be run.")
+        self.arg_parser.add_argument(
             "--count",
             type=int,
             default=30,
@@ -143,7 +149,7 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
             default=False,
             type=bool,
             help="True to erase metadata and userdata (equivalent to "
-                 "factory reset) between retries.")
+            "factory reset) between retries.")
 
     # @Override
     def Run(self, arg_line):
@@ -222,9 +228,10 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
                              (retry_count - result_index))
                 break
 
-            retry_test_command = "test --keep-result -- %s --retry %d --shards %d" % (
-                result_attrs[common._SUITE_PLAN_ATTR_KEY], session_id,
-                args.shards)
+            retry_test_command = (
+                "test --suite=%s --keep-result -- %s --retry %d --shards %d" %
+                (args.suite, result_attrs[common._SUITE_PLAN_ATTR_KEY],
+                 session_id, args.shards))
             if args.serial:
                 for serial in args.serial:
                     retry_test_command += " --serial %s" % serial

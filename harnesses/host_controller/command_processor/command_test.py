@@ -47,6 +47,11 @@ class CommandTest(base_command_processor.BaseCommandProcessor):
         """Initializes the parser for test command."""
         self._result_dir = None
         self.arg_parser.add_argument(
+            "--suite",
+            default="vts",
+            choices=("vts", "cts", "gts", "sts"),
+            help="To specify the type of a test suite to be run.")
+        self.arg_parser.add_argument(
             "--serial",
             "-s",
             default=None,
@@ -78,18 +83,18 @@ class CommandTest(base_command_processor.BaseCommandProcessor):
             shutil.rmtree(os.path.join(self._result_dir, file_name))
 
     @staticmethod
-    def _GenerateVtsCommand(bin_path, command, serials, result_dir=None):
-        """Generates a vts-tradefed command.
+    def _GenerateTestSuiteCommand(bin_path, command, serials, result_dir=None):
+        """Generates a *ts-tradefed command.
 
         Args:
-            bin_path: the path to vts-tradefed.
+            bin_path: the path to *ts-tradefed.
             command: a list of strings, the command arguments.
             serials: a list of strings, the serial numbers of the devices.
             result_dir: the path to the temporary directory where the result is
                         saved.
 
         Returns:
-            a list of strings, the vts-tradefed command.
+            a list of strings, the *ts-tradefed command.
         """
         cmd = [bin_path, "run", "commandAndExit"]
         cmd.extend(str(c) for c in command)
@@ -142,7 +147,7 @@ class CommandTest(base_command_processor.BaseCommandProcessor):
 
     # @Override
     def Run(self, arg_line):
-        """Executes a command using a VTS-TF instance.
+        """Executes a command using a *TS-TF instance.
 
         Args:
             arg_line: string, line of command arguments.
@@ -156,9 +161,9 @@ class CommandTest(base_command_processor.BaseCommandProcessor):
             serials = []
 
         if args.test_exec_mode == "subprocess":
-            if "vts" not in self.console.test_suite_info:
-                logging.error("test_suite_info doesn't have 'vts': %s",
-                              self.console.test_suite_info)
+            if args.suite not in self.console.test_suite_info:
+                logging.error("test_suite_info doesn't have '%s': %s",
+                              args.suite, self.console.test_suite_info)
                 return
 
             if args.keep_result:
@@ -167,18 +172,19 @@ class CommandTest(base_command_processor.BaseCommandProcessor):
             else:
                 result_dir = None
 
-            cmd = self._GenerateVtsCommand(self.console.test_suite_info["vts"],
-                                           args.command, serials, result_dir)
+            cmd = self._GenerateTestSuiteCommand(
+                self.console.test_suite_info[args.suite], args.command,
+                serials, result_dir)
 
             logging.info("Command: %s", cmd)
             self._ExecuteCommand(cmd)
 
             if result_dir:
                 result_paths = [
-                    os.path.join(dir_name, file_name) for
-                    dir_name, file_name in utils.iterate_files(result_dir) if
-                    file_name.startswith("log-result") and
-                    file_name.endswith(".zip")
+                    os.path.join(dir_name, file_name)
+                    for dir_name, file_name in utils.iterate_files(result_dir)
+                    if file_name.startswith("log-result")
+                    and file_name.endswith(".zip")
                 ]
 
                 if len(result_paths) != 1:
@@ -200,9 +206,10 @@ class CommandTest(base_command_processor.BaseCommandProcessor):
                     result["result_zip"] = result_paths[0]
 
                 result_paths_full = [
-                    os.path.join(dir_name, file_name) for
-                    dir_name, file_name in utils.iterate_files(result_dir) if
-                    file_name.endswith(".zip")]
+                    os.path.join(dir_name, file_name)
+                    for dir_name, file_name in utils.iterate_files(result_dir)
+                    if file_name.endswith(".zip")
+                ]
                 result["result_full"] = " ".join(result_paths_full)
 
                 logging.debug(result)
