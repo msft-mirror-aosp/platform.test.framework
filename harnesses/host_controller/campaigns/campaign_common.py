@@ -329,14 +329,15 @@ def EmitCommonConsoleCommands(**kwargs):
 
     upload_command = "upload --src={result_full}"
     if test_storage_type == pb.BUILD_STORAGE_TYPE_PAB:
-        upload_command += (
-            " --dest=gs://vts-report/{suite_plan}/{branch}/"
-            "{target}/%s_{build_id}_{timestamp}/" % build_target)
+        upload_command += (" --dest=gs://vts-report/{suite_plan}/%s/{branch}/"
+                           "{target}/%s_{build_id}_{timestamp}/" %
+                           (plan_name, build_target))
     elif test_storage_type == pb.BUILD_STORAGE_TYPE_GCS:
-        upload_command += (" --dest=gs://vts-report/{suite_plan}/"
+        upload_command += (" --dest=gs://vts-report/{suite_plan}/%s/"
                            "%s/%s/%s_%s_{timestamp}/" %
-                           (kwargs["test_branch"], kwargs["test_build_target"],
-                            build_target, test_build_id))
+                           (plan_name, kwargs["test_branch"],
+                            kwargs["test_build_target"], build_target,
+                            test_build_id))
     upload_command += (" --report_path=gs://vts-report/suite_result/"
                        "{timestamp_year}/{timestamp_month}/{timestamp_day}")
     result.append(upload_command)
