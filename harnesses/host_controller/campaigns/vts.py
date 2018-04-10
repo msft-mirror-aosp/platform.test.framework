@@ -259,7 +259,7 @@ def EmitConsoleCommands(**kwargs):
         "upload --src={result_full} --dest=gs://vts-report/{suite_plan}/"
         "{branch}/{target}/%s_{build_id}_{timestamp}/ --report_path=gs://"
         "vts-report/suite_result/{timestamp_year}/{timestamp_month}/"
-        "{timestamp_day}"
+        "{timestamp_day} --clear_results=True"
         % build_target)
 
     return result
