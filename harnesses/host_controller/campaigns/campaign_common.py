@@ -339,7 +339,8 @@ def EmitCommonConsoleCommands(**kwargs):
                             kwargs["test_build_target"], build_target,
                             test_build_id))
     upload_command += (" --report_path=gs://vts-report/suite_result/"
-                       "{timestamp_year}/{timestamp_month}/{timestamp_day}")
+                       "{timestamp_year}/{timestamp_month}/{timestamp_day}"
+                       " --clear_results=True")
     result.append(upload_command)
 
     return result
