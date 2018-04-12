@@ -25,6 +25,10 @@ VTSLAB_OUT_ROOT := $(HOST_OUT)/vtslab
 VTSLAB_TESTCASES_OUT := $(VTSLAB_OUT_ROOT)/android-vtslab/testcases
 VTSLAB_TOOLS_OUT := $(VTSLAB_OUT_ROOT)/android-vtslab/tools
 VTSLAB_BIN_LIB_OUT := $(VTSLAB_OUT_ROOT)/android-vtslab/
+VTSLAB_TIMESTAMP := $(shell git -C $(LOCAL_PATH) log -s -n 1 --format="%cd" \
+  --date=format:"%Y%m%d_%H%M%S" 2>/dev/null)
+VTSLAB_SHORTHASH := $(shell git -C $(LOCAL_PATH) rev-parse --short HEAD 2>/dev/null)
+VTSLAB_VERSION := $(VTSLAB_TIMESTAMP):$(VTSLAB_SHORTHASH)
 
 # Packaging rule for android-vtslab.zip
 test_suite_name := vtslab
@@ -122,4 +126,8 @@ vtslab_copy_pairs := \
   $(call copy-many-files,$(host_hc_bin_lib_copy_pairs)) \
   $(host_vti_extra_copy_pairs) \
 
-$(compatibility_zip): $(vtslab_copy_pairs)
+$(compatibility_zip): $(vtslab_copy_pairs) vtslab_package_version
+
+vtslab_package_version:
+	@rm -f $(VTSLAB_TESTCASES_OUT)/version.txt
+	@echo $(VTSLAB_VERSION) > $(VTSLAB_TESTCASES_OUT)/version.txt
