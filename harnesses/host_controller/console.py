@@ -329,6 +329,11 @@ class Console(cmd.Cmd):
         """getter for self._tmp_logdir"""
         return self._tmp_logdir
 
+    @property
+    def vti_endpoint_client(self):
+        """getter for self._vti_endpoint_client"""
+        return self._vti_endpoint_client
+
     def InitCommandModuleParsers(self):
         """Init all console command modules"""
         for name in dir(self):
