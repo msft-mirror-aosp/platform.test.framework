@@ -202,4 +202,6 @@ class CommandFlash(base_command_processor.BaseCommandProcessor):
             for flasher in flashers:
                 ret_wait = flasher.WaitForDevice()
                 if ret_wait == False:
+                    self.console.vti_endpoint_client.SetJobStatusFromLeasedTo(
+                        "bootup-err")
                     return False
