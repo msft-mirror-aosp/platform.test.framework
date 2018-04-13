@@ -293,13 +293,12 @@ def EmitCommonConsoleCommands(**kwargs):
             for serial in serials:
                 serial_arg_list.append("--serial %s" % serial)
             result.append(
-                "test --suite %s --keep-result -- %s %s --shards %s %s" %
-                (suite_name, plan_name, " ".join(serial_arg_list), shards,
-                 param))
+                "test --suite %s --keep-result -- %s %s %s" %
+                (suite_name, plan_name, " ".join(serial_arg_list), param))
         else:
             result.append(
-                "test --suite %s --keep-result -- %s --shards %s %s" %
-                (suite_name, plan_name, shards, param))
+                "test --suite %s --keep-result -- %s %s" %
+                (suite_name, plan_name, param))
 
     if "retry_count" in kwargs:
         retry_count = int(kwargs["retry_count"])
