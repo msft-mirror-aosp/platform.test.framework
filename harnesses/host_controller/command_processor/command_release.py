@@ -18,9 +18,15 @@ import os
 import datetime
 import logging
 import threading
+import zipfile
 
 from host_controller import common
 from host_controller.command_processor import base_command_processor
+
+_REPACKAGE_ADDITIONAL_FILE_LIST = [
+    "android-vtslab/testcases/DATA/app/WifiUtil/WifiUtil.apk",
+    "android-vtslab/testcases/host_controller/build/client_secrets.json",
+]
 
 
 class CommandRelease(base_command_processor.BaseCommandProcessor):
@@ -63,6 +69,11 @@ class CommandRelease(base_command_processor.BaseCommandProcessor):
             "--cancel", help="Cancel all scheduled release if given.")
         self.arg_parser.add_argument(
             "--print-all", help="Print all scheduled timers.")
+        self.arg_parser.add_argument(
+            "--additional_files_bucket",
+            default="gs://vtslab-release",
+            help="GCS bucket URL from where to fetch the additional files "
+                 "required for HC to run properly.")
 
     # @Override
     def Run(self, arg_line):
@@ -76,7 +87,8 @@ class CommandRelease(base_command_processor.BaseCommandProcessor):
         if not args.cancel:
             if args.schedule_for == "now":
                 self.ReleaseCallback(args.schedule_for, args.account_id,
-                                     args.branch, args.target, args.dest)
+                                     args.branch, args.target, args.dest,
+                                     args.additional_files_bucket)
                 return
 
             elif len(args.schedule_for.split(":")) != 2:
@@ -102,7 +114,7 @@ class CommandRelease(base_command_processor.BaseCommandProcessor):
                 self._timers[args.schedule_for] = threading.Timer(
                     delta_time.total_seconds(), self.ReleaseCallback,
                     (args.schedule_for, args.account_id, args.branch,
-                     args.target, args.dest))
+                     args.target, args.dest, args.additional_files_bucket))
                 self._timers[args.schedule_for].daemon = True
                 self._timers[args.schedule_for].start()
                 logging.info("Release job scheduled for {}".format(
@@ -110,21 +122,39 @@ class CommandRelease(base_command_processor.BaseCommandProcessor):
         else:
             self.CancelAllEvents()
 
-    def FetchVtslab(self, account_id, branch, target):
+    def FetchVtslab(self, account_id, branch, target, bucket):
         """Fetchs android-vtslab.zip and return the fetched file path.
 
         Args:
             account_id: string, Partner Android Build account_id to use.
             branch: string, branch to grab the artifact from.
             targets: string, a comma-separate list of build target product(s).
+            bucket: string, GCS bucket URL from where to fetch the additional
+                    files.
 
         Returns:
             path to the fetched android-vtslab.zip file. None if the fetching
             has failed.
         """
         self.console.build_provider["pab"].Authenticate()
-        return self.console.build_provider["pab"].FetchLatestBuiltHCPackage(
-            account_id, branch, target)
+        fetched_path = self.console.build_provider[
+            "pab"].FetchLatestBuiltHCPackage(account_id, branch, target)
+
+        with zipfile.ZipFile(fetched_path, mode="a") as vtslab_package:
+            for path in _REPACKAGE_ADDITIONAL_FILE_LIST:
+                additional_file = os.path.join(bucket, path)
+                self.console.build_provider["gcs"].Fetch(additional_file)
+                try:
+                    logging.info("Adding file %s into %s" %
+                                 (os.path.basename(path),
+                                  os.path.basename(fetched_path)))
+                    additional_file_path = self.console.build_provider[
+                        "gcs"].GetAdditionalFile(os.path.basename(path))
+                    vtslab_package.write(additional_file_path, path)
+                except KeyError as e:
+                    logging.exception(e)
+
+        return fetched_path
 
     def UploadVtslab(self, package_file_path, dest_path):
         """upload repackaged vtslab package to GCS.
@@ -142,7 +172,7 @@ class CommandRelease(base_command_processor.BaseCommandProcessor):
                                                         dest_path)
         self.console.onecmd(upload_command)
 
-    def ReleaseCallback(self, schedule_for, account_id, branch, target, dest):
+    def ReleaseCallback(self, schedule_for, account_id, branch, target, dest, bucket):
         """Target function for the scheduled Timer.
 
         Args:
@@ -152,8 +182,10 @@ class CommandRelease(base_command_processor.BaseCommandProcessor):
             branch: string, branch to grab the artifact from.
             targets: string, a comma-separate list of build target product(s).
             dest: string, URL to GCS.
+            bucket: string, GCS bucket URL from where to fetch the additional
+                    files.
         """
-        fetched_path = self.FetchVtslab(account_id, branch, target)
+        fetched_path = self.FetchVtslab(account_id, branch, target, bucket)
         if fetched_path:
             self.UploadVtslab(fetched_path, dest)
 
