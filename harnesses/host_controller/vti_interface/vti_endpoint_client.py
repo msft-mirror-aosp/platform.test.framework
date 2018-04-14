@@ -29,7 +29,11 @@ JOB_STATUS_DICT = {
     # completed job
     "complete": 2,
     # unexpected error during running
-    "infra-err": 3
+    "infra-err": 3,
+    # never leased within schedule period
+    "expired": 4,
+    # device boot error after flashing the given img sets
+    "bootup-err": 5
 }
 
 
@@ -326,9 +330,7 @@ class VtiEndpointClient(object):
             return
 
         url = self._url + "job_queue/v1/heartbeat"
-        if (self._job is not None and
-            self._job["status"] == JOB_STATUS_DICT["leased"]):
-            self._job["status"] = JOB_STATUS_DICT[status]
+        self.SetJobStatusFromLeasedTo(status)
         self._job["infra_log_url"] = infra_log_url
 
         response = requests.post(
@@ -337,3 +339,13 @@ class VtiEndpointClient(object):
             logging.error("StopHeartbeat error: %s", response)
 
         self._job = None
+
+    def SetJobStatusFromLeasedTo(self, status):
+        """Sets current job's status only when the job's status is 'leased'.
+
+        Args:
+            status: string, status value.
+        """
+        if (self._job is not None and
+            self._job["status"] == JOB_STATUS_DICT["leased"]):
+            self._job["status"] = JOB_STATUS_DICT[status]
