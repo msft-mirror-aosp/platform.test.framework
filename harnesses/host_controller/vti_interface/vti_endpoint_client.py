@@ -349,3 +349,20 @@ class VtiEndpointClient(object):
         if (self._job is not None and
             self._job["status"] == JOB_STATUS_DICT["leased"]):
             self._job["status"] = JOB_STATUS_DICT[status]
+
+    def UploadHostVersion(self, hostname, vtslab_version):
+        """Uploads vtslab version.
+
+        Args:
+            hostname: string, the name of the host.
+            vtslab_version: string, current version of vtslab package.
+        """
+        url = self._url + "lab_info/v1/set_version"
+        host = {}
+        host["hostname"] = hostname
+        host["vtslab_version"] = vtslab_version
+
+        response = requests.post(url, data=json.dumps(host),
+                                 headers=self._headers)
+        if response.status_code != requests.codes.ok:
+            logging.error("UploadHostVersion error: %s", response)
