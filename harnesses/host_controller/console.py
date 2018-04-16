@@ -486,6 +486,7 @@ class Console(cmd.Cmd):
         else:
             ret = False
 
+        file_handler.flush()
         src = self.FormatString("{hc_log}")
         dest = self.FormatString(
             "gs://vts-report/infra_log/{hostname}/%s_{timestamp}/{hc_log_file}"
