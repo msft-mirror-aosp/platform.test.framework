@@ -122,7 +122,8 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             if not report_path.startswith("gs://"):
                 logging.error("{} is not correct GCS url.".format(report_path))
             else:
-                self.UploadReport(gsutil_path, report_path, dest_path, results_base_path)
+                self.UploadReport(gsutil_path, report_path, dest_path,
+                                  results_base_path)
 
         if args.clear_results:
             shutil.rmtree(results_base_path, ignore_errors=True)
