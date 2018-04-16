@@ -63,8 +63,8 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
             lines_fastboot = stdout.split("\n")
 
             for line in lines_adb:
-                if (len(line.strip()) and
-                    not(line.startswith("* ") or line.startswith("List "))):
+                if (len(line.strip()) and not (line.startswith("* ")
+                                               or line.startswith("List "))):
                     device = {}
                     device["serial"] = line.split()[0]
                     serial = device["serial"]
@@ -108,6 +108,10 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
 
             if lease:
                 self.console._job_in_queue.put("lease")
+
+            if self.console.vtslab_version:
+                self.console._vti_endpoint_client.UploadHostVersion(
+                    host.hostname, self.console.vtslab_version)
         elif server_type == "tfc":
             devices = host.ListDevices()
             for device in devices:
@@ -116,8 +120,8 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                 host._cluster_ids[0], host.hostname, devices)
             self.console._tfc_client.SubmitHostEvents([snapshots])
         else:
-            logging.error(
-                "Error: unknown server_type %s for UpdateDevice", server_type)
+            logging.error("Error: unknown server_type %s for UpdateDevice",
+                          server_type)
 
     def UpdateDeviceRepeat(self, server_type, host, lease, update_interval):
         """Regularly updates the device state of devices on a given host.
