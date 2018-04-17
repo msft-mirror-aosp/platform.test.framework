@@ -406,7 +406,7 @@ class Console(cmd.Cmd):
             name = match.group(1)
             if name in ("build_id", "branch", "target"):
                 value = self.fetch_info[name]
-            elif name in ("result_full", "result_zip", "suite_plan"):
+            elif name in ("result_full", "result_zip", "suite_plan", "suite_name"):
                 value = self.test_result[name]
             elif "timestamp" in name:
                 current_datetime = datetime.datetime.now()
