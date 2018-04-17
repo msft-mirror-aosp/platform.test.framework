@@ -521,11 +521,21 @@ class Console(cmd.Cmd):
             ret = False
 
         file_handler.flush()
+        infra_log_upload_command = "upload"
         src = self.FormatString("{hc_log}")
         dest = self.FormatString(
             "gs://vts-report/infra_log/{hostname}/%s_{timestamp}/{hc_log_file}"
             % kwargs["build_target"])
-        self.onecmd("upload --src=%s --dest=%s" % (src, dest))
+        infra_log_upload_command += " --src=%s" % src
+        infra_log_upload_command += " --dest=%s" % dest
+        if not self.vti_endpoint_client.CheckBootUpStatus():
+            infra_log_upload_command += (" --report_path=gs://vts-report/"
+                                         "suite_result/{timestamp_year}/"
+                                         "{timestamp_month}/{timestamp_day}")
+            suite_name, plan_name = kwargs["test_name"].split("/")
+            infra_log_upload_command += (" --result_from_suite=%s" % suite_name)
+            infra_log_upload_command += (" --result_from_plan=%s" % plan_name)
+        self.onecmd(infra_log_upload_command)
         logging.getLogger().removeHandler(file_handler)
         os.remove(self._logfile_path)
         return (ret != False), dest
