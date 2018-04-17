@@ -211,6 +211,7 @@ class CommandTest(base_command_processor.BaseCommandProcessor):
                     if file_name.endswith(".zip")
                 ]
                 result["result_full"] = " ".join(result_paths_full)
+                result["suite_name"] = args.suite
 
                 logging.debug(result)
                 self.console.test_result.update(result)
