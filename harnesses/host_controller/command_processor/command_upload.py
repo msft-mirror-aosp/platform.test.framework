@@ -64,6 +64,14 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             "--clear_results",
             default=False,
             help="True to clear all the results after the upload.")
+        self.arg_parser.add_argument(
+            "--result_from_suite",
+            default="",
+            choices=("", "vts", "cts", "gts", "sts"),
+            help="To specify the type of a test suite report, since there can "
+            "be multiple numbers of result sets from different test "
+            "suites. If not specified, the HC will upload the report "
+            "from last run suite and plan.")
 
     # @Override
     def Run(self, arg_line):
@@ -115,17 +123,34 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
         if err_code:
             logging.error(stderr)
 
-        tools_path = os.path.dirname(self.console.test_suite_info["vts"])
-        results_base_path = os.path.join(tools_path, common._RESULTS_BASE_PATH)
-        if args.report_path:
-            report_path = self.console.FormatString(args.report_path)
-            if not report_path.startswith("gs://"):
-                logging.error("{} is not correct GCS url.".format(report_path))
+        if args.report_path or args.clear_results:
+            if args.result_from_suite:
+                tools_path = os.path.dirname(
+                    self.console.test_suite_info[args.result_from_suite])
             else:
-                self.UploadReport(gsutil_path, report_path, dest_path, results_base_path)
+                try:
+                    tools_path = os.path.dirname(self.console.test_suite_info[
+                        self.console.FormatString("{suite_name}")])
+                except KeyError:
+                    logging.error(
+                        "No test results found from any fetched test suite. "
+                        "Please fetch a test suite and run 'test' command, then "
+                        "try running 'upload' command again.")
+                    return False
+            results_base_path = os.path.join(tools_path,
+                                             common._RESULTS_BASE_PATH)
 
-        if args.clear_results:
-            shutil.rmtree(results_base_path, ignore_errors=True)
+            if args.report_path:
+                report_path = self.console.FormatString(args.report_path)
+                if not report_path.startswith("gs://"):
+                    logging.error(
+                        "{} is not correct GCS url.".format(report_path))
+                else:
+                    self.UploadReport(gsutil_path, report_path, dest_path,
+                                      results_base_path)
+
+            if args.clear_results:
+                shutil.rmtree(results_base_path, ignore_errors=True)
 
     def UploadReport(self, gsutil_path, report_path, log_path, results_path):
         """Uploads report summary file to the given path.

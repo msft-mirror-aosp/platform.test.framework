@@ -133,3 +133,8 @@ _MODULES_TOTAL_ATTR_KEY = "modules_total"
 # The key value for retrieving run module count
 _MODULES_DONE_ATTR_KEY = "modules_done"
 
+# VTSLAB package version file
+_VTSLAB_VERSION_TXT = "version.txt"
+
+_VTSLAB_VERSION_DEFAULT_VALUE = "000000_000000:00000000"
+

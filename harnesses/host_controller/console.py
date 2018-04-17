@@ -219,6 +219,8 @@ class Console(cmd.Cmd):
                    as root user.
         _manager: SyncManager. an instance of a manager for shared objects and
                   values between processes.
+        _vtslab_version: string, contains version information of vtslab package.
+                         (<git commit timestamp>:<git commit hash value>)
     """
 
     def __init__(self,
@@ -245,6 +247,18 @@ class Console(cmd.Cmd):
             self._manager = multiprocessing.Manager()
             self._device_status = shared_dict.SharedDict(self._manager)
             self._password = self._manager.Value(ctypes.c_char_p, password)
+            try:
+                with open(common._VTSLAB_VERSION_TXT, "r") as file:
+                    self._vtslab_version = file.readline().strip()
+                    file.close()
+                    logging.info("VTSLAB versoin: %s" % self._vtslab_version)
+            except IOError as e:
+                logging.exception(e)
+                logging.error("Version info missing in vtslab package. "
+                              "Setting version as %s" %
+                              common._VTSLAB_VERSION_DEFAULT_VALUE)
+                self._vtslab_version = common._VTSLAB_VERSION_DEFAULT_VALUE
+
         self._vti_endpoint_client = vti_endpoint_client
         self._vti_address = vti_address
         self._tfc_client = tfc
@@ -334,6 +348,11 @@ class Console(cmd.Cmd):
         """getter for self._vti_endpoint_client"""
         return self._vti_endpoint_client
 
+    @property
+    def vtslab_version(self):
+        """getter for self._vtslab_version"""
+        return self._vtslab_version
+
     def InitCommandModuleParsers(self):
         """Init all console command modules"""
         for name in dir(self):
@@ -387,7 +406,7 @@ class Console(cmd.Cmd):
             name = match.group(1)
             if name in ("build_id", "branch", "target"):
                 value = self.fetch_info[name]
-            elif name in ("result_full", "result_zip", "suite_plan"):
+            elif name in ("result_full", "result_zip", "suite_plan", "suite_name"):
                 value = self.test_result[name]
             elif "timestamp" in name:
                 current_datetime = datetime.datetime.now()
@@ -486,6 +505,7 @@ class Console(cmd.Cmd):
         else:
             ret = False
 
+        file_handler.flush()
         src = self.FormatString("{hc_log}")
         dest = self.FormatString(
             "gs://vts-report/infra_log/{hostname}/%s_{timestamp}/{hc_log_file}"
