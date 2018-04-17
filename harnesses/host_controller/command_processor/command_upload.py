@@ -124,6 +124,7 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             logging.error(stderr)
 
         if args.report_path or args.clear_results:
+            tools_path = ""
             if args.result_from_suite:
                 tools_path = os.path.dirname(
                     self.console.test_suite_info[args.result_from_suite])
@@ -133,9 +134,9 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
                         self.console.FormatString("{suite_name}")])
                 except KeyError:
                     logging.error(
-                        "No test results found from any fetched test suite. "
-                        "Please fetch a test suite and run 'test' command, then "
-                        "try running 'upload' command again.")
+                        "No test results found from any fetched test suite."
+                        " Please fetch a test suite and run 'test' command,"
+                        " then try running 'upload' command again.")
                     return False
             results_base_path = os.path.join(tools_path,
                                              common._RESULTS_BASE_PATH)
@@ -183,8 +184,9 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             latest_result_xml_path, common._RESULT_TAG, [
                 common._SUITE_NAME_ATTR_KEY, common._SUITE_PLAN_ATTR_KEY,
                 common._SUITE_VERSION_ATTR_KEY,
-                common._SUITE_BUILD_NUM_ATTR_KEY, common._START_TIME_ATTR_KEY,
-                common._END_TIME_ATTR_KEY, common._HOST_NAME_ATTR_KEY
+                common._SUITE_BUILD_NUM_ATTR_KEY,
+                common._START_TIME_ATTR_KEY, common._END_TIME_ATTR_KEY,
+                common._HOST_NAME_ATTR_KEY
             ])
         build_attrs = xml_utils.GetAttributes(
             latest_result_xml_path, common._BUILD_TAG, [
@@ -194,23 +196,28 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
         summary_attrs = xml_utils.GetAttributes(
             latest_result_xml_path, common._SUMMARY_TAG, [
                 common._PASSED_ATTR_KEY, common._FAILED_ATTR_KEY,
-                common._MODULES_TOTAL_ATTR_KEY, common._MODULES_DONE_ATTR_KEY
+                common._MODULES_TOTAL_ATTR_KEY,
+                common._MODULES_DONE_ATTR_KEY
             ])
 
         suite_res_msg = SuiteResMsg.TestSuiteResultMessage()
         suite_res_msg.result_path = log_path
         suite_res_msg.branch = self.console.FormatString("{branch}")
         suite_res_msg.target = self.console.FormatString("{target}")
-        suite_res_msg.build_id = result_attrs[common._SUITE_BUILD_NUM_ATTR_KEY]
-        suite_res_msg.suite_name = result_attrs[common._SUITE_NAME_ATTR_KEY]
-        suite_res_msg.suite_plan = result_attrs[common._SUITE_PLAN_ATTR_KEY]
+        suite_res_msg.build_id = result_attrs[
+            common._SUITE_BUILD_NUM_ATTR_KEY]
+        suite_res_msg.suite_name = result_attrs[
+            common._SUITE_NAME_ATTR_KEY]
+        suite_res_msg.suite_plan = result_attrs[
+            common._SUITE_PLAN_ATTR_KEY]
         suite_res_msg.suite_version = result_attrs[
             common._SUITE_VERSION_ATTR_KEY]
         suite_res_msg.suite_build_number = result_attrs[
             common._SUITE_BUILD_NUM_ATTR_KEY]
         suite_res_msg.start_time = long(
             result_attrs[common._START_TIME_ATTR_KEY])
-        suite_res_msg.end_time = long(result_attrs[common._END_TIME_ATTR_KEY])
+        suite_res_msg.end_time = long(
+            result_attrs[common._END_TIME_ATTR_KEY])
         suite_res_msg.host_name = result_attrs[common._HOST_NAME_ATTR_KEY]
         suite_res_msg.build_system_fingerprint = build_attrs[
             common._SYSTEM_FINGERPRINT_ATTR_KEY]
