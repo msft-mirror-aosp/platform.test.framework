@@ -152,3 +152,5 @@ _ARTIFACT_TYPE_LIST = [
     _ARTIFACT_TYPE_TEST_SUITE,
     _ARTIFACT_TYPE_INFRA,
 ]
+# Directory relative to the home directory, in which the devices' lock files will be.
+_DEVLOCK_DIR = ".devlock"

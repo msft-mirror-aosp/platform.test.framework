@@ -60,6 +60,7 @@ from host_controller.build import build_provider_ab
 from host_controller.build import build_provider_gcs
 from host_controller.build import build_provider_local_fs
 from host_controller.build import build_provider_pab
+from host_controller.utils.ipc import file_lock
 from host_controller.utils.ipc import shared_dict
 from host_controller.vti_interface import vti_endpoint_client
 from vts.runners.host import logger
@@ -157,8 +158,8 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
                 # console command to access them.
 
                 for serial in kwargs["serial"]:
-                    console.device_status[serial] = common._DEVICE_STATUS_DICT[
-                        "use"]
+                    console.ChangeDeviceState(
+                        serial, common._DEVICE_STATUS_DICT["use"])
                 print_to_console = True
                 if not print_to_console:
                     sys.stdout = out
@@ -181,8 +182,8 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
                     sys.stderr = sys.__stderr__
 
                 for serial in kwargs["serial"]:
-                    console.device_status[serial] = common._DEVICE_STATUS_DICT[
-                        "ready"]
+                    console.ChangeDeviceState(
+                        serial, common._DEVICE_STATUS_DICT["ready"])
         else:
             logging.error("Unknown job command %s", command)
 
@@ -223,6 +224,8 @@ class Console(cmd.Cmd):
                          (<git commit timestamp>:<git commit hash value>)
         _detailed_fetch_info: A nested dict, holds the branch and target value
                               of the device, gsi, or test suite artifact.
+        _file_lock: FileLock, an instance used for synchronizing the devices'
+                    use when the automated self-update happens.
     """
 
     def __init__(self,
@@ -276,6 +279,7 @@ class Console(cmd.Cmd):
         self.fetch_info = {}
         self._detailed_fetch_info = {}
         self.test_results = {}
+        self._file_lock = file_lock.FileLock()
 
         if common._ANDROID_SERIAL in os.environ:
             self._serials = [os.environ[common._ANDROID_SERIAL]]
@@ -366,6 +370,34 @@ class Console(cmd.Cmd):
             self._detailed_fetch_info[artifact_type].update(self.fetch_info)
         else:
             logging.error("Unrecognized artifact type: %s", artifact_type)
+
+    @property
+    def file_lock(self):
+        """getter for self._file_lock"""
+        return self._file_lock
+
+    def ChangeDeviceState(self, serial, state):
+        """Changes a device's state and (un)locks the file lock if necessary.
+
+        Args:
+            serial: string, serial number of a device.
+            state: int, devices' status value pre-defined in
+                   common._DEVICE_STATUS_DICT.
+        Returns:
+            True if the state change and locking/unlocking are successful.
+            False otherwise.
+        """
+        if state == common._DEVICE_STATUS_DICT["use"]:
+            ret = self._file_lock.LockDevice(serial)
+            if ret == False:
+                return False
+
+        current_status = self.device_status[serial]
+        self.device_status[serial] = state
+
+        if (current_status == common._DEVICE_STATUS_DICT["use"]
+                and current_status != state):
+            self._file_lock.UnlockDevice(serial)
 
     def InitCommandModuleParsers(self):
         """Init all console command modules"""
