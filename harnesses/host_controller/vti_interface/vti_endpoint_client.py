@@ -202,6 +202,8 @@ class VtiEndpointClient(object):
             lab = {}
             lab["name"] = pb.name
             lab["owner"] = pb.owner
+            lab["admin"] = []
+            lab["admin"].extend(pb.admin)
             lab["host"] = []
             for host in pb.host:
                 new_host = {}
