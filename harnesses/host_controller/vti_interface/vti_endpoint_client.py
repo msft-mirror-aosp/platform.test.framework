@@ -103,8 +103,13 @@ class VtiEndpointClient(object):
                 "product": device["product"],
                 "status": device["status"]}
             payload["devices"].append(new_device)
-        response = requests.post(url, data=json.dumps(payload),
-                                 headers=self._headers)
+
+        try:
+            response = requests.post(url, data=json.dumps(payload),
+                                     headers=self._headers)
+        except requests.exceptions.ConnectionError as e:
+            logging.exception(e)
+            return False
         if response.status_code != requests.codes.ok:
             logging.error("UploadDeviceInfo error: %s", response)
             return False
@@ -362,7 +367,11 @@ class VtiEndpointClient(object):
         host["hostname"] = hostname
         host["vtslab_version"] = vtslab_version
 
-        response = requests.post(url, data=json.dumps(host),
-                                 headers=self._headers)
+        try:
+            response = requests.post(url, data=json.dumps(host),
+                                    headers=self._headers)
+        except requests.exceptions.ConnectionError as e:
+            logging.exception(e)
+            return
         if response.status_code != requests.codes.ok:
             logging.error("UploadHostVersion error: %s", response)
