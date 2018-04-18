@@ -221,9 +221,9 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
         suite_res_msg.failed_test_case_count = int(
             summary_attrs[common._FAILED_ATTR_KEY])
         suite_res_msg.modules_done = int(
-            summary_attrs[common._MODULES_TOTAL_ATTR_KEY])
-        suite_res_msg.modules_total = int(
             summary_attrs[common._MODULES_DONE_ATTR_KEY])
+        suite_res_msg.modules_total = int(
+            summary_attrs[common._MODULES_TOTAL_ATTR_KEY])
 
         report_file_path = os.path.join(
             self.console.tmp_logdir,
