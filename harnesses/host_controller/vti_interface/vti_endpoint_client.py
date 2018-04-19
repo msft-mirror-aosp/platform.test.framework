@@ -377,3 +377,14 @@ class VtiEndpointClient(object):
             return
         if response.status_code != requests.codes.ok:
             logging.error("UploadHostVersion error: %s", response)
+
+    def CheckBootUpStatus(self):
+        """Checks whether the device_img + gsi from the job fails to boot up.
+
+        Returns:
+            True if the devices flashed with the given imgs from the leased job
+            succeed to boot up. False otherwise.
+        """
+        if self._job:
+            return (self._job["status"] != JOB_STATUS_DICT["bootup-err"])
+        return False
