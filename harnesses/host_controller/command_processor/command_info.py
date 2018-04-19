@@ -42,3 +42,4 @@ class CommandInfo(base_command_processor.BaseCommandProcessor):
         logging.info('test suite: %s', self.console.test_suite_info)
         logging.info('test result: %s', self.console.test_results)
         logging.info('fetch info: %s', self.console.fetch_info)
+        logging.info('detailed fetch info: %s', self.console.detailed_fetch_info)

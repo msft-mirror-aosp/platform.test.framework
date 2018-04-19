@@ -138,3 +138,17 @@ _VTSLAB_VERSION_TXT = "version.txt"
 
 _VTSLAB_VERSION_DEFAULT_VALUE = "000000_000000:00000000"
 
+# String representations of the artifact types can be fetched.
+_ARTIFACT_TYPE_DEVICE = "device"
+_ARTIFACT_TYPE_GSI = "gsi"
+_ARTIFACT_TYPE_TEST_SUITE = "test_suite"
+# Artifact type that are usually for custom tools fetched from GCS.
+_ARTIFACT_TYPE_INFRA = "infra"
+
+# List of artifact types.
+_ARTIFACT_TYPE_LIST = [
+    _ARTIFACT_TYPE_DEVICE,
+    _ARTIFACT_TYPE_GSI,
+    _ARTIFACT_TYPE_TEST_SUITE,
+    _ARTIFACT_TYPE_INFRA,
+]
