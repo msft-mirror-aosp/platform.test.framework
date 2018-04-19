@@ -216,10 +216,10 @@ def EmitFlashCommands(gsi, **kwargs):
                     new_cmd_list.extend(
                         GenerateSdm845GsiFlashingCommands(
                             serials[shard_index]))
-                elif common.UNIVERSAL9810 in build_target and gsi:
+                elif common.UNIVERSAL9810 in build_target:
                     new_cmd_list.extend(
                         GenerateUniversal9810GsiFlashingCommands(
-                            serials[shard_index]))
+                            serials[shard_index]), gsi)
                 else:
                     new_cmd_list.append(
                         "flash --current --serial %s --skip-vbmeta=True " %
@@ -233,8 +233,9 @@ def EmitFlashCommands(gsi, **kwargs):
     else:
         if common.SDM845 in build_target and gsi:
             result.extend(GenerateSdm845GsiFlashingCommands(serials[0]))
-        elif common.UNIVERSAL9810 in build_target and gsi:
-            result.extend(GenerateUniversal9810GsiFlashingCommands(serials[0]))
+        elif common.UNIVERSAL9810 in build_target:
+            result.extend(
+                GenerateUniversal9810GsiFlashingCommands(serials[0]), gsi)
         else:
             result.append(
                 "flash --current --serial %s --skip-vbmeta=True" % serials[0])
@@ -292,13 +293,12 @@ def EmitCommonConsoleCommands(**kwargs):
             serial_arg_list = []
             for serial in serials:
                 serial_arg_list.append("--serial %s" % serial)
-            result.append(
-                "test --suite %s --keep-result -- %s %s %s" %
-                (suite_name, plan_name, " ".join(serial_arg_list), param))
+            result.append("test --suite %s --keep-result -- %s %s %s" %
+                          (suite_name, plan_name, " ".join(serial_arg_list),
+                           param))
         else:
-            result.append(
-                "test --suite %s --keep-result -- %s %s" %
-                (suite_name, plan_name, param))
+            result.append("test --suite %s --keep-result -- %s %s" %
+                          (suite_name, plan_name, param))
 
     if "retry_count" in kwargs:
         retry_count = int(kwargs["retry_count"])
@@ -435,16 +435,17 @@ def GenerateSdm845GsiFlashingCommands(serial):
     ]
 
 
-def GenerateUniversal9810GsiFlashingCommands(serial):
+def GenerateUniversal9810GsiFlashingCommands(serial, gsi=True):
     """Returns a sequence of console commands to flash device imgs and GSI.
 
     Args:
         serial: string, the target device serial number.
+        gsi: bool, whether to flash GSI over vendor images or not.
 
     Returns:
         a list of strings, each string is a console command.
     """
-    return [
+    result = [
         ("fastboot -s %s flash el3_mon "
          "{device-image[full-zipfile-dir]}/el3_mon.img" % serial),
         ("fastboot -s %s flash epbl "
@@ -461,8 +462,16 @@ def GenerateUniversal9810GsiFlashingCommands(serial):
          "{device-image[full-zipfile-dir]}/ramdisk.img" % serial),
         ("fastboot -s %s flash vendor "
          "{device-image[full-zipfile-dir]}/vendor.img -- -S 300M" % serial),
-        ("fastboot -s %s flash system "
-         "{device-image[gsi-zipfile-dir]}/system.img -- -S 512M" % serial),
-        ("fastboot -s %s reboot -- -w" % serial),
-        "sleep 300",  # wait for boot_complete (success)
     ]
+    if gsi:
+        result.append(
+            ("fastboot -s %s flash system "
+             "{device-image[gsi-zipfile-dir]}/system.img -- -S 512M" % serial))
+    else:
+        result.append((
+            "fastboot -s %s flash system "
+            "{device-image[full-zipfile-dir]}/system.img -- -S 512M" % serial))
+    result.append("fastboot -s %s reboot -- -w" % serial)
+    result.append("sleep 300")  # wait for boot_complete (success)
+
+    return result
