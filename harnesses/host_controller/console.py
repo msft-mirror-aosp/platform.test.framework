@@ -221,6 +221,8 @@ class Console(cmd.Cmd):
                   values between processes.
         _vtslab_version: string, contains version information of vtslab package.
                          (<git commit timestamp>:<git commit hash value>)
+        _detailed_fetch_info: A nested dict, holds the branch and target value
+                              of the device, gsi, or test suite artifact.
     """
 
     def __init__(self,
@@ -255,7 +257,7 @@ class Console(cmd.Cmd):
             except IOError as e:
                 logging.exception(e)
                 logging.error("Version info missing in vtslab package. "
-                              "Setting version as %s" %
+                              "Setting version as %s",
                               common._VTSLAB_VERSION_DEFAULT_VALUE)
                 self._vtslab_version = common._VTSLAB_VERSION_DEFAULT_VALUE
 
@@ -272,6 +274,7 @@ class Console(cmd.Cmd):
         self.test_suite_info = build_info.BuildInfo()
         self.tools_info = build_info.BuildInfo()
         self.fetch_info = {}
+        self._detailed_fetch_info = {}
         self.test_results = {}
 
         if common._ANDROID_SERIAL in os.environ:
@@ -353,6 +356,17 @@ class Console(cmd.Cmd):
         """getter for self._vtslab_version"""
         return self._vtslab_version
 
+    @property
+    def detailed_fetch_info(self):
+        return self._detailed_fetch_info
+
+    def UpdateFetchInfo(self, artifact_type):
+        if artifact_type in common._ARTIFACT_TYPE_LIST:
+            self._detailed_fetch_info[artifact_type] = {}
+            self._detailed_fetch_info[artifact_type].update(self.fetch_info)
+        else:
+            logging.error("Unrecognized artifact type: %s", artifact_type)
+
     def InitCommandModuleParsers(self):
         """Init all console command modules"""
         for name in dir(self):
@@ -406,7 +420,8 @@ class Console(cmd.Cmd):
             name = match.group(1)
             if name in ("build_id", "branch", "target"):
                 value = self.fetch_info[name]
-            elif name in ("result_full", "result_zip", "suite_plan", "suite_name"):
+            elif name in ("result_full", "result_zip", "suite_plan",
+                          "suite_name"):
                 value = self.test_result[name]
             elif "timestamp" in name:
                 current_datetime = datetime.datetime.now()
@@ -487,7 +502,7 @@ class Console(cmd.Cmd):
             script_file_path += ".py"
 
         if not script_file_path.endswith(".py"):
-            logging.error("Script file is not .py file: %s" % script_file_path)
+            logging.error("Script file is not .py file: %s", script_file_path)
             return False
 
         ret = True
@@ -566,7 +581,7 @@ class Console(cmd.Cmd):
         path = (parsed.netloc + parsed.path).split('/')
         if parsed.scheme == "pab":
             if len(path) != 5:
-                logging.error("Invalid pab resource locator: %s" % url)
+                logging.error("Invalid pab resource locator: %s", url)
                 return
             account_id, branch, target, build_id, artifact_name = path
             cmd = ("fetch"
@@ -580,7 +595,7 @@ class Console(cmd.Cmd):
             self.onecmd(cmd)
         elif parsed.scheme == "ab":
             if len(path) != 4:
-                logging.error("Invalid ab resource locator: %s" % url)
+                logging.error("Invalid ab resource locator: %s", url)
                 return
             branch, target, build_id, artifact_name = path
             cmd = ("fetch"
@@ -595,7 +610,7 @@ class Console(cmd.Cmd):
             cmd = "fetch --type=gcs --path=%s" % url
             self.onecmd(cmd)
         else:
-            logging.error("Invalid URL: %s" % url)
+            logging.error("Invalid URL: %s", url)
 
     def SetSerials(self, serials):
         """Sets the default serial numbers for flashing and testing.
@@ -686,7 +701,7 @@ class Console(cmd.Cmd):
                         return False
             return
 
-        logging.info("Command: %s" % line)
+        logging.info("Command: %s", line)
         try:
             ret_cmd = cmd.Cmd.onecmd(self, line)
             if ret_cmd == False and ret_out_queue:

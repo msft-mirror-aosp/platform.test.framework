@@ -48,6 +48,8 @@ class BuildProvider(object):
                                   package and the value is the path
                                   to a package file.
         _tmp_dirpath: string, the temp dir path created to keep artifacts.
+        _last_fetched_artifact_type: string, stores the type of the last
+                                     artifact fetched.
     """
     _CONFIG_FILE_EXTENSION = ".zip"
     _IMAGE_FILE_EXTENSIONS = [".img", ".bin"]
@@ -59,6 +61,7 @@ class BuildProvider(object):
         self._test_suites = {}
         self._host_controller_package = {}
         self._configs = {}
+        self._last_fetched_artifact_type = None
         tempdir_base = os.path.join(os.getcwd(), "tmp")
         if not os.path.exists(tempdir_base):
             os.mkdir(tempdir_base)
@@ -80,6 +83,7 @@ class BuildProvider(object):
     def SetDeviceImage(self, name, path):
         """Sets device image `path` for the specified `name`."""
         self._device_images[name] = path
+        self._last_fetched_artifact_type = common._ARTIFACT_TYPE_DEVICE
 
     def _IsFullDeviceImage(self, namelist):
         """Returns true if given namelist list has all common device images."""
@@ -110,16 +114,21 @@ class BuildProvider(object):
             path: string, the path to a zip file.
         """
         dest_path = path + ".dir"
+        fetch_type = None
         with zipfile.ZipFile(path, 'r') as zip_ref:
             if full_device_images or self._IsFullDeviceImage(zip_ref.namelist()):
                 self.SetDeviceImage(common.FULL_ZIPFILE, path)
                 dir_key = common.FULL_ZIPFILE_DIR
+                fetch_type = common._ARTIFACT_TYPE_DEVICE
             else:
                 self.SetDeviceImage("gsi-zipfile", path)
-                dir_key = "gsi-zipfile-dir"
+                dir_key = common.GSI_ZIPFILE_DIR  # "gsi-zipfile-dir"
+                fetch_type = common._ARTIFACT_TYPE_GSI
             zip_ref.extractall(dest_path)
             self.SetFetchedDirectory(dest_path)
             self.SetDeviceImage(dir_key, dest_path)
+
+        self._last_fetched_artifact_type = fetch_type
 
     def GetDeviceImage(self, name=None):
         """Returns device image info."""
@@ -148,6 +157,7 @@ class BuildProvider(object):
         else:
             logging.info("unsupported zip file %s", path)
         self._test_suites[test_suite] = path
+        self._last_fetched_artifact_type = common._ARTIFACT_TYPE_TEST_SUITE
 
     def GetTestSuitePackage(self, type=None):
         """Returns test suite package info."""
@@ -163,6 +173,7 @@ class BuildProvider(object):
             path: string, the path of a package file.
         """
         self._host_controller_package[package_type] = path
+        self._last_fetched_artifact_type = common._ARTIFACT_TYPE_INFRA
 
     def GetHostControllerPackage(self, package_type=None):
         """Returns host controller package info.
@@ -197,6 +208,7 @@ class BuildProvider(object):
         else:
             logging.info("unsupported config package file %s", path)
         self._configs[config_type] = path
+        self._last_fetched_artifact_type = common._ARTIFACT_TYPE_INFRA
 
     def GetConfigPackage(self, config_type=None):
         """Returns config package info."""
@@ -212,6 +224,7 @@ class BuildProvider(object):
             abs_path: the file path that this process can access.
         """
         self._additional_files[rel_path] = full_path
+        self._last_fetched_artifact_type = common._ARTIFACT_TYPE_INFRA
 
     def GetAdditionalFile(self, rel_path=None):
         """Returns the paths to fetched files."""
@@ -284,3 +297,11 @@ class BuildProvider(object):
     def PrintGetTestSuitePackageInfo(self):
         """Prints test suite package info."""
         logging.info(self.GetTestSuitePackage())
+
+    def GetFetchedArtifactType(self):
+        """Gets the most recently fetched artifact type.
+
+        Returns:
+            string, type of the artifact.
+        """
+        return self._last_fetched_artifact_type
