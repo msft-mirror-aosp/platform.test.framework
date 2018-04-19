@@ -157,6 +157,7 @@ class CommandFetch(base_command_processor.BaseCommandProcessor):
 
         self.console.fetch_info["branch"] = args.branch
         self.console.fetch_info["target"] = args.target
+        self.console.UpdateFetchInfo(provider.GetFetchedArtifactType())
 
         self.console.device_image_info.update(device_images)
         self.console.test_suite_info.update(test_suites)
