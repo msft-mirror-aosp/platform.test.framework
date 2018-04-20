@@ -219,7 +219,7 @@ def EmitFlashCommands(gsi, **kwargs):
                 elif common.UNIVERSAL9810 in build_target:
                     new_cmd_list.extend(
                         GenerateUniversal9810GsiFlashingCommands(
-                            serials[shard_index]), gsi)
+                            serials[shard_index], gsi))
                 else:
                     new_cmd_list.append(
                         "flash --current --serial %s --skip-vbmeta=True " %
@@ -235,7 +235,7 @@ def EmitFlashCommands(gsi, **kwargs):
             result.extend(GenerateSdm845GsiFlashingCommands(serials[0]))
         elif common.UNIVERSAL9810 in build_target:
             result.extend(
-                GenerateUniversal9810GsiFlashingCommands(serials[0]), gsi)
+                GenerateUniversal9810GsiFlashingCommands(serials[0], gsi))
         else:
             result.append(
                 "flash --current --serial %s --skip-vbmeta=True" % serials[0])
