@@ -471,10 +471,15 @@ class Console(cmd.Cmd):
                     value = value_date[6:8]
                 else:
                     value = "%s-%s" % (value_date, value_time)
-            elif name in ("hc_log", "hc_log_file"):
+            elif name in ("hc_log", "hc_log_file", "hc_log_upload_path"):
+                # hc_log: full abs path to the current process's infra log.
+                # hc_log_file: infra log file name, with no path information.
+                # hc_log_upload_path: path of the infra log file in GCS.
                 value = self._logfile_path
                 if name == "hc_log_file":
                     value = os.path.basename(value)
+                elif name == "hc_log_upload_path":
+                    value  = self._logfile_upload_path
             elif name in ("hostname"):
                 value = socket.gethostname()
             else:
@@ -540,6 +545,11 @@ class Console(cmd.Cmd):
         ret = True
 
         self._logfile_path, file_handler = logger.addLogFile(self._tmp_logdir)
+        src = self.FormatString("{hc_log}")
+        dest = self.FormatString(
+            "gs://vts-report/infra_log/{hostname}/%s_{timestamp}/{hc_log_file}"
+            % kwargs["build_target"])
+        self._logfile_upload_path = dest
 
         script_module = imp.load_source('script_module', script_file_path)
 
@@ -554,10 +564,6 @@ class Console(cmd.Cmd):
 
         file_handler.flush()
         infra_log_upload_command = "upload"
-        src = self.FormatString("{hc_log}")
-        dest = self.FormatString(
-            "gs://vts-report/infra_log/{hostname}/%s_{timestamp}/{hc_log_file}"
-            % kwargs["build_target"])
         infra_log_upload_command += " --src=%s" % src
         infra_log_upload_command += " --dest=%s" % dest
         if not self.vti_endpoint_client.CheckBootUpStatus():
