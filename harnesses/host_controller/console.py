@@ -60,6 +60,7 @@ from host_controller.build import build_provider_ab
 from host_controller.build import build_provider_gcs
 from host_controller.build import build_provider_local_fs
 from host_controller.build import build_provider_pab
+from host_controller.utils.ipc import file_lock
 from host_controller.utils.ipc import shared_dict
 from host_controller.vti_interface import vti_endpoint_client
 from vts.runners.host import logger
@@ -157,8 +158,8 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
                 # console command to access them.
 
                 for serial in kwargs["serial"]:
-                    console.device_status[serial] = common._DEVICE_STATUS_DICT[
-                        "use"]
+                    console.ChangeDeviceState(
+                        serial, common._DEVICE_STATUS_DICT["use"])
                 print_to_console = True
                 if not print_to_console:
                     sys.stdout = out
@@ -181,8 +182,8 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
                     sys.stderr = sys.__stderr__
 
                 for serial in kwargs["serial"]:
-                    console.device_status[serial] = common._DEVICE_STATUS_DICT[
-                        "ready"]
+                    console.ChangeDeviceState(
+                        serial, common._DEVICE_STATUS_DICT["ready"])
         else:
             logging.error("Unknown job command %s", command)
 
@@ -221,6 +222,10 @@ class Console(cmd.Cmd):
                   values between processes.
         _vtslab_version: string, contains version information of vtslab package.
                          (<git commit timestamp>:<git commit hash value>)
+        _detailed_fetch_info: A nested dict, holds the branch and target value
+                              of the device, gsi, or test suite artifact.
+        _file_lock: FileLock, an instance used for synchronizing the devices'
+                    use when the automated self-update happens.
     """
 
     def __init__(self,
@@ -255,7 +260,7 @@ class Console(cmd.Cmd):
             except IOError as e:
                 logging.exception(e)
                 logging.error("Version info missing in vtslab package. "
-                              "Setting version as %s" %
+                              "Setting version as %s",
                               common._VTSLAB_VERSION_DEFAULT_VALUE)
                 self._vtslab_version = common._VTSLAB_VERSION_DEFAULT_VALUE
 
@@ -272,7 +277,9 @@ class Console(cmd.Cmd):
         self.test_suite_info = build_info.BuildInfo()
         self.tools_info = build_info.BuildInfo()
         self.fetch_info = {}
+        self._detailed_fetch_info = {}
         self.test_results = {}
+        self._file_lock = file_lock.FileLock()
 
         if common._ANDROID_SERIAL in os.environ:
             self._serials = [os.environ[common._ANDROID_SERIAL]]
@@ -353,6 +360,45 @@ class Console(cmd.Cmd):
         """getter for self._vtslab_version"""
         return self._vtslab_version
 
+    @property
+    def detailed_fetch_info(self):
+        return self._detailed_fetch_info
+
+    def UpdateFetchInfo(self, artifact_type):
+        if artifact_type in common._ARTIFACT_TYPE_LIST:
+            self._detailed_fetch_info[artifact_type] = {}
+            self._detailed_fetch_info[artifact_type].update(self.fetch_info)
+        else:
+            logging.error("Unrecognized artifact type: %s", artifact_type)
+
+    @property
+    def file_lock(self):
+        """getter for self._file_lock"""
+        return self._file_lock
+
+    def ChangeDeviceState(self, serial, state):
+        """Changes a device's state and (un)locks the file lock if necessary.
+
+        Args:
+            serial: string, serial number of a device.
+            state: int, devices' status value pre-defined in
+                   common._DEVICE_STATUS_DICT.
+        Returns:
+            True if the state change and locking/unlocking are successful.
+            False otherwise.
+        """
+        if state == common._DEVICE_STATUS_DICT["use"]:
+            ret = self._file_lock.LockDevice(serial)
+            if ret == False:
+                return False
+
+        current_status = self.device_status[serial]
+        self.device_status[serial] = state
+
+        if (current_status == common._DEVICE_STATUS_DICT["use"]
+                and current_status != state):
+            self._file_lock.UnlockDevice(serial)
+
     def InitCommandModuleParsers(self):
         """Init all console command modules"""
         for name in dir(self):
@@ -406,7 +452,8 @@ class Console(cmd.Cmd):
             name = match.group(1)
             if name in ("build_id", "branch", "target"):
                 value = self.fetch_info[name]
-            elif name in ("result_full", "result_zip", "suite_plan", "suite_name"):
+            elif name in ("result_full", "result_zip", "suite_plan",
+                          "suite_name"):
                 value = self.test_result[name]
             elif "timestamp" in name:
                 current_datetime = datetime.datetime.now()
@@ -487,7 +534,7 @@ class Console(cmd.Cmd):
             script_file_path += ".py"
 
         if not script_file_path.endswith(".py"):
-            logging.error("Script file is not .py file: %s" % script_file_path)
+            logging.error("Script file is not .py file: %s", script_file_path)
             return False
 
         ret = True
@@ -506,11 +553,21 @@ class Console(cmd.Cmd):
             ret = False
 
         file_handler.flush()
+        infra_log_upload_command = "upload"
         src = self.FormatString("{hc_log}")
         dest = self.FormatString(
             "gs://vts-report/infra_log/{hostname}/%s_{timestamp}/{hc_log_file}"
             % kwargs["build_target"])
-        self.onecmd("upload --src=%s --dest=%s" % (src, dest))
+        infra_log_upload_command += " --src=%s" % src
+        infra_log_upload_command += " --dest=%s" % dest
+        if not self.vti_endpoint_client.CheckBootUpStatus():
+            infra_log_upload_command += (" --report_path=gs://vts-report/"
+                                         "suite_result/{timestamp_year}/"
+                                         "{timestamp_month}/{timestamp_day}")
+            suite_name, plan_name = kwargs["test_name"].split("/")
+            infra_log_upload_command += (" --result_from_suite=%s" % suite_name)
+            infra_log_upload_command += (" --result_from_plan=%s" % plan_name)
+        self.onecmd(infra_log_upload_command)
         logging.getLogger().removeHandler(file_handler)
         os.remove(self._logfile_path)
         return (ret != False), dest
@@ -566,7 +623,7 @@ class Console(cmd.Cmd):
         path = (parsed.netloc + parsed.path).split('/')
         if parsed.scheme == "pab":
             if len(path) != 5:
-                logging.error("Invalid pab resource locator: %s" % url)
+                logging.error("Invalid pab resource locator: %s", url)
                 return
             account_id, branch, target, build_id, artifact_name = path
             cmd = ("fetch"
@@ -580,7 +637,7 @@ class Console(cmd.Cmd):
             self.onecmd(cmd)
         elif parsed.scheme == "ab":
             if len(path) != 4:
-                logging.error("Invalid ab resource locator: %s" % url)
+                logging.error("Invalid ab resource locator: %s", url)
                 return
             branch, target, build_id, artifact_name = path
             cmd = ("fetch"
@@ -595,7 +652,7 @@ class Console(cmd.Cmd):
             cmd = "fetch --type=gcs --path=%s" % url
             self.onecmd(cmd)
         else:
-            logging.error("Invalid URL: %s" % url)
+            logging.error("Invalid URL: %s", url)
 
     def SetSerials(self, serials):
         """Sets the default serial numbers for flashing and testing.
@@ -686,7 +743,7 @@ class Console(cmd.Cmd):
                         return False
             return
 
-        logging.info("Command: %s" % line)
+        logging.info("Command: %s", line)
         try:
             ret_cmd = cmd.Cmd.onecmd(self, line)
             if ret_cmd == False and ret_out_queue:

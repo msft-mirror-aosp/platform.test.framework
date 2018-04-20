@@ -17,6 +17,8 @@
 import logging
 import os
 import shutil
+import socket
+import time
 
 from host_controller import common
 from host_controller.build import build_provider_gcs
@@ -72,6 +74,11 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             "be multiple numbers of result sets from different test "
             "suites. If not specified, the HC will upload the report "
             "from last run suite and plan.")
+        self.arg_parser.add_argument(
+            "--result_from_plan",
+            default="",
+            help="To specify the type of the plan name from which "
+            "the report is generated.")
 
     # @Override
     def Run(self, arg_line):
@@ -124,6 +131,7 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             logging.error(stderr)
 
         if args.report_path or args.clear_results:
+            tools_path = ""
             if args.result_from_suite:
                 tools_path = os.path.dirname(
                     self.console.test_suite_info[args.result_from_suite])
@@ -132,11 +140,12 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
                     tools_path = os.path.dirname(self.console.test_suite_info[
                         self.console.FormatString("{suite_name}")])
                 except KeyError:
-                    logging.error(
-                        "No test results found from any fetched test suite. "
-                        "Please fetch a test suite and run 'test' command, then "
-                        "try running 'upload' command again.")
-                    return False
+                    if self.console.vti_endpoint_client.CheckBootUpStatus():
+                        logging.error(
+                            "No test results found from any fetched test suite."
+                            " Please fetch a test suite and run 'test' command,"
+                            " then try running 'upload' command again.")
+                        return False
             results_base_path = os.path.join(tools_path,
                                              common._RESULTS_BASE_PATH)
 
@@ -146,13 +155,15 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
                     logging.error(
                         "{} is not correct GCS url.".format(report_path))
                 else:
-                    self.UploadReport(gsutil_path, report_path, dest_path,
-                                      results_base_path)
+                    self.UploadReport(
+                        gsutil_path, report_path, dest_path, results_base_path,
+                        args.result_from_suite, args.result_from_plan)
 
             if args.clear_results:
                 shutil.rmtree(results_base_path, ignore_errors=True)
 
-    def UploadReport(self, gsutil_path, report_path, log_path, results_path):
+    def UploadReport(self, gsutil_path, report_path, log_path, results_path,
+                     suite_name, plan_name):
         """Uploads report summary file to the given path.
 
         Args:
@@ -163,67 +174,99 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
                               have been uploaded.
             results_path: string, the base path for the results.
         """
-
-        former_results = [
-            result for result in os.listdir(results_path)
-            if os.path.isdir(os.path.join(results_path, result))
-            and not os.path.islink(os.path.join(results_path, result))
-        ]
-
-        if not former_results:
-            logging.error("No test result found.")
-            return False
-
-        former_results.sort()
-        latest_result = former_results[-1]
-        latest_result_xml_path = os.path.join(results_path, latest_result,
-                                              common._TEST_RESULT_XML)
-
-        result_attrs = xml_utils.GetAttributes(
-            latest_result_xml_path, common._RESULT_TAG, [
-                common._SUITE_NAME_ATTR_KEY, common._SUITE_PLAN_ATTR_KEY,
-                common._SUITE_VERSION_ATTR_KEY,
-                common._SUITE_BUILD_NUM_ATTR_KEY, common._START_TIME_ATTR_KEY,
-                common._END_TIME_ATTR_KEY, common._HOST_NAME_ATTR_KEY
-            ])
-        build_attrs = xml_utils.GetAttributes(
-            latest_result_xml_path, common._BUILD_TAG, [
-                common._SYSTEM_FINGERPRINT_ATTR_KEY,
-                common._VENDOR_FINGERPRINT_ATTR_KEY
-            ])
-        summary_attrs = xml_utils.GetAttributes(
-            latest_result_xml_path, common._SUMMARY_TAG, [
-                common._PASSED_ATTR_KEY, common._FAILED_ATTR_KEY,
-                common._MODULES_TOTAL_ATTR_KEY, common._MODULES_DONE_ATTR_KEY
-            ])
-
         suite_res_msg = SuiteResMsg.TestSuiteResultMessage()
         suite_res_msg.result_path = log_path
         suite_res_msg.branch = self.console.FormatString("{branch}")
         suite_res_msg.target = self.console.FormatString("{target}")
-        suite_res_msg.build_id = result_attrs[common._SUITE_BUILD_NUM_ATTR_KEY]
-        suite_res_msg.suite_name = result_attrs[common._SUITE_NAME_ATTR_KEY]
-        suite_res_msg.suite_plan = result_attrs[common._SUITE_PLAN_ATTR_KEY]
-        suite_res_msg.suite_version = result_attrs[
-            common._SUITE_VERSION_ATTR_KEY]
-        suite_res_msg.suite_build_number = result_attrs[
-            common._SUITE_BUILD_NUM_ATTR_KEY]
-        suite_res_msg.start_time = long(
-            result_attrs[common._START_TIME_ATTR_KEY])
-        suite_res_msg.end_time = long(result_attrs[common._END_TIME_ATTR_KEY])
-        suite_res_msg.host_name = result_attrs[common._HOST_NAME_ATTR_KEY]
-        suite_res_msg.build_system_fingerprint = build_attrs[
-            common._SYSTEM_FINGERPRINT_ATTR_KEY]
-        suite_res_msg.build_vendor_fingerprint = build_attrs[
-            common._VENDOR_FINGERPRINT_ATTR_KEY]
-        suite_res_msg.passed_test_case_count = int(
-            summary_attrs[common._PASSED_ATTR_KEY])
-        suite_res_msg.failed_test_case_count = int(
-            summary_attrs[common._FAILED_ATTR_KEY])
-        suite_res_msg.modules_done = int(
-            summary_attrs[common._MODULES_TOTAL_ATTR_KEY])
-        suite_res_msg.modules_total = int(
-            summary_attrs[common._MODULES_DONE_ATTR_KEY])
+        vti = self.console.vti_endpoint_client
+        suite_res_msg.boot_success = vti.CheckBootUpStatus()
+
+        if vti.CheckBootUpStatus():
+            former_results = [
+                result for result in os.listdir(results_path)
+                if os.path.isdir(os.path.join(results_path, result))
+                and not os.path.islink(os.path.join(results_path, result))
+            ]
+
+            if not former_results:
+                logging.error("No test result found.")
+                return False
+
+            former_results.sort()
+            latest_result = former_results[-1]
+            latest_result_xml_path = os.path.join(results_path, latest_result,
+                                                  common._TEST_RESULT_XML)
+
+            result_attrs = xml_utils.GetAttributes(
+                latest_result_xml_path, common._RESULT_TAG, [
+                    common._SUITE_NAME_ATTR_KEY, common._SUITE_PLAN_ATTR_KEY,
+                    common._SUITE_VERSION_ATTR_KEY,
+                    common._SUITE_BUILD_NUM_ATTR_KEY,
+                    common._START_TIME_ATTR_KEY, common._END_TIME_ATTR_KEY,
+                    common._HOST_NAME_ATTR_KEY
+                ])
+            build_attrs = xml_utils.GetAttributes(
+                latest_result_xml_path, common._BUILD_TAG, [
+                    common._SYSTEM_FINGERPRINT_ATTR_KEY,
+                    common._VENDOR_FINGERPRINT_ATTR_KEY
+                ])
+            summary_attrs = xml_utils.GetAttributes(
+                latest_result_xml_path, common._SUMMARY_TAG, [
+                    common._PASSED_ATTR_KEY, common._FAILED_ATTR_KEY,
+                    common._MODULES_TOTAL_ATTR_KEY,
+                    common._MODULES_DONE_ATTR_KEY
+                ])
+
+            suite_res_msg.build_id = result_attrs[
+                common._SUITE_BUILD_NUM_ATTR_KEY]
+            suite_res_msg.suite_name = result_attrs[
+                common._SUITE_NAME_ATTR_KEY]
+            suite_res_msg.suite_plan = result_attrs[
+                common._SUITE_PLAN_ATTR_KEY]
+            suite_res_msg.suite_version = result_attrs[
+                common._SUITE_VERSION_ATTR_KEY]
+            suite_res_msg.suite_build_number = result_attrs[
+                common._SUITE_BUILD_NUM_ATTR_KEY]
+            suite_res_msg.start_time = long(
+                result_attrs[common._START_TIME_ATTR_KEY])
+            suite_res_msg.end_time = long(
+                result_attrs[common._END_TIME_ATTR_KEY])
+            suite_res_msg.host_name = result_attrs[common._HOST_NAME_ATTR_KEY]
+            suite_res_msg.build_system_fingerprint = build_attrs[
+                common._SYSTEM_FINGERPRINT_ATTR_KEY]
+            suite_res_msg.build_vendor_fingerprint = build_attrs[
+                common._VENDOR_FINGERPRINT_ATTR_KEY]
+            suite_res_msg.passed_test_case_count = int(
+                summary_attrs[common._PASSED_ATTR_KEY])
+            suite_res_msg.failed_test_case_count = int(
+                summary_attrs[common._FAILED_ATTR_KEY])
+            suite_res_msg.modules_done = int(
+                summary_attrs[common._MODULES_DONE_ATTR_KEY])
+            suite_res_msg.modules_total = int(
+                summary_attrs[common._MODULES_TOTAL_ATTR_KEY])
+        else:
+            device_fetch_info = self.console.detailed_fetch_info[
+                common._ARTIFACT_TYPE_DEVICE]
+            gsi_fetch_info = self.console.detailed_fetch_info[
+                common._ARTIFACT_TYPE_GSI]
+            suite_res_msg.build_id = self.console.fetch_info["build_id"]
+            suite_res_msg.suite_name = suite_name
+            suite_res_msg.suite_plan = plan_name
+            suite_res_msg.suite_version = ""
+            suite_res_msg.suite_build_number = suite_res_msg.build_id
+            suite_res_msg.start_time = long(time.time() * 1000)
+            suite_res_msg.end_time = suite_res_msg.start_time
+            suite_res_msg.host_name = socket.gethostname()
+            suite_res_msg.build_system_fingerprint = "%s/%s/%s" % (
+                gsi_fetch_info["branch"], gsi_fetch_info["target"],
+                gsi_fetch_info["build_id"])
+            suite_res_msg.build_vendor_fingerprint = "%s/%s/%s" % (
+                device_fetch_info["branch"], device_fetch_info["target"],
+                device_fetch_info["build_id"])
+            suite_res_msg.passed_test_case_count = 0
+            suite_res_msg.failed_test_case_count = 0
+            suite_res_msg.modules_done = 0
+            suite_res_msg.modules_total = 0
 
         report_file_path = os.path.join(
             self.console.tmp_logdir,

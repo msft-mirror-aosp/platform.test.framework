@@ -103,8 +103,13 @@ class VtiEndpointClient(object):
                 "product": device["product"],
                 "status": device["status"]}
             payload["devices"].append(new_device)
-        response = requests.post(url, data=json.dumps(payload),
-                                 headers=self._headers)
+
+        try:
+            response = requests.post(url, data=json.dumps(payload),
+                                     headers=self._headers)
+        except requests.exceptions.ConnectionError as e:
+            logging.exception(e)
+            return False
         if response.status_code != requests.codes.ok:
             logging.error("UploadDeviceInfo error: %s", response)
             return False
@@ -197,6 +202,8 @@ class VtiEndpointClient(object):
             lab = {}
             lab["name"] = pb.name
             lab["owner"] = pb.owner
+            lab["admin"] = []
+            lab["admin"].extend(pb.admin)
             lab["host"] = []
             for host in pb.host:
                 new_host = {}
@@ -362,7 +369,22 @@ class VtiEndpointClient(object):
         host["hostname"] = hostname
         host["vtslab_version"] = vtslab_version
 
-        response = requests.post(url, data=json.dumps(host),
-                                 headers=self._headers)
+        try:
+            response = requests.post(url, data=json.dumps(host),
+                                    headers=self._headers)
+        except requests.exceptions.ConnectionError as e:
+            logging.exception(e)
+            return
         if response.status_code != requests.codes.ok:
             logging.error("UploadHostVersion error: %s", response)
+
+    def CheckBootUpStatus(self):
+        """Checks whether the device_img + gsi from the job fails to boot up.
+
+        Returns:
+            True if the devices flashed with the given imgs from the leased job
+            succeed to boot up. False otherwise.
+        """
+        if self._job:
+            return (self._job["status"] != JOB_STATUS_DICT["bootup-err"])
+        return False
