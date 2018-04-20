@@ -69,12 +69,18 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                     device["serial"] = line.split()[0]
                     serial = device["serial"]
 
-                    if (self.console.device_status[serial] !=
-                            common._DEVICE_STATUS_DICT["use"]):
-                        stdout, _, retcode = cmd_utils.ExecuteOneShellCommand(
-                            "adb -s %s reboot bootloader" % device["serial"])
-                        if retcode == 0:
-                            lines_fastboot.append(line)
+                    if self.console.file_lock.LockDevice(serial) == False:
+                        self.console.device_status[
+                            serial] = common._DEVICE_STATUS_DICT["use"]
+                        logging.info("Device %s already locked." % serial)
+                        continue
+
+                    stdout, _, retcode = cmd_utils.ExecuteOneShellCommand(
+                        "adb -s %s reboot bootloader" % device["serial"])
+                    if retcode == 0:
+                        lines_fastboot.append(line)
+
+                    self.console.file_lock.UnlockDevice(serial)
 
             for line in lines_fastboot:
                 if len(line.strip()):
@@ -82,26 +88,32 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                     device["serial"] = line.split()[0]
                     serial = device["serial"]
 
-                    if (self.console.device_status[serial] !=
-                            common._DEVICE_STATUS_DICT["use"]):
-                        _, stderr, retcode = cmd_utils.ExecuteOneShellCommand(
-                            "fastboot -s %s getvar product" % device["serial"])
-                        if retcode == 0:
-                            res = stderr.splitlines()[0].rstrip()
-                            if ":" in res:
-                                device["product"] = res.split(":")[1].strip()
-                            elif "waiting for %s" % serial in res:
-                                res = stderr.splitlines()[1].rstrip()
-                                device["product"] = res.split(":")[1].strip()
-                            else:
-                                device["product"] = "error"
+                    if self.console.file_lock.LockDevice(serial) == False:
+                        self.console.device_status[
+                            serial] = common._DEVICE_STATUS_DICT["use"]
+                        logging.info("Device %s already locked." % serial)
+                        continue
+
+                    _, stderr, retcode = cmd_utils.ExecuteOneShellCommand(
+                        "fastboot -s %s getvar product" % device["serial"])
+                    if retcode == 0:
+                        res = stderr.splitlines()[0].rstrip()
+                        if ":" in res:
+                            device["product"] = res.split(":")[1].strip()
+                        elif "waiting for %s" % serial in res:
+                            res = stderr.splitlines()[1].rstrip()
+                            device["product"] = res.split(":")[1].strip()
                         else:
                             device["product"] = "error"
-                        self.console.device_status[
-                            serial] = common._DEVICE_STATUS_DICT["fastboot"]
+                    else:
+                        device["product"] = "error"
+                    self.console.device_status[
+                        serial] = common._DEVICE_STATUS_DICT["fastboot"]
 
-                        device["status"] = self.console.device_status[serial]
-                        devices.append(device)
+                    device["status"] = self.console.device_status[serial]
+                    devices.append(device)
+
+                    self.console.file_lock.UnlockDevice(serial)
 
             self.console._vti_endpoint_client.UploadDeviceInfo(
                 host.hostname, devices)
