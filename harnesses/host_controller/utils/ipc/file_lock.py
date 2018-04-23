@@ -36,6 +36,8 @@ class FileLock(object):
         self._lock_fd = {}
         self._devlock_dir = os.path.join(
             os.path.expanduser("~"), common._DEVLOCK_DIR)
+        if not os.path.exists(self._devlock_dir):
+            os.mkdir(self._devlock_dir)
         file_list = [file_name for file_name in os.listdir(self._devlock_dir)]
         for file_name in file_list:
             if os.path.isfile(os.path.join(self._devlock_dir, file_name)):
