@@ -268,6 +268,9 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             suite_res_msg.modules_done = 0
             suite_res_msg.modules_total = 0
 
+        suite_res_msg.infra_log_path = self.console.FormatString(
+            "{hc_log_upload_path}")
+
         report_file_path = os.path.join(
             self.console.tmp_logdir,
             self.console.FormatString("{timestamp_time}.bin"))
