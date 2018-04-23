@@ -28,6 +28,9 @@ _REPACKAGE_ADDITIONAL_FILE_LIST = [
     "android-vtslab/testcases/host_controller/build/client_secrets.json",
 ]
 
+# Path to the version.txt file in the fetched vtslab package zip.
+_VERSION_INFO_FILE_PATH = "android-vtslab/testcases/version.txt"
+
 
 class CommandRelease(base_command_processor.BaseCommandProcessor):
     """Command processor for update command.
@@ -39,6 +42,9 @@ class CommandRelease(base_command_processor.BaseCommandProcessor):
         command_detail: string, detailed explanation for the command.
         _timers: dict, instances of scheduled threading.Timer.
                  Uses timestamp("%H:%M") string as a key.
+        _vtslab_package_version: string, version information of the fetched
+                                 vtslab package.
+                                 (<git commit timestamp>:<git commit hash value>)
     """
 
     command = "release"
@@ -48,6 +54,7 @@ class CommandRelease(base_command_processor.BaseCommandProcessor):
     def SetUp(self):
         """Initializes the parser for update command."""
         self._timers = {}
+        self._vtslab_package_version = ""
         self.arg_parser.add_argument(
             "--schedule-for",
             default="17:00",
@@ -73,7 +80,7 @@ class CommandRelease(base_command_processor.BaseCommandProcessor):
             "--additional_files_bucket",
             default="gs://vtslab-release",
             help="GCS bucket URL from where to fetch the additional files "
-                 "required for HC to run properly.")
+            "required for HC to run properly.")
 
     # @Override
     def Run(self, arg_line):
@@ -141,6 +148,12 @@ class CommandRelease(base_command_processor.BaseCommandProcessor):
             "pab"].FetchLatestBuiltHCPackage(account_id, branch, target)
 
         with zipfile.ZipFile(fetched_path, mode="a") as vtslab_package:
+            if _VERSION_INFO_FILE_PATH in vtslab_package.namelist():
+                self._vtslab_package_version = vtslab_package.open(
+                    _VERSION_INFO_FILE_PATH).readline().strip()
+            else:
+                self._vtslab_package_version = ""
+
             for path in _REPACKAGE_ADDITIONAL_FILE_LIST:
                 additional_file = os.path.join(bucket, path)
                 self.console.build_provider["gcs"].Fetch(additional_file)
@@ -165,14 +178,23 @@ class CommandRelease(base_command_processor.BaseCommandProcessor):
         """
         if dest_path and dest_path.endswith("/"):
             split_list = os.path.basename(package_file_path).split(".")
-            split_list[0] += "-{timestamp_date}"
+            if self._vtslab_package_version:
+                try:
+                    timestamp, hash = self._vtslab_package_version.split(":")
+                    split_list[0] += "-%s-%s" % (timestamp, hash)
+                except ValueError as e:
+                    logging.exception(e)
+                    split_list[0] += "-{timestamp_date}"
+            else:
+                split_list[0] += "-{timestamp_date}"
             dest_path += ".".join(split_list)
 
         upload_command = "upload --src %s --dest %s" % (package_file_path,
                                                         dest_path)
         self.console.onecmd(upload_command)
 
-    def ReleaseCallback(self, schedule_for, account_id, branch, target, dest, bucket):
+    def ReleaseCallback(self, schedule_for, account_id, branch, target, dest,
+                        bucket):
         """Target function for the scheduled Timer.
 
         Args:
