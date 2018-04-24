@@ -187,6 +187,8 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
         else:
             logging.error("Unknown job command %s", command)
 
+    out_queue.put("exit")
+
 
 class Console(cmd.Cmd):
     """The console for host controllers.
@@ -706,6 +708,20 @@ class Console(cmd.Cmd):
         if hasattr(self, "_job_thread"):
             self._job_thread.keep_running = False
             self._job_thread.join()
+
+    def WaitForJobsToExit(self):
+        """Wait for the running jobs to complete before exiting HC."""
+        if self._job_pool:
+            pool_process_count = common._MAX_LEASED_JOBS
+            for _ in range(common._MAX_LEASED_JOBS):
+                self._job_in_queue.put("exit")
+
+            while True:
+                response = self._job_out_queue.get()
+                if response == "exit":
+                    pool_process_count -= 1
+                if pool_process_count <= 0:
+                    break
 
     # @Override
     def onecmd(self, line, depth=1, ret_out_queue=None):

@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
+import logging
+
 from host_controller.command_processor import base_command_processor
 
 
@@ -31,12 +33,31 @@ class CommandExit(base_command_processor.BaseCommandProcessor):
     command_detail = ""
 
     # @Override
+    def SetUp(self):
+        """Initializes the parser for request command."""
+        self.arg_parser.add_argument(
+            "--wait_for_jobs",
+            default=True,
+            help="True to wait for the running jobs to complete before exiting."
+        )
+
+    # @Override
     def Run(self, arg_line):
         """Terminates the console.
 
         Returns:
             True, which stops the cmdloop.
         """
+        args = self.arg_parser.ParseLine(arg_line)
+
+        self.console.onecmd("device --update stop")
+
+        if args.wait_for_jobs:
+            if (type(args.wait_for_jobs) != str or
+                args.wait_for_jobs.lower() == "true"):
+                logging.info("waiting for running jobs to complete...")
+                self.console.WaitForJobsToExit()
+
         self.console.StopJobThreadAndProcessPool()
         self.console.__exit__()
         return True
