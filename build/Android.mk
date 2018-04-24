@@ -67,6 +67,7 @@ host_hc_gsispl_copy_pairs := \
 # host controller scripts.
 host_hc_extra_copy_pairs := \
   test/framework/tools/host_controller/run:$(VTSLAB_TOOLS_OUT)/run \
+  test/framework/tools/host_controller/make_screen:$(VTSLAB_TOOLS_OUT)/make_screen \
   test/vts/script/diagnose.py:$(VTSLAB_BIN_LIB_OUT)/bin/diagnose.py \
   test/vts/script/pip_requirements.txt:$(VTSLAB_BIN_LIB_OUT)/bin/pip_requirements.txt \
   test/vts/script/setup.sh:$(VTSLAB_BIN_LIB_OUT)/bin/setup.sh \
