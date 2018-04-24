@@ -555,6 +555,7 @@ class Console(cmd.Cmd):
 
         commands = script_module.EmitConsoleCommands(**kwargs)
         if commands:
+            logging.info("Console commands: %s", commands)
             for command in commands:
                 ret = self.onecmd(command)
                 if ret == False:
