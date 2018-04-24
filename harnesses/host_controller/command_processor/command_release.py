@@ -31,6 +31,15 @@ _REPACKAGE_ADDITIONAL_FILE_LIST = [
 # Path to the version.txt file in the fetched vtslab package zip.
 _VERSION_INFO_FILE_PATH = "android-vtslab/testcases/version.txt"
 
+# List of strings for supported ak versions.
+AK_VERSIONS = ["8.0.0", "8.0.1", "8.1.0", "9", "O", "OMR1", "P"]
+
+for version in AK_VERSIONS:
+    file_path = "android-vtslab/testcases/DATA/ak/.%s.ak" % version
+    _REPACKAGE_ADDITIONAL_FILE_LIST.append(file_path)
+    file_path += ".pub"
+    _REPACKAGE_ADDITIONAL_FILE_LIST.append(file_path)
+
 
 class CommandRelease(base_command_processor.BaseCommandProcessor):
     """Command processor for update command.
