@@ -258,7 +258,7 @@ class Console(cmd.Cmd):
                 with open(common._VTSLAB_VERSION_TXT, "r") as file:
                     self._vtslab_version = file.readline().strip()
                     file.close()
-                    logging.info("VTSLAB versoin: %s" % self._vtslab_version)
+                    logging.info("VTSLAB version: %s" % self._vtslab_version)
             except IOError as e:
                 logging.exception(e)
                 logging.error("Version info missing in vtslab package. "
