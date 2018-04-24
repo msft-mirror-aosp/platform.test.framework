@@ -225,9 +225,10 @@ def EmitFlashCommands(gsi, **kwargs):
                         "flash --current --serial %s --skip-vbmeta=True " %
                         serials[shard_index])
                 new_cmd_list.append("adb -s %s root" % serials[shard_index])
-                new_cmd_list.append(
-                    "dut --operation=wifi_on --serial=%s --ap=%s" %
-                    (serials[shard_index], common._DEFAULT_WIFI_AP))
+                if common.SDM845 not in build_target:  # b/78487061
+                    new_cmd_list.append(
+                        "dut --operation=wifi_on --serial=%s --ap=%s" %
+                        (serials[shard_index], common._DEFAULT_WIFI_AP))
                 sub_commands.append(new_cmd_list)
         result.append(sub_commands)
     else:
@@ -239,8 +240,9 @@ def EmitFlashCommands(gsi, **kwargs):
         else:
             result.append(
                 "flash --current --serial %s --skip-vbmeta=True" % serials[0])
-        result.append("dut --operation=wifi_on --serial=%s --ap=%s" %
-                      (serials[0], common._DEFAULT_WIFI_AP))
+        if common.SDM845 not in build_target:  # b/78487061
+            result.append("dut --operation=wifi_on --serial=%s --ap=%s" %
+                          (serials[0], common._DEFAULT_WIFI_AP))
         if serials:
             serial_arg_list = []
             for serial in serials:
