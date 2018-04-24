@@ -535,7 +535,7 @@ class Console(cmd.Cmd):
             True if successful; False otherwise
             String which represents URL to the upload infra log file.
         """
-        if script_file_path and "." not in script_file_path:
+        if script_file_path and not script_file_path.endswith(".py"):
             script_file_path += ".py"
 
         if not script_file_path.endswith(".py"):
