@@ -569,6 +569,10 @@ class Console(cmd.Cmd):
         infra_log_upload_command = "upload"
         infra_log_upload_command += " --src=%s" % src
         infra_log_upload_command += " --dest=%s" % dest
+        for serial in kwargs["serial"]:
+            if self.device_status[serial] == common._DEVICE_STATUS_DICT["error"]:
+                self.vti_endpoint_client.SetJobStatusFromLeasedTo("bootup-err")
+                break
         if not self.vti_endpoint_client.CheckBootUpStatus():
             infra_log_upload_command += (" --report_path=gs://vts-report/"
                                          "suite_result/{timestamp_year}/"
