@@ -180,6 +180,7 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
         suite_res_msg.target = self.console.FormatString("{target}")
         vti = self.console.vti_endpoint_client
         suite_res_msg.boot_success = vti.CheckBootUpStatus()
+        suite_res_msg.test_type = vti.GetJobTestType()
 
         if vti.CheckBootUpStatus():
             former_results = [
