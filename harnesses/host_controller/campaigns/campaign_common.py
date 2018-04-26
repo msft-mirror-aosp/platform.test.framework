@@ -376,8 +376,6 @@ def GenerateSdm845SetupCommands(serial):
         # TODO: to make sure {tmp_dir} is unique per session and
         #       is cleaned up at exit.
         "shell -- mkdir -p {tmp_dir}/%s" % serial,
-        ("adb -s %s pull /system/lib64/libdrm.so "
-         "{tmp_dir}/%s" % (serial, serial)),
         ("adb -s %s pull /system/lib64/vendor.display.color@1.0.so "
          "{tmp_dir}/%s" % (serial, serial)),
         ("adb -s %s pull /system/lib64/vendor.display.config@1.0.so "
@@ -419,7 +417,6 @@ def GenerateSdm845GsiFlashingCommands(serial):
          "/system/lib64/vndk-P/android.hidl.base@1.0.so" % serial),
         ("adb -s %s shell ln -- -s /system/lib/vndk-sp-P/libhidltransport.so "
          "/system/lib/vndk-P/android.hidl.base@1.0.so" % serial),
-        "adb -s %s push libdrm.so /system/lib64" % serial,
         ("adb -s %s push {tmp_dir}/%s/vendor.display.color@1.0.so "
          "/system/lib64" % (serial, serial)),
         ("adb -s %s push {tmp_dir}/%s/vendor.display.config@1.0.so "
