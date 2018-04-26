@@ -30,6 +30,9 @@ _PIP_REQUIREMENTS_PATHS = [
     "test/framework/harnesses/host_controller/script/pip_requirements.txt"
 ]
 
+# Path to the file that contains the abs path to the deployed vtslab pakcage.
+_VTSLAB_PACKAGE_PATH_FILENAME = ".vtslab_package_path"
+
 
 def SetPassword(password):
     """Sets password for hosts to access through ssh and to run sudo commands
@@ -109,6 +112,29 @@ def SetupUSBPermission():
     sudo("service udev restart")
 
 
+def SetupADBVendorKeysEnvVar():
+    """Appends scripts for ADB_VENDOR_KEYS path setup.
+
+    In setup step, this function looks into .bashrc file for this script, and
+    if there is not then appends the below scripts to .bashrc.
+    Later when shell env created (through ssh or screen instance creation time),
+    .bashrc file will look for _VTSLAB_PACKAGE_PATH_FILENAME and use the
+    contents of the file to set ADB_VENDOR_KEYS.
+
+    usage: $ fab SetupADBVendorKeysEnvVar
+    """
+    if not contains("~/.bashrc", _VTSLAB_PACKAGE_PATH_FILENAME):
+        run("echo '' >> ~/.bashrc", )
+        run("echo '# Set $ADB_VENDOR_KEYS as paths to adb private key files "
+            "within the vtslab-package' >> ~/.bashrc")
+        run("echo 'if [ -f ~/%s ]; then' >> ~/.bashrc" %
+            _VTSLAB_PACKAGE_PATH_FILENAME)
+        run("echo '  export ADB_VENDOR_KEYS=$(find $(cat ~/%s)/android-vtslab/"
+            "testcases/DATA/ak -name \".*.ak\" | tr \"\\n\" \":\")' "
+            ">> ~/.bashrc" % _VTSLAB_PACKAGE_PATH_FILENAME)
+        run("echo 'fi' >> ~/.bashrc")
+
+
 def SetupPackages(ip_address_file_path=None):
     """Sets up the execution environment for vts `run` command.
 
@@ -176,6 +202,8 @@ def SetupPackages(ip_address_file_path=None):
     if ip_address_file_path is not None:
         SetupIptables(ip_address_file_path)
 
+    SetupADBVendorKeysEnvVar()
+
 
 def DeployVtslab(vtslab_package_gcs_url=None):
     """Deploys vtslab package.
@@ -217,6 +245,7 @@ def DeployVtslab(vtslab_package_gcs_url=None):
     vtslab_package_file_name = os.path.basename(vtslab_package_gcs_url)
     run("mkdir -p ~/run/%s.dir/" % vtslab_package_file_name)
     with cd("~/run/%s.dir" % vtslab_package_file_name):
+        run("pwd > ~/%s" % _VTSLAB_PACKAGE_PATH_FILENAME)
         run("gsutil cp %s ./" % vtslab_package_gcs_url)
         run("unzip -o %s" % vtslab_package_file_name)
     with cd("~/run/%s.dir/android-vtslab/tools" % vtslab_package_file_name):
