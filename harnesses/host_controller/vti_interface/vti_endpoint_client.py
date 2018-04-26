@@ -388,3 +388,17 @@ class VtiEndpointClient(object):
         if self._job:
             return (self._job["status"] != JOB_STATUS_DICT["bootup-err"])
         return False
+
+    def GetJobTestType(self):
+        """Returns the test type of the leased job.
+
+        Returns:
+            int, test_type attr in the job message. 0 when there is no job
+            leased to this vti_endpoint_client.
+        """
+        if self._job and "test_type" in self._job:
+            try:
+                return int(self._job["test_type"])
+            except ValueError as e:
+                logging.exception(e)
+        return 0
