@@ -115,11 +115,13 @@ class VtiEndpointClient(object):
             return False
         return True
 
-    def UploadScheduleInfo(self, pbs):
+    def UploadScheduleInfo(self, pbs, clear_schedule):
         """Uploads the given schedule information to VTI.
 
         Args:
             pbs: a list of dicts, containing info about all task schedules.
+            clear_schedule: bool, True to clear all schedule data exist on the
+                            scheduler
 
         Returns:
             True if successful, False otherwise.
@@ -129,12 +131,13 @@ class VtiEndpointClient(object):
 
         url = self._url + "schedule_info/v1/clear"
         succ = True
-        response = requests.post(
-            url, data=json.dumps({"manifest_branch": "na"}),
-            headers=self._headers)
-        if response.status_code != requests.codes.ok:
-            logging.error("UploadScheduleInfo error: %s", response)
-            succ = False
+        if clear_schedule:
+            response = requests.post(
+                url, data=json.dumps({"manifest_branch": "na"}),
+                headers=self._headers)
+            if response.status_code != requests.codes.ok:
+                logging.error("UploadScheduleInfo error: %s", response)
+                succ = False
 
         if not succ:
             return False
@@ -175,11 +178,13 @@ class VtiEndpointClient(object):
                         succ = False
         return succ
 
-    def UploadLabInfo(self, pbs):
+    def UploadLabInfo(self, pbs, clear_labinfo):
         """Uploads the given lab information to VTI.
 
         Args:
             pbs: a list of dicts, containing info about all known labs.
+            clear_labinfo: bool, True to clear all lab data exist on the
+                           scheduler
 
         Returns:
             True if successful, False otherwise.
@@ -189,11 +194,12 @@ class VtiEndpointClient(object):
 
         url = self._url + "lab_info/v1/clear"
         succ = True
-        response = requests.post(url, data=json.dumps({"name": "na"}),
-                                 headers=self._headers)
-        if response.status_code != requests.codes.ok:
-            logging.error("UploadLabInfo error: %s", response)
-            succ = False
+        if clear_labinfo:
+            response = requests.post(url, data=json.dumps({"name": "na"}),
+                                     headers=self._headers)
+            if response.status_code != requests.codes.ok:
+                logging.error("UploadLabInfo error: %s", response)
+                succ = False
 
         if not succ:
             return False
