@@ -162,6 +162,7 @@ class VtiEndpointClient(object):
                     schedule["gsi_branch"] = test_schedule.gsi_branch
                     schedule["gsi_build_target"] = test_schedule.gsi_build_target
                     schedule["gsi_pab_account_id"] = test_schedule.gsi_pab_account_id
+                    schedule["gsi_vendor_version"] = test_schedule.gsi_vendor_version
                     schedule["test_storage_type"] = test_schedule.test_storage_type
                     schedule["test_branch"] = test_schedule.test_branch
                     schedule["test_build_target"] = test_schedule.test_build_target
@@ -388,3 +389,17 @@ class VtiEndpointClient(object):
         if self._job:
             return (self._job["status"] != JOB_STATUS_DICT["bootup-err"])
         return False
+
+    def GetJobTestType(self):
+        """Returns the test type of the leased job.
+
+        Returns:
+            int, test_type attr in the job message. 0 when there is no job
+            leased to this vti_endpoint_client.
+        """
+        if self._job and "test_type" in self._job:
+            try:
+                return int(self._job["test_type"])
+            except ValueError as e:
+                logging.exception(e)
+        return 0

@@ -15,6 +15,7 @@
 #
 
 import logging
+import os
 
 from host_controller import common
 from host_controller.command_processor import base_command_processor
@@ -155,8 +156,15 @@ class CommandFetch(base_command_processor.BaseCommandProcessor):
             logging.error("ERROR: unknown fetch type %s", args.type)
             return False
 
-        self.console.fetch_info["branch"] = args.branch
-        self.console.fetch_info["target"] = args.target
+        if args.type == "gcs":
+            gcs_path, filename = os.path.split(args.path)
+            self.console.fetch_info["branch"] = gcs_path
+            self.console.fetch_info["target"] = filename
+            self.console.fetch_info["build_id"] = "latest"
+        else:
+            self.console.fetch_info["branch"] = args.branch
+            self.console.fetch_info["target"] = args.target
+
         self.console.UpdateFetchInfo(provider.GetFetchedArtifactType())
 
         self.console.device_image_info.update(device_images)

@@ -148,6 +148,8 @@ class BuildProvider(object):
             suite_name = "android-%s" % test_suite
             tradefed_name = "%s-tradefed" % test_suite
             dest_path = os.path.join(self.tmp_dirpath, suite_name)
+            if os.path.exists(dest_path):
+                shutil.rmtree(dest_path)
             with zipfile.ZipFile(path, 'r') as zip_ref:
                 zip_ref.extractall(dest_path)
                 bin_path = os.path.join(dest_path, suite_name,
