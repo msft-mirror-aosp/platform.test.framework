@@ -162,6 +162,7 @@ class VtiEndpointClient(object):
                     schedule["gsi_branch"] = test_schedule.gsi_branch
                     schedule["gsi_build_target"] = test_schedule.gsi_build_target
                     schedule["gsi_pab_account_id"] = test_schedule.gsi_pab_account_id
+                    schedule["gsi_vendor_version"] = test_schedule.gsi_vendor_version
                     schedule["test_storage_type"] = test_schedule.test_storage_type
                     schedule["test_branch"] = test_schedule.test_branch
                     schedule["test_build_target"] = test_schedule.test_build_target
