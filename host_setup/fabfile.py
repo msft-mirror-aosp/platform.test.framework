@@ -252,7 +252,7 @@ def DeployVtslab(vtslab_package_gcs_url=None):
         new_screen_name = run("cat ../testcases/version.txt")
 
     with cd("~/run/%s.dir/android-vtslab/tools" % vtslab_package_file_name):
-        run("./make_screen %s" % new_screen_name)
+        run("./make_screen %s ; sleep 1" % new_screen_name)
     run("screen -S %s -X stuff \"./run --vti=%s\"" % (new_screen_name, vti))
     run("screen -S %s -X stuff \"^M\"" % new_screen_name)
     time.sleep(5)
