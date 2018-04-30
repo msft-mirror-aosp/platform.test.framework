@@ -39,6 +39,22 @@ def HasAttr(attr, **kwargs):
     return True if attr in kwargs and kwargs[attr] else False
 
 
+def GetVersion(branch):
+    """Returns the API level (integer) for the given branch."""
+    branch = str(branch.lower())
+    if branch.startswith("git_"):
+        branch = branch[4:]
+    if branch.startswith("aosp-"):
+        branch = branch[5:]
+    if branch.startswith("o") and branch.endswith("mr1"):
+        return 8.1
+    elif branch.startswith("o"):
+        return 8.0
+    elif branch.startswith("p"):
+        return 9.0
+    return 9.0
+
+
 def EmitFetchCommands(**kwargs):
     """Returns a list of common fetch commands.
 
@@ -283,9 +299,16 @@ def EmitCommonConsoleCommands(**kwargs):
     if HasAttr("param", **kwargs):
         param = " ".join(kwargs["param"])
 
+    test_branch = kwargs["test_branch"]
+    if (GetVersion(test_branch) >= 9.0 and (suite_name == "cts"
+        or plan_name == "cts-on-gsi")):
+        shard_option = "--shard-count"
+    else:
+        shard_option = "--shards"
+
     if shards > 1:
-        test_command = "test --suite %s --keep-result -- %s --shards %d %s" % (
-            suite_name, plan_name, shards, param)
+        test_command = "test --suite %s --keep-result -- %s %s %d %s" % (
+            suite_name, plan_name, shard_option, shards, param)
         if shards <= len(serials):
             for shard_index in range(shards):
                 test_command += " --serial %s" % serials[shard_index]
