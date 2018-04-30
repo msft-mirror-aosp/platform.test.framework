@@ -556,6 +556,7 @@ class Console(cmd.Cmd):
         script_module = imp.load_source('script_module', script_file_path)
 
         commands = script_module.EmitConsoleCommands(**kwargs)
+        logging.info("Command list: %s", commands)
         if commands:
             logging.info("Console commands: %s", commands)
             for command in commands:
