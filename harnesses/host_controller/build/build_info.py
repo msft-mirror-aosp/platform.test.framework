@@ -64,3 +64,9 @@ class BuildInfo(dict):
                 self[k] = v
         for k, v in kwargs.items():
             self[k] = v
+
+        dict_keys = self.keys()
+        for key in dict_keys:
+            if not os.path.exists(self[key]):
+                logging.info(
+                    "Removing path info %s from build info", self.pop(key))
