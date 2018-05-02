@@ -44,7 +44,11 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
     command = "device"
     command_detail = "Selects device(s) under test."
 
-    def UpdateDevice(self, server_type, host, lease):
+    def UpdateDevice(self,
+                     server_type,
+                     host,
+                     lease,
+                     suppress_lock_warning=True):
         """Updates the device state of all devices on a given host.
 
         Args:
@@ -69,10 +73,12 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                     device["serial"] = line.split()[0]
                     serial = device["serial"]
 
-                    if self.console.file_lock.LockDevice(serial) == False:
+                    if self.console.file_lock.LockDevice(
+                            serial, suppress_lock_warning) == False:
                         self.console.device_status[
                             serial] = common._DEVICE_STATUS_DICT["use"]
-                        logging.info("Device %s already locked." % serial)
+                        if not suppress_lock_warning:
+                            logging.info("Device %s already locked." % serial)
                         continue
 
                     stdout, _, retcode = cmd_utils.ExecuteOneShellCommand(
@@ -88,10 +94,12 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                     device["serial"] = line.split()[0]
                     serial = device["serial"]
 
-                    if self.console.file_lock.LockDevice(serial) == False:
+                    if self.console.file_lock.LockDevice(
+                            serial, suppress_lock_warning) == False:
                         self.console.device_status[
                             serial] = common._DEVICE_STATUS_DICT["use"]
-                        logging.info("Device %s already locked." % serial)
+                        if not suppress_lock_warning:
+                            logging.info("Device %s already locked." % serial)
                         continue
 
                     _, stderr, retcode = cmd_utils.ExecuteOneShellCommand(
@@ -135,7 +143,12 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
             logging.error("Error: unknown server_type %s for UpdateDevice",
                           server_type)
 
-    def UpdateDeviceRepeat(self, server_type, host, lease, update_interval):
+    def UpdateDeviceRepeat(self,
+                           server_type,
+                           host,
+                           lease,
+                           update_interval,
+                           suppress_lock_warning=True):
         """Regularly updates the device state of devices on a given host.
 
         Args:
@@ -147,7 +160,8 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
         thread = threading.currentThread()
         while getattr(thread, 'keep_running', True):
             try:
-                self.UpdateDevice(server_type, host, lease)
+                self.UpdateDevice(server_type, host, lease,
+                                  suppress_lock_warning)
             except (socket.error, remote_operation.RemoteOperationException,
                     httplib2.HttpLib2Error, errors.HttpError) as e:
                 logging.exception(e)
@@ -183,6 +197,10 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
             default=False,
             type=bool,
             help="Whether to lease jobs and execute them.")
+        self.arg_parser.add_argument(
+            "--suppress_lock_warning",
+            default=True,
+            help="Whether to suppress device lock warning messages.")
 
     # @Override
     def Run(self, arg_line):
@@ -197,8 +215,17 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                     raise ConsoleArgumentError("More than one host.")
                 args.host = 0
             host = self.console._hosts[args.host]
+
+            if args.suppress_lock_warning:
+                if (type(args.suppress_lock_warning) != str
+                        or args.suppress_lock_warning.lower() == "true"):
+                    suppress_lock_warning = True
+                else:
+                    suppress_lock_warning = False
+
             if args.update == "single":
-                self.UpdateDevice(args.server_type, host, args.lease)
+                self.UpdateDevice(args.server_type, host, args.lease,
+                                  suppress_lock_warning)
             elif args.update == "start":
                 if args.interval <= 0:
                     raise ConsoleArgumentError(
@@ -217,6 +244,7 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                         host,
                         args.lease,
                         args.interval,
+                        suppress_lock_warning,
                     ))
                 self.update_thread.daemon = True
                 self.update_thread.start()
