@@ -252,7 +252,7 @@ class CommandRelease(base_command_processor.BaseCommandProcessor):
                     days=1)
             self._timers[schedule_for] = threading.Timer(
                 delta_time.total_seconds(), self.ReleaseCallback,
-                (schedule_for, account_id, branch, target, dest))
+                (schedule_for, account_id, branch, target, dest, bucket))
             self._timers[schedule_for].daemon = True
             self._timers[schedule_for].start()
             logging.info("Release job scheduled for {}".format(
