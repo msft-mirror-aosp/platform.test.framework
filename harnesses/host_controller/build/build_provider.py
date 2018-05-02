@@ -124,6 +124,9 @@ class BuildProvider(object):
                 self.SetDeviceImage("gsi-zipfile", path)
                 dir_key = common.GSI_ZIPFILE_DIR  # "gsi-zipfile-dir"
                 fetch_type = common._ARTIFACT_TYPE_GSI
+            if os.path.exists(dest_path):
+                shutil.rmtree(dest_path)
+                logging.info("%s %s deleted", dir_key, dest_path)
             zip_ref.extractall(dest_path)
             self.SetFetchedDirectory(dest_path)
             self.SetDeviceImage(dir_key, dest_path)
@@ -150,6 +153,7 @@ class BuildProvider(object):
             dest_path = os.path.join(self.tmp_dirpath, suite_name)
             if os.path.exists(dest_path):
                 shutil.rmtree(dest_path)
+                logging.info("test suite %s deleted", dest_path)
             with zipfile.ZipFile(path, 'r') as zip_ref:
                 zip_ref.extractall(dest_path)
                 bin_path = os.path.join(dest_path, suite_name,
