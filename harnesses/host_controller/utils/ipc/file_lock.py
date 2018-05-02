@@ -60,7 +60,7 @@ class FileLock(object):
             logging.exception(e)
             return False
 
-    def LockDevice(self, serial):
+    def LockDevice(self, serial, suppress_lock_warning=False):
         """Tries to lock the file corresponding to "serial".
 
         Args:
@@ -77,7 +77,8 @@ class FileLock(object):
         try:
             fcntl.lockf(self._lock_fd[serial], fcntl.LOCK_EX | fcntl.LOCK_NB)
         except IOError as e:
-            logging.exception(e)
+            if not suppress_lock_warning:
+                logging.exception(e)
             return False
 
         return True
