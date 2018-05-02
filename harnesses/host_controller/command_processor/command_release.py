@@ -17,6 +17,7 @@
 import os
 import datetime
 import logging
+import stat
 import threading
 import zipfile
 
@@ -26,6 +27,11 @@ from host_controller.command_processor import base_command_processor
 _REPACKAGE_ADDITIONAL_FILE_LIST = [
     "android-vtslab/testcases/DATA/app/WifiUtil/WifiUtil.apk",
     "android-vtslab/testcases/host_controller/build/client_secrets.json",
+    "android-vtslab/testcases/host_controller/build/credentials",
+]
+
+_REPACKAGE_ADDITIONAL_BIN_LIST = [
+    "android-vtslab/bin/adb",
 ]
 
 # Path to the version.txt file in the fetched vtslab package zip.
@@ -173,6 +179,23 @@ class CommandRelease(base_command_processor.BaseCommandProcessor):
                     additional_file_path = self.console.build_provider[
                         "gcs"].GetAdditionalFile(os.path.basename(path))
                     vtslab_package.write(additional_file_path, path)
+                except KeyError as e:
+                    logging.exception(e)
+
+            for bin in _REPACKAGE_ADDITIONAL_BIN_LIST:
+                additional_bin = os.path.join(bucket, bin)
+                self.console.build_provider["gcs"].Fetch(additional_bin)
+                try:
+                    logging.info("Adding executable %s into %s" %
+                                 (os.path.basename(bin),
+                                  os.path.basename(fetched_path)))
+                    additional_bin_path = self.console.build_provider[
+                        "gcs"].GetAdditionalFile(os.path.basename(bin))
+                    bin_mode = os.stat(additional_bin_path).st_mode
+                    os.chmod(
+                        additional_bin_path,
+                        bin_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                    vtslab_package.write(additional_bin_path, bin)
                 except KeyError as e:
                     logging.exception(e)
 
