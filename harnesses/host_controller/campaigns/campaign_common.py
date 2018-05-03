@@ -330,7 +330,7 @@ def EmitCommonConsoleCommands(**kwargs):
         retry_command = ("retry --suite %s --count %d" % (suite_name,
                                                           retry_count))
         if shards > 1:
-            retry_command += " --shards %d" % shards
+            retry_command += " %s %d" % (shard_option, shards)
             for shard_index in range(shards):
                 retry_command += " --serial %s" % serials[shard_index]
         else:
