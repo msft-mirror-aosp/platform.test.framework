@@ -106,6 +106,10 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
                         'r') as zip_ref:
                     zip_ref.extractall(dest_path)
                     img_path = os.path.join(dest_path, "boot.img")
+                    if not os.path.exists(img_path):
+                        logging.error("No %s file in device img .zip.",
+                                      args.version_from_path)
+                        return
             else:
                 logging.error("Cannot find %s file.", args.version_from_path)
                 return False
@@ -118,8 +122,8 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
                     version_dict["year"], version_dict["month"],
                     common._SPL_DEFAULT_DAY)
             else:
-                logging.error(
-                    "Failed to fetch SPL version from %s file.", img_path)
+                logging.error("Failed to fetch SPL version from %s file.",
+                              img_path)
                 return False
         else:
             logging.error("version ID or path of .img file must be given.")
@@ -135,8 +139,8 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
         if args.vendor_version:
             command = command + " -v " + args.vendor_version
         if self.console.password.value:
-            command = "echo {} | sudo -S {}".format(self.console.password.value,
-                                                    command)
+            command = "echo {} | sudo -S {}".format(
+                self.console.password.value, command)
         stdout, stderr, err_code = cmd_utils.ExecuteOneShellCommand(command)
         if err_code is 0:
             if not args.gsi:
