@@ -330,7 +330,7 @@ def EmitCommonConsoleCommands(**kwargs):
         retry_command = ("retry --suite %s --count %d" % (suite_name,
                                                           retry_count))
         if shards > 1:
-            retry_command += " --shards %d" % shards
+            retry_command += " %s %d" % (shard_option, shards)
             for shard_index in range(shards):
                 retry_command += " --serial %s" % serials[shard_index]
         else:
@@ -399,6 +399,8 @@ def GenerateSdm845SetupCommands(serial):
         # TODO: to make sure {tmp_dir} is unique per session and
         #       is cleaned up at exit.
         "shell -- mkdir -p {tmp_dir}/%s" % serial,
+        ("adb -s %s pull /system/lib64/libdrm.so "
+         "{tmp_dir}/%s" % (serial, serial)),
         ("adb -s %s pull /system/lib64/vendor.display.color@1.0.so "
          "{tmp_dir}/%s" % (serial, serial)),
         ("adb -s %s pull /system/lib64/vendor.display.config@1.0.so "
@@ -427,7 +429,8 @@ def GenerateSdm845GsiFlashingCommands(serial):
     """
     return [
         "fastboot -s %s flash system {device-image[system.img]}" % serial,
-        "fastboot -s %s -- -w reboot" % serial,
+        # removed -w from below command
+        "fastboot -s %s -- reboot" % serial,
         "sleep 90",  # wait until adb shell (not boot complete)
         "adb -s %s root" % serial,
         "adb -s %s remount" % serial,
@@ -436,10 +439,8 @@ def GenerateSdm845GsiFlashingCommands(serial):
         "adb -s %s shell chown system:system /bt_firmware" % serial,
         "adb -s %s shell chmod 650 /bt_firmware" % serial,
         "adb -s %s shell setenforce 1" % serial,
-        ("adb -s %s shell ln -- -s /system/lib64/vndk-sp-P/libhidltransport.so "
-         "/system/lib64/vndk-P/android.hidl.base@1.0.so" % serial),
-        ("adb -s %s shell ln -- -s /system/lib/vndk-sp-P/libhidltransport.so "
-         "/system/lib/vndk-P/android.hidl.base@1.0.so" % serial),
+        ("adb -s %s push {tmp_dir}/%s/libdrm.so "
+         "/system/lib64" % (serial, serial)),
         ("adb -s %s push {tmp_dir}/%s/vendor.display.color@1.0.so "
          "/system/lib64" % (serial, serial)),
         ("adb -s %s push {tmp_dir}/%s/vendor.display.config@1.0.so "
@@ -452,7 +453,8 @@ def GenerateSdm845GsiFlashingCommands(serial):
          "/system/lib64" % (serial, serial)),
         "adb -s %s reboot bootloader" % serial,
         "sleep 5",
-        "fastboot -s %s  -- -w reboot" % serial,
+        # removed -w from below command
+        "fastboot -s %s  -- reboot" % serial,
         "sleep 300",  # wait for boot_complete (success)
     ]
 

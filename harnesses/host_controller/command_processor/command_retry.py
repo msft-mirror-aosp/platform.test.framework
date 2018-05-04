@@ -143,7 +143,14 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
             help="Serial number for device. Can pass this flag multiple times."
         )
         self.arg_parser.add_argument(
-            "--shards", type=int, default=1, help="Test plan's shard count.")
+            "--shards", type=int, help="Test plan's shard count.")
+        self.arg_parser.add_argument(
+            "--shard-count",
+            type=int,
+            help=
+            "Test plan's shard count. Same as the \"--shards\" flag but the "
+            "value will be passed to the tradefed with \"--shard-count\" flag."
+        )
         self.arg_parser.add_argument(
             "--cleanup_devices",
             default=False,
@@ -158,12 +165,12 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
         retry_count = args.count
         force_retry_count = args.force_count
 
-        if "vts" not in self.console.test_suite_info:
-            logging.error("test_suite_info doesn't have 'vts': %s",
+        if args.suite not in self.console.test_suite_info:
+            logging.error("test_suite_info doesn't have '%s': %s", args.suite,
                           self.console.test_suite_info)
             return False
 
-        tools_path = os.path.dirname(self.console.test_suite_info["vts"])
+        tools_path = os.path.dirname(self.console.test_suite_info[args.suite])
         results_path = os.path.join(tools_path, common._RESULTS_BASE_PATH)
 
         unzipped_result_dir = ""
@@ -228,10 +235,22 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
                              (retry_count - result_index))
                 break
 
-            retry_test_command = (
-                "test --suite=%s --keep-result -- %s --retry %d --shards %d" %
-                (args.suite, result_attrs[common._SUITE_PLAN_ATTR_KEY],
-                 session_id, args.shards))
+            shard_flag_literal = ""
+            if args.shards:
+                shard_flag_literal = "--shards"
+            if args.shard_count:
+                shard_flag_literal = "--shard-count"
+
+            if shard_flag_literal:
+                retry_test_command = (
+                    "test --suite=%s --keep-result -- %s --retry %d %s %d" %
+                    (args.suite, result_attrs[common._SUITE_PLAN_ATTR_KEY],
+                     session_id, shard_flag_literal, args.shards))
+            else:
+                retry_test_command = (
+                    "test --suite=%s --keep-result -- %s --retry %d" %
+                    (args.suite, result_attrs[common._SUITE_PLAN_ATTR_KEY],
+                     session_id))
             if args.serial:
                 for serial in args.serial:
                     retry_test_command += " --serial %s" % serial
