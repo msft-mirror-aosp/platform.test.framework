@@ -300,8 +300,8 @@ def EmitCommonConsoleCommands(**kwargs):
         param = " ".join(kwargs["param"])
 
     test_branch = kwargs["test_branch"]
-    if (GetVersion(test_branch) >= 9.0 and (suite_name == "cts"
-        or plan_name == "cts-on-gsi")):
+    if (GetVersion(test_branch) >= 9.0
+            and (suite_name == "cts" or plan_name.startswith("cts"))):
         shard_option = "--shard-count"
     else:
         shard_option = "--shards"
