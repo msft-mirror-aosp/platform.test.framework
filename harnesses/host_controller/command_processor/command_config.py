@@ -16,6 +16,7 @@
 
 import httplib2
 import logging
+import itertools
 import os
 import socket
 import threading
@@ -48,7 +49,8 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
     command = "config"
     command_detail = "Specifies a global config type to monitor."
 
-    def UpdateConfig(self, account_id, branch, targets, config_type, method):
+    def UpdateConfig(self, account_id, branch, targets, config_type, method,
+                     update_build):
         """Updates the global configuration data.
 
         Args:
@@ -57,6 +59,7 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
             targets: string, a comma-separate list of build target product(s).
             config_type: string, config type (`prod` or `test').
             method: string, HTTP method for fetching.
+            update_build: boolean, indicating whether to upload build info.
         """
 
         self.console._build_provider["pab"].Authenticate()
@@ -112,12 +115,19 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
                             except text_format.ParseError as e:
                                 logging.error(
                                     "ERROR: Config parsing error %s", e)
+                    if update_build:
+                        commands = self.GetBuildCommands(schedules_pbs)
+                        if commands:
+                            for command in commands:
+                                ret = self.console.onecmd(command)
+                                if ret == False:
+                                    break
                     self.console._vti_endpoint_client.UploadScheduleInfo(
                         schedules_pbs)
                     self.console._vti_endpoint_client.UploadLabInfo(lab_pbs)
 
     def UpdateConfigLoop(self, account_id, branch, target, config_type, method,
-                         update_interval):
+                         update_build, update_interval):
         """Regularly updates the global configuration.
 
         Args:
@@ -126,17 +136,148 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
             targets: string, a comma-separate list of build target product(s).
             config_type: string, config type (`prod` or `test').
             method: string, HTTP method for fetching.
+            update_build: boolean, indicating whether to upload build info.
             update_interval: int, number of seconds before repeating
         """
         thread = threading.currentThread()
         while getattr(thread, 'keep_running', True):
             try:
                 self.UpdateConfig(account_id, branch, target, config_type,
-                                  method)
+                                  method, update_build)
             except (socket.error, remote_operation.RemoteOperationException,
                     httplib2.HttpLib2Error, errors.HttpError) as e:
                 logging.exception(e)
             time.sleep(update_interval)
+
+    def GetBuildCommands(self, schedule_pbs):
+        """Generates a list of build commands with given schedules.
+
+        Args:
+            schedule_pbs: a list of TestScheduleConfig protobuf messages.
+
+        Returns:
+            a list of build command strings
+        """
+        attrs = {}
+        attrs["device"] = [
+            "build_storage_type", "manifest_branch", "pab_account_id",
+            "require_signed_device_build", "name"
+        ]
+        attrs["gsi"] = [
+            "gsi_storage_type", "gsi_branch", "gsi_pab_account_id",
+            "gsi_build_target"
+        ]
+        attrs["test"] = [
+            "test_storage_type", "test_branch", "test_pab_account_id",
+            "test_build_target"
+        ]
+
+        class BuildInfo(object):
+            """A build information class."""
+            def __init__(self, _build_type):
+                if _build_type in attrs:
+                    for attribute in attrs[_build_type]:
+                        setattr(self, attribute, "")
+
+            def __eq__(self, compare):
+                return self.__dict__ == compare.__dict__
+
+        build_commands = []
+        if not schedule_pbs:
+            return build_commands
+
+        # parses the given protobuf and stores as BuildInfo object.
+        builds = {"device": [], "gsi": [], "test": []}
+        for pb in schedule_pbs:
+            for build_target in pb.build_target:
+                build_type = "device"
+                device = BuildInfo(build_type)
+                for attr in attrs[build_type]:
+                    if hasattr(pb, attr):
+                        setattr(device, attr, getattr(pb, attr, None))
+                    elif hasattr(build_target, attr):
+                        setattr(device, attr, getattr(build_target, attr,
+                                                      None))
+                if not [x for x in builds[build_type] if x == device]:
+                    builds[build_type].append(device)
+                for test_schedule in build_target.test_schedule:
+                    build_type = "gsi"
+                    gsi = BuildInfo(build_type)
+                    for attr in attrs[build_type]:
+                        if hasattr(test_schedule, attr):
+                            setattr(gsi, attr,
+                                    getattr(test_schedule, attr, None))
+                    if not [x for x in builds[build_type] if x == gsi]:
+                        builds[build_type].append(gsi)
+
+                    build_type = "test"
+                    test = BuildInfo(build_type)
+                    for attr in attrs[build_type]:
+                        if hasattr(test_schedule, attr):
+                            setattr(test, attr,
+                                    getattr(test_schedule, attr, None))
+                    if not [x for x in builds[build_type] if x == test]:
+                        builds[build_type].append(test)
+
+        # groups by artifact, branch, and account id, and builds a command.
+        for artifact in attrs:
+            load_attrs = attrs[artifact]
+            if artifact == "device":
+                storage_type_text = "build_storage_type"
+            else:
+                storage_type_text = "" + artifact + "_storage_type"
+            pab_builds = [x for x in builds[artifact]
+                          if getattr(x, storage_type_text) ==
+                          SchedCfgMsg.BUILD_STORAGE_TYPE_PAB]
+            pab_builds.sort(key=lambda x: tuple([getattr(x, attribute)
+                                                 for attribute in load_attrs]))
+            groups = [list(g) for k, g in itertools.groupby(
+                pab_builds, lambda x: tuple([getattr(x, attribute)
+                                             for attribute
+                                             in load_attrs[1:-1]]))]
+            for group in groups:
+                command = ("build --artifact-type={} --method=GET "
+                           "--noauth_local_webserver=True --update=single".
+                           format(artifact))
+                if artifact == "device":
+                    if group[0].manifest_branch:
+                        command += " --branch={}".format(
+                            group[0].manifest_branch)
+                    else:
+                        logging.debug(
+                            "Device manifest branch is a mandatory field.")
+                        continue
+                    if group[0].pab_account_id:
+                        command += " --account_id={}".format(
+                            group[0].pab_account_id)
+                    if group[0].require_signed_device_build:
+                        command += " --verify-signed-build=True"
+                    targets = ",".join([x.name for x in group if x.name])
+                    if targets:
+                        command += " --target={}".format(targets)
+                        build_commands.append(command)
+                else:
+                    if getattr(group[0], "" + artifact + "_branch"):
+                        command += " --branch={}".format(
+                            getattr(group[0], "" + artifact + "_branch"))
+                    else:
+                        logging.debug(
+                            "{} branch is a mandatory field.".format(artifact))
+                        continue
+                    if getattr(group[0], "" + artifact + "_pab_account_id"):
+                        command += " --account_id={}".format(
+                            getattr(group[0],
+                                    "" + artifact + "_pab_account_id"))
+                    targets = ",".join([
+                        getattr(x, "" + artifact + "_build_target")
+                        for x in group
+                        if getattr(x, "" + artifact + "_build_target")
+                    ])
+                    if targets:
+                        command += " --target={}".format(targets)
+                        build_commands.append(command)
+
+        return build_commands
 
     # @Override
     def SetUp(self):
@@ -178,6 +319,11 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
             default='GET',
             choices=('GET', 'POST'),
             help='Method for fetching')
+        self.arg_parser.add_argument(
+            '--update_build',
+            dest='update_build',
+            action='store_true',
+            help='A boolean value indicating whether to upload build info.')
 
     # @Override
     def Run(self, arg_line):
@@ -185,7 +331,7 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
         args = self.arg_parser.ParseLine(arg_line)
         if args.update == "single":
             self.UpdateConfig(args.account_id, args.branch, args.target,
-                              args.config_type, args.method)
+                              args.config_type, args.method, args.update_build)
         elif args.update == "list":
             logging.info("Running config update sessions:")
             for id in self.schedule_thread:
@@ -204,9 +350,9 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
                 args.id = int(args.id)
             if args.id in self.schedule_thread and not hasattr(
                     self.schedule_thread[args.id], 'keep_running'):
-                logging.warning(
-                    'config update already running. '
-                    'run config --update=stop --id=%s first.', args.id)
+                logging.warning('config update already running. '
+                                'run config --update=stop --id=%s first.',
+                                args.id)
                 return
             self.schedule_thread[args.id] = threading.Thread(
                 target=self.UpdateConfigLoop,
@@ -216,6 +362,7 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
                     args.target,
                     args.config_type,
                     args.method,
+                    args.update_build,
                     args.interval,
                 ))
             self.schedule_thread[args.id].daemon = True
