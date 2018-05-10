@@ -106,12 +106,16 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
                               e)
                 return False
 
-        src_path_list = src_paths.split(" ")
-        for path in src_path_list:
-            src_path = path.strip()
-            if not os.path.isfile(src_path):
-                logging.error("Cannot find a file: {}".format(src_path))
-                return False
+        src_path_list_tmp = src_paths.split(" ")
+        src_path_list = []
+        if src_path_list_tmp:
+            for src_path in src_path_list_tmp:
+                file_path = src_path.strip()
+                if os.path.isfile(file_path):
+                    src_path_list.append(file_path)
+                else:
+                    logging.error("Cannot find a file: {}".format(file_path))
+        src_paths = " ".join(src_path_list)
 
         try:
             dest_path = self.console.FormatString(args.dest)
