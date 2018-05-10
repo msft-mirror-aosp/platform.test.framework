@@ -15,8 +15,8 @@
 #
 
 import httplib2
-import logging
 import itertools
+import logging
 import os
 import socket
 import threading
@@ -65,72 +65,105 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
             clear_labinfo: bool, True to clear all lab data exist on the
                            scheduler
         """
-
-        self.console._build_provider["pab"].Authenticate()
         for target in targets.split(","):
-            try:
-                listed_builds = self.console._build_provider[
-                    "pab"].GetBuildList(
+            fetch_path = self.FetchConfig(
+                account_id=account_id,
+                branch=branch,
+                target=target,
+                config_type=config_type,
+                method=method)
+            if fetch_path:
+                self.UploadConfig(
+                    path=fetch_path,
+                    update_build=update_build,
+                    clear_schedule=clear_schedule,
+                    clear_labinfo=clear_labinfo)
+
+    def FetchConfig(self, account_id, branch, target, config_type, method):
+        """Fetches config files from the PAB build provider.
+
+        Args:
+            account_id: string, Partner Android Build account_id to use.
+            branch: string, branch to grab the artifact from.
+            target: string, build target.
+            config_type: string, config type (`prod` or `test').
+            method: string, HTTP method for fetching.
+
+        Returns:
+            string, a path to the temp directory where config files are stored.
+        """
+        path = ""
+        self.console._build_provider["pab"].Authenticate()
+        try:
+            listed_builds = self.console._build_provider["pab"].GetBuildList(
+                account_id=account_id,
+                branch=branch,
+                target=target,
+                page_token="",
+                max_results=1,
+                method="GET")
+        except ValueError as e:
+            logging.exception(e)
+            return path
+
+        if listed_builds and len(listed_builds) > 0:
+            listed_build = listed_builds[0]
+            if listed_build["successful"]:
+                device_images, test_suites, artifacts, configs = (
+                    self.console._build_provider["pab"].GetArtifact(
                         account_id=account_id,
                         branch=branch,
                         target=target,
-                        page_token="",
-                        max_results=1,
-                        method="GET")
-            except ValueError as e:
-                logging.exception(e)
-                continue
+                        artifact_name=(
+                            "vti-global-config-%s.zip" % config_type),
+                        build_id=listed_build["build_id"],
+                        method=method))
+                path = os.path.dirname(configs[config_type])
 
-            if listed_builds and len(listed_builds) > 0:
-                listed_build = listed_builds[0]
-                if listed_build["successful"]:
-                    device_images, test_suites, artifacts, configs = self.console._build_provider[
-                        "pab"].GetArtifact(
-                            account_id=account_id,
-                            branch=branch,
-                            target=target,
-                            artifact_name=(
-                                "vti-global-config-%s.zip" % config_type),
-                            build_id=listed_build["build_id"],
-                            method=method)
-                    base_path = os.path.dirname(configs[config_type])
-                    schedules_pbs = []
-                    lab_pbs = []
-                    for root, dirs, files in os.walk(base_path):
-                        for config_file in files:
-                            full_path = os.path.join(root, config_file)
-                            try:
-                                if config_file.endswith(".schedule_config"):
-                                    with open(full_path, "r") as fd:
-                                        context = fd.read()
-                                        sched_cfg_msg = SchedCfgMsg.ScheduleConfigMessage(
-                                        )
-                                        text_format.Merge(
-                                            context, sched_cfg_msg)
-                                        schedules_pbs.append(sched_cfg_msg)
-                                        logging.info(
-                                            sched_cfg_msg.manifest_branch)
-                                elif config_file.endswith(".lab_config"):
-                                    with open(full_path, "r") as fd:
-                                        context = fd.read()
-                                        lab_cfg_msg = LabCfgMsg.LabConfigMessage(
-                                        )
-                                        text_format.Merge(context, lab_cfg_msg)
-                                        lab_pbs.append(lab_cfg_msg)
-                            except text_format.ParseError as e:
-                                logging.error("ERROR: Config parsing error %s",
-                                              e)
-                    if update_build:
-                        commands = self.GetBuildCommands(schedules_pbs)
-                        if commands:
-                            for command in commands:
-                                ret = self.console.onecmd(command)
-                                if ret == False:
-                                    break
-                    self.console._vti_endpoint_client.UploadScheduleInfo(
-                        schedules_pbs, clear_schedule)
-                    self.console._vti_endpoint_client.UploadLabInfo(
-                        lab_pbs, clear_labinfo)
+        return path
+
+    def UploadConfig(self, path, update_build, clear_schedule, clear_labinfo):
+        """Uploads configs to VTI server.
+
+        Args:
+            path: string, a path where config files are stored.
+            update_build: boolean, indicating whether to upload build info.
+            clear_schedule: bool, True to clear all schedule data exist on the
+                            scheduler
+            clear_labinfo: bool, True to clear all lab data exist on the
+                           scheduler
+        """
+        schedules_pbs = []
+        lab_pbs = []
+        for root, dirs, files in os.walk(path):
+            for config_file in files:
+                full_path = os.path.join(root, config_file)
+                try:
+                    if config_file.endswith(".schedule_config"):
+                        with open(full_path, "r") as fd:
+                            context = fd.read()
+                            sched_cfg_msg = SchedCfgMsg.ScheduleConfigMessage()
+                            text_format.Merge(context, sched_cfg_msg)
+                            schedules_pbs.append(sched_cfg_msg)
+                            logging.info(sched_cfg_msg.manifest_branch)
+                    elif config_file.endswith(".lab_config"):
+                        with open(full_path, "r") as fd:
+                            context = fd.read()
+                            lab_cfg_msg = LabCfgMsg.LabConfigMessage()
+                            text_format.Merge(context, lab_cfg_msg)
+                            lab_pbs.append(lab_cfg_msg)
+                except text_format.ParseError as e:
+                    logging.error("ERROR: Config parsing error %s", e)
+        if update_build:
+            commands = self.GetBuildCommands(schedules_pbs)
+            if commands:
+                for command in commands:
+                    ret = self.console.onecmd(command)
+                    if ret == False:
+                        break
+        self.console._vti_endpoint_client.UploadScheduleInfo(
+            schedules_pbs, clear_schedule)
+        self.console._vti_endpoint_client.UploadLabInfo(lab_pbs, clear_labinfo)
 
     def UpdateConfigLoop(self, account_id, branch, target, config_type, method,
                          update_build, update_interval, clear_schedule,
@@ -401,5 +434,7 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
 
     def Help(self):
         base_command_processor.BaseCommandProcessor.Help(self)
-        logging.info("Sample: schedule --target=aosp_sailfish-userdebug "
-                     "--branch=git_oc-release")
+        logging.info("Sample: config --branch=<branch name> "
+                     "--target=<build target> "
+                     "--account_id=<account id> --config-type=[prod|test] "
+                     "--update=single")
