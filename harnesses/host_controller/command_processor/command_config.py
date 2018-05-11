@@ -50,7 +50,7 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
     command_detail = "Specifies a global config type to monitor."
 
     def UpdateConfig(self, account_id, branch, targets, config_type, method,
-                     update_build):
+                     update_build, clear_schedule, clear_labinfo):
         """Updates the global configuration data.
 
         Args:
@@ -60,18 +60,23 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
             config_type: string, config type (`prod` or `test').
             method: string, HTTP method for fetching.
             update_build: boolean, indicating whether to upload build info.
+            clear_schedule: bool, True to clear all schedule data exist on the
+                            scheduler
+            clear_labinfo: bool, True to clear all lab data exist on the
+                           scheduler
         """
 
         self.console._build_provider["pab"].Authenticate()
         for target in targets.split(","):
             try:
-                listed_builds = self.console._build_provider["pab"].GetBuildList(
-                    account_id=account_id,
-                    branch=branch,
-                    target=target,
-                    page_token="",
-                    max_results=1,
-                    method="GET")
+                listed_builds = self.console._build_provider[
+                    "pab"].GetBuildList(
+                        account_id=account_id,
+                        branch=branch,
+                        target=target,
+                        page_token="",
+                        max_results=1,
+                        method="GET")
             except ValueError as e:
                 logging.exception(e)
                 continue
@@ -113,8 +118,8 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
                                         text_format.Merge(context, lab_cfg_msg)
                                         lab_pbs.append(lab_cfg_msg)
                             except text_format.ParseError as e:
-                                logging.error(
-                                    "ERROR: Config parsing error %s", e)
+                                logging.error("ERROR: Config parsing error %s",
+                                              e)
                     if update_build:
                         commands = self.GetBuildCommands(schedules_pbs)
                         if commands:
@@ -123,11 +128,13 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
                                 if ret == False:
                                     break
                     self.console._vti_endpoint_client.UploadScheduleInfo(
-                        schedules_pbs)
-                    self.console._vti_endpoint_client.UploadLabInfo(lab_pbs)
+                        schedules_pbs, clear_schedule)
+                    self.console._vti_endpoint_client.UploadLabInfo(
+                        lab_pbs, clear_labinfo)
 
     def UpdateConfigLoop(self, account_id, branch, target, config_type, method,
-                         update_build, update_interval):
+                         update_build, update_interval, clear_schedule,
+                         clear_labinfo):
         """Regularly updates the global configuration.
 
         Args:
@@ -138,12 +145,17 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
             method: string, HTTP method for fetching.
             update_build: boolean, indicating whether to upload build info.
             update_interval: int, number of seconds before repeating
+            clear_schedule: bool, True to clear all schedule data exist on the
+                            scheduler
+            clear_labinfo: bool, True to clear all lab data exist on the
+                           scheduler
         """
         thread = threading.currentThread()
         while getattr(thread, 'keep_running', True):
             try:
                 self.UpdateConfig(account_id, branch, target, config_type,
-                                  method, update_build)
+                                  method, update_build, clear_schedule,
+                                  clear_labinfo)
             except (socket.error, remote_operation.RemoteOperationException,
                     httplib2.HttpLib2Error, errors.HttpError) as e:
                 logging.exception(e)
@@ -174,6 +186,7 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
 
         class BuildInfo(object):
             """A build information class."""
+
             def __init__(self, _build_type):
                 if _build_type in attrs:
                     for attribute in attrs[_build_type]:
@@ -226,9 +239,11 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
                 storage_type_text = "build_storage_type"
             else:
                 storage_type_text = "" + artifact + "_storage_type"
-            pab_builds = [x for x in builds[artifact]
-                          if getattr(x, storage_type_text) ==
-                          SchedCfgMsg.BUILD_STORAGE_TYPE_PAB]
+            pab_builds = [
+                x for x in builds[artifact]
+                if getattr(x, storage_type_text) ==
+                SchedCfgMsg.BUILD_STORAGE_TYPE_PAB
+            ]
             pab_builds.sort(key=lambda x: tuple([getattr(x, attribute)
                                                  for attribute in load_attrs]))
             groups = [list(g) for k, g in itertools.groupby(
@@ -324,6 +339,14 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
             dest='update_build',
             action='store_true',
             help='A boolean value indicating whether to upload build info.')
+        self.arg_parser.add_argument(
+            "--clear_schedule",
+            default=False,
+            help="True to clear all schedule data on the scheduler cloud")
+        self.arg_parser.add_argument(
+            "--clear_labinfo",
+            default=False,
+            help="True to clear all lab info data on the scheduler cloud")
 
     # @Override
     def Run(self, arg_line):
@@ -331,7 +354,8 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
         args = self.arg_parser.ParseLine(arg_line)
         if args.update == "single":
             self.UpdateConfig(args.account_id, args.branch, args.target,
-                              args.config_type, args.method, args.update_build)
+                              args.config_type, args.method, args.update_build,
+                              args.clear_schedule, args.clear_labinfo)
         elif args.update == "list":
             logging.info("Running config update sessions:")
             for id in self.schedule_thread:
@@ -364,6 +388,8 @@ class CommandConfig(base_command_processor.BaseCommandProcessor):
                     args.method,
                     args.update_build,
                     args.interval,
+                    args.clear_schedule,
+                    args.clear_labinfo,
                 ))
             self.schedule_thread[args.id].daemon = True
             self.schedule_thread[args.id].start()
