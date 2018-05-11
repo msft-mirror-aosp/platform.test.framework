@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import logging
 import os
 
 from host_controller.build import build_provider
