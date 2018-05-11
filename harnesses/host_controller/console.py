@@ -397,7 +397,8 @@ class Console(cmd.Cmd):
         current_status = self.device_status[serial]
         self.device_status[serial] = state
 
-        if (current_status == common._DEVICE_STATUS_DICT["use"]
+        if (current_status in (common._DEVICE_STATUS_DICT["use"],
+                               common._DEVICE_STATUS_DICT["error"])
                 and current_status != state):
             self._file_lock.UnlockDevice(serial)
 
@@ -481,7 +482,7 @@ class Console(cmd.Cmd):
                 if name == "hc_log_file":
                     value = os.path.basename(value)
                 elif name == "hc_log_upload_path":
-                    value  = self._logfile_upload_path
+                    value = self._logfile_upload_path
             elif name in ("hostname"):
                 value = socket.gethostname()
             else:
