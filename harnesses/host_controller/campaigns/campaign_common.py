@@ -46,12 +46,29 @@ def GetVersion(branch):
         branch = branch[4:]
     if branch.startswith("aosp-"):
         branch = branch[5:]
-    if branch.startswith("o") and branch.endswith("mr1"):
+
+    if "-treble-" in branch:
+        branch = branch.replace("-treble-", "-")
+
+    if branch.endswith("-dev"):
+        branch = branch[:-4]
+    elif branch.endswith("-release"):
+        branch = branch[:-8]
+
+    if (branch.startswith("o")
+        and branch.endswith(("mr1", "m2", "m3", "m4", "m5", "m6"))):
         return 8.1
     elif branch.startswith("o"):
         return 8.0
     elif branch.startswith("p"):
         return 9.0
+    elif branch.startswith("gs://"):
+        if "v8.0" in branch:
+            return 8.0
+        elif "v8.1" in branch:
+            return 8.1
+        elif "v9.0" in branch:
+            return 9.0
     return 9.0
 
 

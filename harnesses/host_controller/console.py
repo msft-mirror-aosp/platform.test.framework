@@ -36,6 +36,7 @@ from host_controller import common
 from host_controller.command_processor import command_adb
 from host_controller.command_processor import command_build
 from host_controller.command_processor import command_config
+from host_controller.command_processor import command_config_local
 from host_controller.command_processor import command_copy
 from host_controller.command_processor import command_device
 from host_controller.command_processor import command_dut
@@ -69,6 +70,7 @@ COMMAND_PROCESSORS = [
     command_adb.CommandAdb,
     command_build.CommandBuild,
     command_config.CommandConfig,
+    command_config_local.CommandConfigLocal,
     command_copy.CommandCopy,
     command_device.CommandDevice,
     command_dut.CommandDUT,
