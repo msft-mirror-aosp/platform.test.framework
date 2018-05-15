@@ -141,7 +141,7 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
     console = Console(
         vti_client,
         None,
-        build_provider_pab.BuildProviderPAB(),
+        None,
         None,
         job_pool=True)
     console.device_status = device_status
@@ -158,6 +158,9 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
             if filepath is not None:
                 # TODO: redirect console output and add
                 # console command to access them.
+
+                console._build_provider["pab"] = build_provider_pab.BuildProviderPAB()
+                console._build_provider["gcs"] = build_provider_gcs.BuildProviderGCS()
 
                 for serial in kwargs["serial"]:
                     console.ChangeDeviceState(
@@ -186,6 +189,9 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
                 for serial in kwargs["serial"]:
                     console.ChangeDeviceState(
                         serial, common._DEVICE_STATUS_DICT["ready"])
+
+                del console._build_provider["pab"]
+                del console._build_provider["gcs"]
         else:
             logging.error("Unknown job command %s", command)
 
@@ -246,10 +252,10 @@ class Console(cmd.Cmd):
         # cmd.Cmd is old-style class.
         cmd.Cmd.__init__(self, stdin=in_file, stdout=out_file)
         self._build_provider = {}
-        self._build_provider["pab"] = pab
-        self._build_provider["gcs"] = build_provider_gcs.BuildProviderGCS()
         self._job_pool = job_pool
         if not self._job_pool:
+            self._build_provider["pab"] = pab
+            self._build_provider["gcs"] = build_provider_gcs.BuildProviderGCS()
             self._build_provider[
                 "local_fs"] = build_provider_local_fs.BuildProviderLocalFS()
             self._build_provider["ab"] = build_provider_ab.BuildProviderAB()
