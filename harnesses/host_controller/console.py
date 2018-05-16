@@ -154,7 +154,7 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
             break
         elif command == "lease":
             filepath, kwargs = vti_client.LeaseJob(socket.gethostname(), True)
-            logging.info("Job %s -> %s" % (os.getpid(), kwargs))
+            logging.debug("Job %s -> %s" % (os.getpid(), kwargs))
             if filepath is not None:
                 # TODO: redirect console output and add
                 # console command to access them.
