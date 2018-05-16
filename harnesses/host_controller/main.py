@@ -129,6 +129,10 @@ def main():
                         default=None,
                         help="Password string to pass to the prompt "
                              "when running certain command as root previlege.")
+    parser.add_argument("--flash",
+                        default=None,
+                        help="GCS URL to an img package. Fetches and flashes "
+                             "the device(s) given as the '--serial' flag.")
     args = parser.parse_args()
     if args.config_file:
         config_json = json.load(args.config_file)
@@ -209,6 +213,8 @@ def main():
 
                 if args.console:
                     main_console.cmdloop()
+            elif args.flash:
+                main_console.FlashImgPackage(args.flash)
             else:  # if not script, the default is console mode.
                 main_console.cmdloop()
         finally:

@@ -476,7 +476,7 @@ def GenerateSdm845GsiFlashingCommands(serial):
     ]
 
 
-def GenerateUniversal9810GsiFlashingCommands(serial, gsi=True):
+def GenerateUniversal9810GsiFlashingCommands(serial, gsi=False):
     """Returns a sequence of console commands to flash device imgs and GSI.
 
     Args:
@@ -516,3 +516,9 @@ def GenerateUniversal9810GsiFlashingCommands(serial, gsi=True):
     result.append("sleep 300")  # wait for boot_complete (success)
 
     return result
+
+
+FLASH_COMMAND_EMITTER = {
+    common.SDM845: GenerateSdm845SetupCommands,
+    common.UNIVERSAL9810: GenerateUniversal9810GsiFlashingCommands,
+}
