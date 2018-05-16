@@ -52,6 +52,7 @@ from host_controller.command_processor import command_password
 from host_controller.command_processor import command_release
 from host_controller.command_processor import command_retry
 from host_controller.command_processor import command_request
+from host_controller.command_processor import command_repack
 from host_controller.command_processor import command_shell
 from host_controller.command_processor import command_sleep
 from host_controller.command_processor import command_test
@@ -87,6 +88,7 @@ COMMAND_PROCESSORS = [
     command_release.CommandRelease,
     command_retry.CommandRetry,
     command_request.CommandRequest,
+    command_repack.CommandRepack,
     command_shell.CommandShell,
     command_sleep.CommandSleep,
     command_test.CommandTest,

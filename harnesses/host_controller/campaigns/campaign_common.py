@@ -232,6 +232,7 @@ def EmitFlashCommands(gsi, **kwargs):
         list of command string.
     """
     result = []
+    result.append("repack")
     if isinstance(kwargs["build_target"], list):
         build_target = kwargs["build_target"][0]
     else:
