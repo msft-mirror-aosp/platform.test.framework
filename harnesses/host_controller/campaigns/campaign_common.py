@@ -116,15 +116,20 @@ def EmitFetchCommands(**kwargs):
         if common.UNIVERSAL9810 in build_target:
             result[-1] += " --full_device_images=True"
 
-        result.append(
-            "fetch --type=pab --branch=%s --target=%s --artifact_name=bootloader.img "
-            "--build_id=%s --account_id=%s" % (manifest_branch, build_target,
-                                               build_id, pab_account_id))
+        if HasAttr("has_bootloader_img", **kwargs):
+            result.append(
+                "fetch --type=pab --branch=%s --target=%s "
+                "--artifact_name=bootloader.img --build_id=%s "
+                "--account_id=%s" %
+                (manifest_branch, build_target, build_id, pab_account_id))
 
-        result.append(
-            "fetch --type=pab --branch=%s --target=%s --artifact_name=radio.img "
-            "--build_id=%s --account_id=%s" % (manifest_branch, build_target,
-                                               build_id, pab_account_id))
+        if HasAttr("has_radio_img", **kwargs):
+            result.append(
+                "fetch --type=pab --branch=%s --target=%s "
+                "--artifact_name=radio.img --build_id=%s "
+                "--account_id=%s" %
+                (manifest_branch, build_target, build_id, pab_account_id))
+
     elif build_storage_type == pb.BUILD_STORAGE_TYPE_GCS:
         result.append("fetch --type=gcs --path=%s" % (manifest_branch))
         if common.UNIVERSAL9810 in build_target:
@@ -249,7 +254,11 @@ def EmitFlashCommands(gsi, **kwargs):
         if shards <= len(serials):
             for shard_index in range(shards):
                 new_cmd_list = []
-                if common.SDM845 in build_target and gsi:
+                if common.K39TV1_BSP in build_target:
+                    new_cmd_list.extend(
+                        GenerateMt6739GsiFlashingCommands(
+                            serials[shard_index], gsi))
+                elif common.SDM845 in build_target and gsi:
                     new_cmd_list.extend(
                         GenerateSdm845GsiFlashingCommands(
                             serials[shard_index]))
@@ -269,7 +278,9 @@ def EmitFlashCommands(gsi, **kwargs):
                 sub_commands.append(new_cmd_list)
         result.append(sub_commands)
     else:
-        if common.SDM845 in build_target and gsi:
+        if common.K39TV1_BSP in build_target:
+            result.extend(GenerateMt6739GsiFlashingCommands(serials[0], gsi))
+        elif common.SDM845 in build_target and gsi:
             result.extend(GenerateSdm845GsiFlashingCommands(serials[0]))
         elif common.UNIVERSAL9810 in build_target:
             result.extend(
@@ -483,6 +494,55 @@ def GenerateSdm845GsiFlashingCommands(serial):
     ]
 
 
+def GenerateMt6739GsiFlashingCommands(serial, gsi=False):
+    """Returns a sequence of console commands to flash device imgs and GSI.
+
+    Args:
+        serial: string, the target device serial number.
+        gsi: bool, whether to flash GSI over vendor images or not.
+
+    Returns:
+        a list of strings, each string is a console command.
+    """
+    flash_img_cmd = ("fastboot -s %s flash %s "
+                     "{device-image[full-zipfile-dir]}/%s")
+    flash_gsi_cmd = ("fastboot -s %s flash system "
+                     "{device-image[gsi-zipfile-dir]}/system.img")
+    result = [
+        flash_img_cmd % (serial, partition, image) for partition, image in (
+            ("lk", "lk.img"),
+            ("md1img", "md1img.img"),
+            ("md1dsp", "md1dsp.img"),
+            ("preloader", "preloader_k39tv1_bsp.bin"),
+            ("recovery", "recovery.img"),
+            ("spmfw", "spmfw.img"),
+            ("mcupmfw", "mcupmfw.img"),
+            ("lk2", "lk.img"),
+            ("loader_ext1", "loader_ext.img"),
+            ("loader_ext2", "loader_ext.img"),
+            ("boot", "boot.img"),
+            ("logo", "logo.bin"),
+            ("odmdtbo", "odmdtbo.img"),
+            ("tee1", "tee.img"),
+            ("tee2", "tee.img"),
+            ("vendor", "vendor.img"),
+            ("cache", "cache.img"),
+            ("userdata", "userdata.img"),
+        )
+    ]
+
+    if gsi:
+        result.append(flash_gsi_cmd % serial)
+        result.append("fastboot -s %s -- -w" % serial)
+    else:
+        result.append(flash_img_cmd % (serial, "system", "system.img"))
+
+    result.append("fastboot -s %s reboot" % serial)
+    result.append("sleep 300")  # wait for boot_complete (success)
+
+    return result
+
+
 def GenerateUniversal9810GsiFlashingCommands(serial, gsi=False):
     """Returns a sequence of console commands to flash device imgs and GSI.
 
@@ -526,6 +586,7 @@ def GenerateUniversal9810GsiFlashingCommands(serial, gsi=False):
 
 
 FLASH_COMMAND_EMITTER = {
+    common.K39TV1_BSP: GenerateMt6739GsiFlashingCommands,
     common.SDM845: GenerateSdm845SetupCommands,
     common.UNIVERSAL9810: GenerateUniversal9810GsiFlashingCommands,
 }
