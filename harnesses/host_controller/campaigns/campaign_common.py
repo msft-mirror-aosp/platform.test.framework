@@ -321,8 +321,10 @@ def EmitCommonConsoleCommands(**kwargs):
     if (GetVersion(test_branch) >= 9.0
             and (suite_name == "cts" or plan_name.startswith("cts"))):
         shard_option = "--shard-count"
+        retry_option = "--retry_plan=%s-retry" % plan_name
     else:
         shard_option = "--shards"
+        retry_option = ""
 
     if shards > 1:
         test_command = "test --suite %s --keep-result -- %s %s %d %s" % (
@@ -345,8 +347,9 @@ def EmitCommonConsoleCommands(**kwargs):
 
     if "retry_count" in kwargs:
         retry_count = int(kwargs["retry_count"])
-        retry_command = ("retry --suite %s --count %d" % (suite_name,
-                                                          retry_count))
+        retry_command = ("retry --suite %s --count %d %s" % (suite_name,
+                                                             retry_count,
+                                                             retry_option))
         if shards > 1:
             retry_command += " %s %d" % (shard_option, shards)
             for shard_index in range(shards):
