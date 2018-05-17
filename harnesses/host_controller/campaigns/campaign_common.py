@@ -233,6 +233,9 @@ def EmitFlashCommands(gsi, **kwargs):
     """
     result = []
     result.append("repack")
+    if HasAttr("image_package_repo_base", **kwargs):
+        result[-1] += " --dest=%s" % kwargs["image_package_repo_base"]
+
     if isinstance(kwargs["build_target"], list):
         build_target = kwargs["build_target"][0]
     else:
