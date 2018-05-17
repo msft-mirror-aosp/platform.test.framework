@@ -198,9 +198,9 @@ def EmitFetchCommands(**kwargs):
 
     if test_storage_type == pb.BUILD_STORAGE_TYPE_PAB:
         result.append("fetch --type=pab --branch=%s --target=%s "
-                      "--artifact_name=android-vts.zip --build_id=%s" %
+                      "--artifact_name=android-%s.zip --build_id=%s" %
                       (kwargs["test_branch"], kwargs["test_build_target"],
-                       test_build_id))
+                       suite_name, test_build_id))
     elif test_storage_type == pb.BUILD_STORAGE_TYPE_GCS:
         result.append("fetch --type=gcs --path=%s/%s.zip --set_suite_as=%s" %
                       (kwargs["test_branch"], kwargs["test_build_target"],
