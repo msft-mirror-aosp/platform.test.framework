@@ -157,6 +157,9 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
             type=bool,
             help="True to erase metadata and userdata (equivalent to "
             "factory reset) between retries.")
+        self.arg_parser.add_argument(
+            "--retry_plan",
+            help="The name of a retry plan to use.")
 
     # @Override
     def Run(self, arg_line):
@@ -241,16 +244,19 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
             if args.shard_count:
                 shard_flag_literal = "--shard-count"
 
+            if args.retry_plan:
+                retry_plan = args.retry_plan
+            else:
+                retry_plan = result_attrs[common._SUITE_PLAN_ATTR_KEY]
             if shard_flag_literal:
                 retry_test_command = (
                     "test --suite=%s --keep-result -- %s --retry %d %s %d" %
-                    (args.suite, result_attrs[common._SUITE_PLAN_ATTR_KEY],
+                    (args.suite, retry_plan,
                      session_id, shard_flag_literal, args.shards))
             else:
                 retry_test_command = (
                     "test --suite=%s --keep-result -- %s --retry %d" %
-                    (args.suite, result_attrs[common._SUITE_PLAN_ATTR_KEY],
-                     session_id))
+                    (args.suite, retry_plan, session_id))
             if args.serial:
                 for serial in args.serial:
                     retry_test_command += " --serial %s" % serial

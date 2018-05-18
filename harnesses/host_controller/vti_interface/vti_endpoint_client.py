@@ -257,7 +257,7 @@ class VtiEndpointClient(object):
         response_json = json.loads(response.text)
         if ("return_code" in response_json
                 and response_json["return_code"] != "SUCCESS"):
-            logging.error("LeaseJob error: %s", response_json)
+            logging.debug("LeaseJob error: %s", response_json)
             return None, {}
 
         if "jobs" not in response_json:

@@ -52,6 +52,7 @@ from host_controller.command_processor import command_password
 from host_controller.command_processor import command_release
 from host_controller.command_processor import command_retry
 from host_controller.command_processor import command_request
+from host_controller.command_processor import command_repack
 from host_controller.command_processor import command_shell
 from host_controller.command_processor import command_sleep
 from host_controller.command_processor import command_test
@@ -65,6 +66,7 @@ from host_controller.utils.ipc import file_lock
 from host_controller.utils.ipc import shared_dict
 from host_controller.vti_interface import vti_endpoint_client
 from vts.runners.host import logger
+from vts.utils.python.common import cmd_utils
 
 COMMAND_PROCESSORS = [
     command_adb.CommandAdb,
@@ -86,6 +88,7 @@ COMMAND_PROCESSORS = [
     command_release.CommandRelease,
     command_retry.CommandRetry,
     command_request.CommandRequest,
+    command_repack.CommandRepack,
     command_shell.CommandShell,
     command_sleep.CommandSleep,
     command_test.CommandTest,
@@ -141,7 +144,7 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
     console = Console(
         vti_client,
         None,
-        build_provider_pab.BuildProviderPAB(),
+        None,
         None,
         job_pool=True)
     console.device_status = device_status
@@ -154,10 +157,13 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
             break
         elif command == "lease":
             filepath, kwargs = vti_client.LeaseJob(socket.gethostname(), True)
-            logging.info("Job %s -> %s" % (os.getpid(), kwargs))
+            logging.debug("Job %s -> %s" % (os.getpid(), kwargs))
             if filepath is not None:
                 # TODO: redirect console output and add
                 # console command to access them.
+
+                console._build_provider["pab"] = build_provider_pab.BuildProviderPAB()
+                console._build_provider["gcs"] = build_provider_gcs.BuildProviderGCS()
 
                 for serial in kwargs["serial"]:
                     console.ChangeDeviceState(
@@ -186,6 +192,9 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
                 for serial in kwargs["serial"]:
                     console.ChangeDeviceState(
                         serial, common._DEVICE_STATUS_DICT["ready"])
+
+                del console._build_provider["pab"]
+                del console._build_provider["gcs"]
         else:
             logging.error("Unknown job command %s", command)
 
@@ -246,10 +255,10 @@ class Console(cmd.Cmd):
         # cmd.Cmd is old-style class.
         cmd.Cmd.__init__(self, stdin=in_file, stdout=out_file)
         self._build_provider = {}
-        self._build_provider["pab"] = pab
-        self._build_provider["gcs"] = build_provider_gcs.BuildProviderGCS()
         self._job_pool = job_pool
         if not self._job_pool:
+            self._build_provider["pab"] = pab
+            self._build_provider["gcs"] = build_provider_gcs.BuildProviderGCS()
             self._build_provider[
                 "local_fs"] = build_provider_local_fs.BuildProviderLocalFS()
             self._build_provider["ab"] = build_provider_ab.BuildProviderAB()
@@ -428,6 +437,7 @@ class Console(cmd.Cmd):
         for command_processor in self.command_processors.itervalues():
             command_processor._TearDown()
         self.command_processors.clear()
+        self.__exit__()
 
     def FormatString(self, format_string):
         """Replaces variables with the values in the console's dictionaries.
@@ -574,7 +584,8 @@ class Console(cmd.Cmd):
         infra_log_upload_command += " --src=%s" % src
         infra_log_upload_command += " --dest=%s" % dest
         for serial in kwargs["serial"]:
-            if self.device_status[serial] == common._DEVICE_STATUS_DICT["error"]:
+            if self.device_status[serial] == common._DEVICE_STATUS_DICT[
+                    "error"]:
                 self.vti_endpoint_client.SetJobStatusFromLeasedTo("bootup-err")
                 break
         if not self.vti_endpoint_client.CheckBootUpStatus():
@@ -582,7 +593,8 @@ class Console(cmd.Cmd):
                                          "suite_result/{timestamp_year}/"
                                          "{timestamp_month}/{timestamp_day}")
             suite_name, plan_name = kwargs["test_name"].split("/")
-            infra_log_upload_command += (" --result_from_suite=%s" % suite_name)
+            infra_log_upload_command += (
+                " --result_from_suite=%s" % suite_name)
             infra_log_upload_command += (" --result_from_plan=%s" % plan_name)
         self.onecmd(infra_log_upload_command)
         logging.getLogger().removeHandler(file_handler)
@@ -678,6 +690,69 @@ class Console(cmd.Cmd):
             serials: A list of strings, the serial numbers.
         """
         self._serials = serials
+
+    def FlashImgPackage(self, package_path_gcs):
+        """Fetches a repackaged image set from GCS and flashes to the device(s).
+
+        Args:
+            package_path_gcs: GCS URL to the packaged img zip file. May contain
+                              the GSI imgs.
+        """
+        self.onecmd("fetch --type=gcs --path=%s" % package_path_gcs)
+        if common.FULL_ZIPFILE not in self.device_image_info:
+            logging.error("Failed to fetch the given file: %s",
+                          package_path_gcs)
+            return False
+
+        if not self._serials:
+            logging.error("Please specify the serial number(s) of target "
+                          "device(s) for flashing.")
+            return False
+
+        campaign_common = imp.load_source(
+            'campaign_common',
+            os.path.join(os.getcwd(), "host_controller", "campaigns",
+                         "campaign_common.py"))
+        flash_command_list = []
+
+        for serial in self._serials:
+            flash_commands = []
+            cmd_utils.ExecuteOneShellCommand(
+                "adb -s %s reboot bootloader" % serial)
+            _, stderr, retcode = cmd_utils.ExecuteOneShellCommand(
+                "fastboot -s %s getvar product" % serial)
+            if retcode == 0:
+                res = stderr.splitlines()[0].rstrip()
+                if ":" in res:
+                    product = res.split(":")[1].strip()
+                elif "waiting for %s" % serial in res:
+                    res = stderr.splitlines()[1].rstrip()
+                    product = res.split(":")[1].strip()
+                else:
+                    product = "error"
+            else:
+                product = "error"
+            logging.info("Device %s product type: %s", serial, product)
+            if product in campaign_common.FLASH_COMMAND_EMITTER:
+                flash_commands.append(
+                    campaign_common.FLASH_COMMAND_EMITTER[product](serial))
+            elif product != "error":
+                flash_commands.append(
+                    "flash --current --serial %s --skip-vbmeta=True" % serial)
+            else:
+                logging.error(
+                    "Device %s does not exist. Omitting the flashing "
+                    "to the device.", serial)
+                continue
+            flash_command_list.append(flash_commands)
+
+        ret = self.onecmd(flash_command_list)
+        if ret == False:
+            logging.error("Flash failed on device %s.", self._serials)
+        else:
+            logging.info("Flash succeeded on device %s.", self._serials)
+
+        return ret
 
     def GetSerials(self):
         """Returns the serial numbers saved in the console.

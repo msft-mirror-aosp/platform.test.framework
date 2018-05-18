@@ -82,6 +82,8 @@ _MAX_LEASED_JOBS = 14
 _DEFAULT_WIFI_AP = "GoogleGuest"
 
 # SoC name list.
+K39TV1_BSP = "k39tv1_bsp"
+
 SDM845 = "sdm845"
 
 UNIVERSAL9810 = "universal9810"
