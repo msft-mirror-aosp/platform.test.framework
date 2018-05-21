@@ -57,8 +57,8 @@ class BuildFlasher(object):
                     raise android_device.AndroidDeviceError(
                         "ADB and fastboot could not find any target devices.")
             if len(serials) > 1:
-                logging.info(
-                    "ADB or fastboot found more than one device: %s", serials)
+                logging.info("ADB or fastboot found more than one device: %s",
+                             serials)
             self.device = android_device.AndroidDevice(
                 serials[0], device_callback_port=-1)
             if customflasher_path:
@@ -167,8 +167,8 @@ class BuildFlasher(object):
                                             "--skip-reboot"))
 
         for partition, image_path in device_images.iteritems():
-            if partition in (common.FULL_ZIPFILE, "system", "vbmeta",
-                             "bootloader", "radio"):
+            if partition in (common.FULL_ZIPFILE, common.FULL_ZIPFILE_DIR,
+                             "system", "vbmeta", "bootloader", "radio"):
                 continue
             if not image_path:
                 self.device.log.warning("%s image is empty", partition)
