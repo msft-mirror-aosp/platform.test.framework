@@ -55,8 +55,8 @@ def GetVersion(branch):
     elif branch.endswith("-release"):
         branch = branch[:-8]
 
-    if (branch.startswith("o")
-        and branch.endswith(("mr1", "m2", "m3", "m4", "m5", "m6"))):
+    if (branch.startswith("o") and branch.endswith(
+        ("mr1", "m2", "m3", "m4", "m5", "m6"))):
         return 8.1
     elif branch.startswith("o"):
         return 8.0
@@ -171,12 +171,13 @@ def EmitFetchCommands(**kwargs):
 
         if gsi_storage_type == pb.BUILD_STORAGE_TYPE_PAB:
             result.append(
-                "fetch --type=pab --branch=%s --target=%s "
+                "fetch --type=pab --branch=%s --target=%s --gsi=True "
                 "--artifact_name=%s-img-{build_id}.zip --build_id=%s" %
                 (kwargs["gsi_branch"], kwargs["gsi_build_target"],
                  kwargs["gsi_build_target"].split("-")[0], gsi_build_id))
         elif gsi_storage_type == pb.BUILD_STORAGE_TYPE_GCS:
-            result.append("fetch --type=gcs --path=%s/%s-img-%s.zip" %
+            result.append("fetch --type=gcs --path=%s/%s-img-%s.zip "
+                          "--gsi=True" %
                           (kwargs["gsi_branch"],
                            kwargs["gsi_build_target"].split("-")[0],
                            gsi_build_id))
