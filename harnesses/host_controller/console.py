@@ -276,6 +276,7 @@ class Console(cmd.Cmd):
                               "Setting version as %s",
                               common._VTSLAB_VERSION_DEFAULT_VALUE)
                 self._vtslab_version = common._VTSLAB_VERSION_DEFAULT_VALUE
+            self._logfile_upload_path = ""
 
         self._vti_endpoint_client = vti_endpoint_client
         self._vti_address = vti_address
