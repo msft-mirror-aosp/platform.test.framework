@@ -117,18 +117,16 @@ def EmitFetchCommands(**kwargs):
             result[-1] += " --full_device_images=True"
 
         if HasAttr("has_bootloader_img", **kwargs):
-            result.append(
-                "fetch --type=pab --branch=%s --target=%s "
-                "--artifact_name=bootloader.img --build_id=%s "
-                "--account_id=%s" %
-                (manifest_branch, build_target, build_id, pab_account_id))
+            result.append("fetch --type=pab --branch=%s --target=%s "
+                          "--artifact_name=bootloader.img --build_id=%s "
+                          "--account_id=%s" % (manifest_branch, build_target,
+                                               build_id, pab_account_id))
 
         if HasAttr("has_radio_img", **kwargs):
-            result.append(
-                "fetch --type=pab --branch=%s --target=%s "
-                "--artifact_name=radio.img --build_id=%s "
-                "--account_id=%s" %
-                (manifest_branch, build_target, build_id, pab_account_id))
+            result.append("fetch --type=pab --branch=%s --target=%s "
+                          "--artifact_name=radio.img --build_id=%s "
+                          "--account_id=%s" % (manifest_branch, build_target,
+                                               build_id, pab_account_id))
 
     elif build_storage_type == pb.BUILD_STORAGE_TYPE_GCS:
         result.append("fetch --type=gcs --path=%s" % (manifest_branch))
@@ -362,9 +360,8 @@ def EmitCommonConsoleCommands(**kwargs):
 
     if "retry_count" in kwargs:
         retry_count = int(kwargs["retry_count"])
-        retry_command = ("retry --suite %s --count %d %s" % (suite_name,
-                                                             retry_count,
-                                                             retry_option))
+        retry_command = ("retry --suite %s --count %d %s" %
+                         (suite_name, retry_count, retry_option))
         if shards > 1:
             retry_command += " %s %d" % (shard_option, shards)
             for shard_index in range(shards):
@@ -395,9 +392,11 @@ def EmitCommonConsoleCommands(**kwargs):
     elif test_storage_type == pb.BUILD_STORAGE_TYPE_GCS:
         upload_command += (" --dest=gs://vts-report/{suite_plan}/%s/"
                            "%s/%s/%s_%s_{timestamp}/" %
-                           (plan_name, kwargs["test_branch"],
-                            kwargs["test_build_target"], build_target,
-                            test_build_id))
+                           (plan_name,
+                            kwargs["test_branch"].replace("gs://", "gs_")
+                            if kwargs["test_branch"].startswith("gs://") else
+                            kwargs["test_branch"], kwargs["test_build_target"],
+                            build_target, test_build_id))
     upload_command += (" --report_path=gs://vts-report/suite_result/"
                        "{timestamp_year}/{timestamp_month}/{timestamp_day}"
                        " --clear_results=True")
@@ -510,7 +509,8 @@ def GenerateMt6739GsiFlashingCommands(serial, gsi=False):
     flash_gsi_cmd = ("fastboot -s %s flash system "
                      "{device-image[gsi-zipfile-dir]}/system.img")
     result = [
-        flash_img_cmd % (serial, partition, image) for partition, image in (
+        flash_img_cmd % (serial, partition, image)
+        for partition, image in (
             ("lk", "lk.img"),
             ("md1img", "md1img.img"),
             ("md1dsp", "md1dsp.img"),
