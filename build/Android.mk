@@ -37,6 +37,9 @@ test_suite_readme := test/framework/README.md
 include $(LOCAL_PATH)/package.mk
 include $(LOCAL_PATH)/utils/vtslab_package_utils.mk
 
+# TODO: instead of an alias, deprecate vtslab build target
+.PHONY: lab
+lab: vtslab
 .PHONY: vtslab
 vtslab: $(compatibility_zip)
 $(call dist-for-goals, vtslab, $(compatibility_zip))
