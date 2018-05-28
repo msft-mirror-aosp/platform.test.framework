@@ -157,6 +157,12 @@ class VtiEndpointClient(object):
                     schedule["priority"] = test_schedule.priority
                     schedule["device"] = []
                     schedule["device"].extend(test_schedule.device)
+                    schedule["required_host_equipment"] = []
+                    schedule["required_host_equipment"].extend(
+                        test_schedule.required_host_equipment)
+                    schedule["required_device_equipment"] = []
+                    schedule["required_device_equipment"].extend(
+                        test_schedule.required_device_equipment)
                     schedule["device_pab_account_id"] = pb.pab_account_id
                     schedule["shards"] = test_schedule.shards
                     schedule["param"] = test_schedule.param
@@ -217,12 +223,14 @@ class VtiEndpointClient(object):
                 new_host["hostname"] = host.hostname
                 new_host["ip"] = host.ip
                 new_host["script"] = host.script
+                new_host["host_equipment"] = host.host_equipment
                 new_host["device"] = []
                 if host.device:
                     for device in host.device:
                         new_device = {}
                         new_device["serial"] = device.serial
                         new_device["product"] = device.product
+                        new_device["device_equipment"] = device.device_equipment
                         new_host["device"].append(new_device)
                 lab["host"].append(new_host)
             response = requests.post(url, data=json.dumps(lab),
