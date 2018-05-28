@@ -384,23 +384,41 @@ def EmitCommonConsoleCommands(**kwargs):
     if HasAttr("test_storage_type", **kwargs):
         test_storage_type = int(kwargs["test_storage_type"])
 
-    upload_command = "upload --src={result_full}"
-    if test_storage_type == pb.BUILD_STORAGE_TYPE_PAB:
-        upload_command += (" --dest=gs://vts-report/{suite_plan}/%s/{branch}/"
-                           "{target}/%s_{build_id}_{timestamp}/" %
-                           (plan_name, build_target))
-    elif test_storage_type == pb.BUILD_STORAGE_TYPE_GCS:
-        upload_command += (" --dest=gs://vts-report/{suite_plan}/%s/"
-                           "%s/%s/%s_%s_{timestamp}/" %
-                           (plan_name,
+    if HasAttr("report_bucket", **kwargs):
+        report_buckets = kwargs["report_bucket"]
+    else:
+        report_buckets = ["gs://vts-report"]
+
+    upload_dests = []
+    upload_commands = []
+    for report_bucket in report_buckets:
+        if test_storage_type == pb.BUILD_STORAGE_TYPE_PAB:
+            upload_dest = ("%s/{suite_plan}/%s/{branch}/{target}/"
+                           "%s_{build_id}_{timestamp}/" %
+                           (report_bucket, plan_name, build_target))
+        elif test_storage_type == pb.BUILD_STORAGE_TYPE_GCS:
+            upload_dest = ("%s/{suite_plan}/%s/%s/%s/%s_%s_{timestamp}/" %
+                           (report_bucket, plan_name,
                             kwargs["test_branch"].replace("gs://", "gs_")
                             if kwargs["test_branch"].startswith("gs://") else
                             kwargs["test_branch"], kwargs["test_build_target"],
                             build_target, test_build_id))
-    upload_command += (" --report_path=gs://vts-report/suite_result/"
-                       "{timestamp_year}/{timestamp_month}/{timestamp_day}"
-                       " --clear_results=True")
-    result.append(upload_command)
+        upload_dests.append(upload_dest)
+        upload_commands.append(
+            "upload --src={result_full} --dest=%s "
+            "--report_path=%s/suite_result/{timestamp_year}/{timestamp_month}/"
+            "{timestamp_day}" % (upload_dest, report_bucket))
+
+    if len(upload_commands) > 0:
+        upload_commands[-1] += " --clear_results=True"
+
+    extra_rows = " ".join("logs," + x for x in upload_dests)
+    if HasAttr("report_spreadsheet_id", **kwargs):
+        for sheet_id in kwargs["report_spreadsheet_id"]:
+            result.append("sheet --src {result_zip} --dest %s "
+                          "--extra_rows %s" % (sheet_id, extra_rows))
+
+    result.extend(upload_commands)
 
     return result
 
