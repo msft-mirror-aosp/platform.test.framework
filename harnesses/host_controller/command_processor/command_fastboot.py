@@ -16,6 +16,7 @@
 
 import logging
 
+from host_controller import common
 from host_controller.command_processor import base_command_processor
 
 from vts.utils.python.common import cmd_utils
@@ -76,4 +77,8 @@ class CommandFastboot(base_command_processor.BaseCommandProcessor):
             if retcode == 0:
                 return
             logging.warn("Retrying... (%s)", cmd)
+
+        if self.console.job_pool and args.serial:
+            self.console.device_status[
+                args.serial] = common._DEVICE_STATUS_DICT["error"]
         return False
