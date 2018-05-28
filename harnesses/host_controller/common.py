@@ -94,8 +94,17 @@ _RESULTS_BASE_PATH = "../results"
 # Test result file contains invoked test plan results.
 _TEST_RESULT_XML = "test_result.xml"
 
+# XML tag name whose attributes represent a module.
+_MODULE_TAG = "Module"
+
 # XML tag name whose attribute is test plan.
 _RESULT_TAG = "Result"
+
+# XML tag name whose attributes represent a test case in a module.
+_TESTCASE_TAG = "TestCase"
+
+# XML tag name whose attributes represent a test result in a test case.
+_TEST_TAG = "Test"
 
 # XML tag name whose attributes are about the build info of the device.
 _BUILD_TAG = "Build"
@@ -114,11 +123,17 @@ _HOST_NAME_ATTR_KEY = "host_name"
 
 _START_TIME_ATTR_KEY = "start"
 
+_START_DISPLAY_TIME_ATTR_KEY = "start_display"
+
 _END_TIME_ATTR_KEY = "end"
+
+_END_DISPLAY_TIME_ATTR_KEY = "end_display"
 
 _SUITE_NAME_ATTR_KEY = "suite_name"
 
 # The key value for retrieving build fingerprint values from the result xml.
+_FINGERPRINT_ATTR_KEY = "build_fingerprint"
+
 _SYSTEM_FINGERPRINT_ATTR_KEY = "build_system_fingerprint"
 
 _VENDOR_FINGERPRINT_ATTR_KEY = "build_vendor_fingerprint"
@@ -134,6 +149,12 @@ _MODULES_TOTAL_ATTR_KEY = "modules_total"
 
 # The key value for retrieving run module count
 _MODULES_DONE_ATTR_KEY = "modules_done"
+
+# The key value for retrieving name of a test, testcase, or module.
+_NAME_ATTR_KEY = "name"
+
+# The key value for retrieving result of a test.
+_RESULT_ATTR_KEY = "result"
 
 # VTSLAB package version file
 _VTSLAB_VERSION_TXT = "version.txt"
