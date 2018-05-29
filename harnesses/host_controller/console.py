@@ -322,6 +322,11 @@ class Console(cmd.Cmd):
             shutil.rmtree(self._tmp_logdir)
 
     @property
+    def job_pool(self):
+        """getter for self._job_pool"""
+        return self._job_pool
+
+    @property
     def device_status(self):
         """getter for self._device_status"""
         return self._device_status
