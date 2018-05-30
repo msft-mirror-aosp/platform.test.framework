@@ -41,25 +41,28 @@ class CommandDUT(base_command_processor.BaseCommandProcessor):
         """Initializes the parser for dut command."""
         self.arg_parser.add_argument(
             "--operation",
-            choices=("wifi_on", "wifi_off"),
+            choices=("wifi_on", "wifi_off", 'volume_mute', 'volume_max'),
             default="",
             required=True,
             help="Operation to perform.")
         self.arg_parser.add_argument(
-            "--serial",
-            default="",
-            required=True,
-            help="The device serial.")
+            "--serial", default="", required=True, help="The device serial.")
         self.arg_parser.add_argument(
             "--ap",
             default="",  # Required only for wifi_on
             help="Access point (AP) name for 'wifi_on' operation.")
+        self.arg_parser.add_argument(
+            "--volume_levels",
+            type=int,
+            default=30,  # Required only for volume_mute and volume_max
+            help="The number of volume control levels.")
 
     # @Override
     def Run(self, arg_line):
         """Performs the requested operation on the selected DUT."""
         args = self.arg_parser.ParseLine(arg_line)
-        device = android_device.AndroidDevice(args.serial, device_callback_port=-1)
+        device = android_device.AndroidDevice(
+            args.serial, device_callback_port=-1)
         device.waitForBootCompletion()
         adb_proxy = adb.AdbProxy(serial=args.serial)
         adb_proxy.root()
@@ -67,12 +70,21 @@ class CommandDUT(base_command_processor.BaseCommandProcessor):
             if args.operation == "wifi_on":
                 adb_proxy.shell("svc wifi enable")
                 if args.ap:
-                    adb_proxy.install("../testcases/DATA/app/WifiUtil/WifiUtil.apk")
-                    adb_proxy.shell("am instrument -e method \"connectToNetwork\" "
-                                    "-e ssid %s "
-                                    "-w com.android.tradefed.utils.wifi/.WifiUtil" % args.ap)
+                    adb_proxy.install(
+                        "../testcases/DATA/app/WifiUtil/WifiUtil.apk")
+                    adb_proxy.shell(
+                        "am instrument -e method \"connectToNetwork\" "
+                        "-e ssid %s "
+                        "-w com.android.tradefed.utils.wifi/.WifiUtil" %
+                        args.ap)
             elif args.operation == "wifi_off":
                 adb_proxy.shell("svc wifi disable")
+            elif args.operation == "volume_mute":
+                for _ in range(args.volume_levels):
+                    adb_proxy.shell("input keyevent 25")
+            elif args.operation == "volume_max":
+                for _ in range(args.volume_levels):
+                    adb_proxy.shell("input keyevent 24")
         except adb.AdbError as e:
             logging.exception(e)
             return False
