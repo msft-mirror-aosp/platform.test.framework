@@ -22,6 +22,22 @@ from vts.utils.python.common import cmd_utils
 from vts.utils.python.controllers import adb
 from vts.utils.python.controllers import android_device
 
+# Default index of setStreamVolume() from IAudioService.aidl (1 based)
+SETSTREAMVOLUME_INDEX_DEFAULT = 3
+
+# Indices of each stream type (can be checked with "adb shell dumpsys audio" on the command line)
+STREAM_TYPE_CALL = 0
+STREAM_TYPE_RINGTONE = 2
+STREAM_TYPE_MEDIA = 3
+STREAM_TYPE_ALARM = 4
+
+STREAM_TYPE_LIST = [
+    STREAM_TYPE_CALL,
+    STREAM_TYPE_RINGTONE,
+    STREAM_TYPE_MEDIA,
+    STREAM_TYPE_ALARM,
+]
+
 
 class CommandDUT(base_command_processor.BaseCommandProcessor):
     """Command processor for DUT command.
@@ -56,6 +72,12 @@ class CommandDUT(base_command_processor.BaseCommandProcessor):
             type=int,
             default=30,  # Required only for volume_mute and volume_max
             help="The number of volume control levels.")
+        self.arg_parser.add_argument(
+            "--version",
+            type=float,
+            default=8.0,
+            help="System version information of the device on which "
+            "the test will run.")
 
     # @Override
     def Run(self, arg_line):
@@ -82,9 +104,29 @@ class CommandDUT(base_command_processor.BaseCommandProcessor):
             elif args.operation == "volume_mute":
                 for _ in range(args.volume_levels):
                     adb_proxy.shell("input keyevent 25")
+                self.SetOtherVolumes(adb_proxy, 0, args.version)
             elif args.operation == "volume_max":
                 for _ in range(args.volume_levels):
                     adb_proxy.shell("input keyevent 24")
+                self.SetOtherVolumes(adb_proxy, args.volume_levels,
+                                     args.version)
         except adb.AdbError as e:
             logging.exception(e)
             return False
+
+    def SetOtherVolumes(self, adb_proxy, volume_level, version=None):
+        """Sets device's call/media/alarm volumes a certain level.
+
+        Args:
+            adb_proxy: AdbProxy, used for interacting with the device via adb.
+            volume_level: int, volume level value.
+            version: float, Android system version value. The index of
+                     setStreamVolume() depends on the Android version.
+        """
+        setStreamVolume_index = SETSTREAMVOLUME_INDEX_DEFAULT
+        if version and version >= 9.0:
+            setStreamVolume_index = 7
+        for stream_type in STREAM_TYPE_LIST:
+            adb_volume_command = "service call audio %s i32 %s i32 %s i32 1" % (
+                setStreamVolume_index, stream_type, volume_level)
+            adb_proxy.shell(adb_volume_command)
