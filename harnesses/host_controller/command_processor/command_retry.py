@@ -241,8 +241,10 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
             shard_flag_literal = ""
             if args.shards:
                 shard_flag_literal = "--shards"
+                shard_num = args.shards
             if args.shard_count:
                 shard_flag_literal = "--shard-count"
+                shard_num = args.shard_count
 
             if args.retry_plan:
                 retry_plan = args.retry_plan
@@ -252,7 +254,7 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
                 retry_test_command = (
                     "test --suite=%s --keep-result -- %s --retry %d %s %d" %
                     (args.suite, retry_plan,
-                     session_id, shard_flag_literal, args.shards))
+                     session_id, shard_flag_literal, shard_num))
             else:
                 retry_test_command = (
                     "test --suite=%s --keep-result -- %s --retry %d" %
