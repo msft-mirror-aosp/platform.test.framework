@@ -246,6 +246,10 @@ def EmitFlashCommands(gsi, **kwargs):
         build_target = kwargs["build_target"]
     shards = int(kwargs["shards"])
     serials = kwargs["serial"]
+    if gsi:
+        system_version = GetVersion(kwargs["gsi_branch"])
+    else:
+        system_version = GetVersion(kwargs["manifest_branch"])
 
     if shards > 1:
         sub_commands = []
@@ -274,6 +278,9 @@ def EmitFlashCommands(gsi, **kwargs):
                     new_cmd_list.append(
                         "dut --operation=wifi_on --serial=%s --ap=%s" %
                         (serials[shard_index], common._DEFAULT_WIFI_AP))
+                    new_cmd_list.append(
+                        "dut --operation=volume_mute --serial=%s --version=%s"
+                        % serials[shard_index], system_version)
                 sub_commands.append(new_cmd_list)
         result.append(sub_commands)
     else:
@@ -290,6 +297,9 @@ def EmitFlashCommands(gsi, **kwargs):
         if common.SDM845 not in build_target:  # b/78487061
             result.append("dut --operation=wifi_on --serial=%s --ap=%s" %
                           (serials[0], common._DEFAULT_WIFI_AP))
+            result.append(
+                "dut --operation=volume_mute --serial=%s --version=%s" %
+                serials[0], system_version)
         if serials:
             serial_arg_list = []
             for serial in serials:
@@ -527,8 +537,7 @@ def GenerateMt6739GsiFlashingCommands(serial, gsi=False):
     flash_gsi_cmd = ("fastboot -s %s flash system "
                      "{device-image[gsi-zipfile-dir]}/system.img")
     result = [
-        flash_img_cmd % (serial, partition, image)
-        for partition, image in (
+        flash_img_cmd % (serial, partition, image) for partition, image in (
             ("lk", "lk.img"),
             ("md1img", "md1img.img"),
             ("md1dsp", "md1dsp.img"),
