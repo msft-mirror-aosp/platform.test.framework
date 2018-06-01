@@ -88,6 +88,17 @@ SDM845 = "sdm845"
 
 UNIVERSAL9810 = "universal9810"
 
+# Lib files from SDM845 vendor system image need to be re-pushed
+# into GSI system image to boot the devices up properly.
+SDM845_LIB_LIST = [
+    "libdrm.so",
+    "vendor.display.color@1.0.so",
+    "vendor.display.config@1.0.so",
+    "vendor.display.config@1.1.so",
+    "vendor.display.postproc@1.0.so",
+    "vendor.qti.hardware.perf@1.0.so",
+]
+
 # Relative path to the "results" directory from the tools directory.
 _RESULTS_BASE_PATH = "../results"
 

@@ -236,9 +236,6 @@ def EmitFlashCommands(gsi, **kwargs):
         list of command string.
     """
     result = []
-    result.append("repack")
-    if HasAttr("image_package_repo_base", **kwargs):
-        result[-1] += " --dest=%s" % kwargs["image_package_repo_base"]
 
     if isinstance(kwargs["build_target"], list):
         build_target = kwargs["build_target"][0]
@@ -250,6 +247,15 @@ def EmitFlashCommands(gsi, **kwargs):
         system_version = GetVersion(kwargs["gsi_branch"])
     else:
         system_version = GetVersion(kwargs["manifest_branch"])
+
+    repack_command = "repack"
+    if HasAttr("image_package_repo_base", **kwargs):
+        repack_command += " --dest=%s" % kwargs["image_package_repo_base"]
+    if common.SDM845 in build_target and gsi:
+        repack_command += (" --additional_files")
+        for lib_file in common.SDM845_LIB_LIST:
+            repack_command += (" {tmp_dir}/%s/%s" % (serials[0], lib_file))
+    result.append(repack_command)
 
     if shards > 1:
         sub_commands = []
@@ -442,43 +448,43 @@ def GenerateSdm845SetupCommands(serial):
     Returns:
         a list of strings, each string is a console command.
     """
-    return [
-        ("fastboot -s %s flash boot "
-         "{device-image[full-zipfile-dir]}/boot.img" % serial),
-        ("fastboot -s %s flash dtbo "
-         "{device-image[full-zipfile-dir]}/dtbo.img" % serial),
-        ("fastboot -s %s flash system "
-         "{device-image[full-zipfile-dir]}/system.img" % serial),
-        ("fastboot -s %s flash userdata "
-         "{device-image[full-zipfile-dir]}/userdata.img" % serial),
-        ("fastboot -s %s flash vbmeta "
-         "{device-image[full-zipfile-dir]}/vbmeta.img "
-         "-- --disable-verity" % serial),
-        ("fastboot -s %s flash vendor "
-         "{device-image[full-zipfile-dir]}/vendor.img" % serial),
-        "fastboot -s %s reboot" % serial,
-        "sleep 90",  # wait for boot_complete (success)
-        "adb -s %s root" % serial,
-        # TODO: to make sure {tmp_dir} is unique per session and
-        #       is cleaned up at exit.
-        "shell -- mkdir -p {tmp_dir}/%s" % serial,
-        ("adb -s %s pull /system/lib64/libdrm.so "
-         "{tmp_dir}/%s" % (serial, serial)),
-        ("adb -s %s pull /system/lib64/vendor.display.color@1.0.so "
-         "{tmp_dir}/%s" % (serial, serial)),
-        ("adb -s %s pull /system/lib64/vendor.display.config@1.0.so "
-         "{tmp_dir}/%s" % (serial, serial)),
-        ("adb -s %s pull /system/lib64/vendor.display.config@1.1.so "
-         "{tmp_dir}/%s" % (serial, serial)),
-        ("adb -s %s pull /system/lib64/vendor.display.postproc@1.0.so "
-         "{tmp_dir}/%s" % (serial, serial)),
-        ("adb -s %s pull /system/lib64/vendor.qti.hardware.perf@1.0.so "
-         "{tmp_dir}/%s" % (serial, serial)),
-        "adb -s %s reboot bootloader" % serial,
-        ("fastboot -s %s flash vbmeta "
-         "{device-image[full-zipfile-dir]}/vbmeta.img "
-         "-- --disable-verity" % serial),
-    ]
+    result = []
+
+    result.append(
+        "fastboot -s %s flash boot {device-image[full-zipfile-dir]}/boot.img" %
+        serial)
+    result.append(
+        "fastboot -s %s flash dtbo {device-image[full-zipfile-dir]}/dtbo.img" %
+        serial)
+    result.append(
+        "fastboot -s %s flash system {device-image[full-zipfile-dir]}/system.img"
+        % serial)
+    result.append(
+        "fastboot -s %s flash userdata {device-image[full-zipfile-dir]}/userdata.img"
+        % serial)
+    result.append(
+        "fastboot -s %s flash vbmeta {device-image[full-zipfile-dir]}/vbmeta.img"
+        " -- --disable-verity" % serial)
+    result.append(
+        "fastboot -s %s flash vendor {device-image[full-zipfile-dir]}/vendor.img"
+        % serial)
+    result.append("fastboot -s %s reboot" % serial)
+    result.append("sleep 90")  # wait for boot_complete (success)
+    result.append("adb -s %s root" % serial)
+    # TODO: to make sure {tmp_dir} is unique per session and
+    #       is cleaned up at exit.
+    result.append("shell -- mkdir -p {tmp_dir}/%s" % serial)
+    result.extend([
+        "adb -s %s pull /system/lib64/%s {tmp_dir}/%s" % (serial, lib_file,
+                                                          serial)
+        for lib_file in common.SDM845_LIB_LIST
+    ])
+    result.append("adb -s %s reboot bootloader" % serial)
+    result.append(
+        "fastboot -s %s flash vbmeta {device-image[full-zipfile-dir]}/vbmeta.img"
+        " -- --disable-verity" % serial)
+
+    return result
 
 
 def GenerateSdm845GsiFlashingCommands(serial):
@@ -490,36 +496,33 @@ def GenerateSdm845GsiFlashingCommands(serial):
     Returns:
         a list of strings, each string is a console command.
     """
-    return [
-        "fastboot -s %s flash system {device-image[system.img]}" % serial,
-        # removed -w from below command
-        "fastboot -s %s -- reboot" % serial,
-        "sleep 90",  # wait until adb shell (not boot complete)
-        "adb -s %s root" % serial,
-        "adb -s %s remount" % serial,
-        "adb -s %s shell setenforce 0" % serial,
-        "adb -s %s shell mkdir /bt_firmware" % serial,
-        "adb -s %s shell chown system:system /bt_firmware" % serial,
-        "adb -s %s shell chmod 650 /bt_firmware" % serial,
-        "adb -s %s shell setenforce 1" % serial,
-        ("adb -s %s push {tmp_dir}/%s/libdrm.so "
-         "/system/lib64" % (serial, serial)),
-        ("adb -s %s push {tmp_dir}/%s/vendor.display.color@1.0.so "
-         "/system/lib64" % (serial, serial)),
-        ("adb -s %s push {tmp_dir}/%s/vendor.display.config@1.0.so "
-         "/system/lib64" % (serial, serial)),
-        ("adb -s %s push {tmp_dir}/%s/vendor.display.config@1.1.so "
-         "/system/lib64" % (serial, serial)),
-        ("adb -s %s push {tmp_dir}/%s/vendor.display.postproc@1.0.so "
-         "/system/lib64" % (serial, serial)),
-        ("adb -s %s push {tmp_dir}/%s/vendor.qti.hardware.perf@1.0.so "
-         "/system/lib64" % (serial, serial)),
-        "adb -s %s reboot bootloader" % serial,
-        "sleep 5",
-        # removed -w from below command
-        "fastboot -s %s  -- reboot" % serial,
-        "sleep 300",  # wait for boot_complete (success)
-    ]
+    result = []
+
+    result.append(
+        "fastboot -s %s flash system {device-image[system.img]}" % serial)
+    # removed -w from below command
+    result.append("fastboot -s %s -- reboot" % serial)
+    result.append("sleep 90")  # wait until adb shell (not boot complete)
+    result.append("adb -s %s root" % serial)
+    result.append("adb -s %s remount" % serial)
+    result.append("adb -s %s shell setenforce 0" % serial)
+    result.append("adb -s %s shell mkdir /bt_firmware" % serial)
+    result.append("adb -s %s shell chown system:system /bt_firmware" % serial)
+    result.append("adb -s %s shell chmod 650 /bt_firmware" % serial)
+    result.append("adb -s %s shell setenforce 1" % serial)
+    result.extend([
+        "adb -s %s push {tmp_dir}/%s/%s /system/lib64" % (serial, serial,
+                                                          lib_file)
+        for lib_file in common.SDM845_LIB_LIST
+    ])
+    result.append("shell -- rm {tmp_dir}/%s -rf" % serial)
+    result.append("adb -s %s reboot bootloader" % serial)
+    result.append("sleep 5")
+    # removed -w from below command
+    result.append("fastboot -s %s  -- reboot" % serial)
+    result.append("sleep 300")  # wait for boot_complete (success)
+
+    return result
 
 
 def GenerateMt6739GsiFlashingCommands(serial, gsi=False):
@@ -537,7 +540,8 @@ def GenerateMt6739GsiFlashingCommands(serial, gsi=False):
     flash_gsi_cmd = ("fastboot -s %s flash system "
                      "{device-image[gsi-zipfile-dir]}/system.img")
     result = [
-        flash_img_cmd % (serial, partition, image) for partition, image in (
+        flash_img_cmd % (serial, partition, image)
+        for partition, image in (
             ("lk", "lk.img"),
             ("md1img", "md1img.img"),
             ("md1dsp", "md1dsp.img"),
