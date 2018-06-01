@@ -27,6 +27,9 @@ from host_controller.command_processor import base_command_processor
 # Name of android-info.txt file which contains prerequisite data for the img.zip
 _ANDROID_INFO_TXT_FILENAME = "android-info.txt"
 
+# Dir name in which the addtional files need to be repacked.
+_ADDITIONAL_FILES_DIR = "additional_file"
+
 
 class CommandRepack(base_command_processor.BaseCommandProcessor):
     """Command processor for repack command."""
@@ -43,6 +46,11 @@ class CommandRepack(base_command_processor.BaseCommandProcessor):
             default="gs://vts-release/img_package",
             help="Google Cloud Storage base URL to which the file is uploaded."
         )
+        self.arg_parser.add_argument(
+            "--additional_files",
+            nargs="*",
+            default=[],
+            help="Additional files that need to be added to the zip file.")
 
     # @Override
     def Run(self, arg_line):
@@ -82,6 +90,17 @@ class CommandRepack(base_command_processor.BaseCommandProcessor):
                     zip_ref.write(
                         self.console.device_image_info[img_path],
                         img_path,
+                        compress_type=zipfile.ZIP_DEFLATED)
+            if args.additional_files:
+                additional_file_list = self.ReplaceVars(args.additional_files)
+                for file_path in additional_file_list:
+                    file_name = os.path.basename(file_path)
+                    logging.info(
+                        "Adding additional file %s into the zip archive.",
+                        file_name)
+                    zip_ref.write(
+                        file_path,
+                        os.path.join(_ADDITIONAL_FILES_DIR, file_name),
                         compress_type=zipfile.ZIP_DEFLATED)
             zip_ref.write(
                 self.console.tools_info[_ANDROID_INFO_TXT_FILENAME],
