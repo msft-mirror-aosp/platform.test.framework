@@ -99,6 +99,9 @@ SDM845_LIB_LIST = [
     "vendor.qti.hardware.perf@1.0.so",
 ]
 
+# Dir name in which the addtional files need to be repacked.
+_ADDITIONAL_FILES_DIR = "additional_file"
+
 # Relative path to the "results" directory from the tools directory.
 _RESULTS_BASE_PATH = "../results"
 
