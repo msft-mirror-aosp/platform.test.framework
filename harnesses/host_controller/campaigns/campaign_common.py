@@ -457,6 +457,13 @@ def GenerateSdm845SetupCommands(serial):
     result = []
 
     result.append(
+        "fastboot -s %s flash bootloader {device-image[bootloader.img]}" %
+        serial)
+    result.append("fastboot -s %s -- reboot bootloader" % serial)
+    result.append(
+        "fastboot -s %s flash radio {device-image[radio.img]}" % serial)
+    result.append("fastboot -s %s -- reboot bootloader" % serial)
+    result.append(
         "fastboot -s %s flash boot {device-image[full-zipfile-dir]}/boot.img" %
         serial)
     result.append(
@@ -508,6 +515,13 @@ def GenerateSdm845GsiFlashingCommands(serial, repacked_imageset=False):
     result = []
 
     if repacked_imageset:
+        result.append(
+            "fastboot -s %s flash bootloader {device-image[bootloader.img]}" %
+            serial)
+        result.append("fastboot -s %s -- reboot bootloader" % serial)
+        result.append(
+            "fastboot -s %s flash radio {device-image[radio.img]}" % serial)
+        result.append("fastboot -s %s -- reboot bootloader" % serial)
         result.append(
             "fastboot -s %s flash boot {device-image[boot.img]}" % serial)
         result.append(
