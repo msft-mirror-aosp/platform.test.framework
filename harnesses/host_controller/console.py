@@ -706,7 +706,8 @@ class Console(cmd.Cmd):
             package_path_gcs: GCS URL to the packaged img zip file. May contain
                               the GSI imgs.
         """
-        self.onecmd("fetch --type=gcs --path=%s" % package_path_gcs)
+        self.onecmd("fetch --type=gcs --path=%s --full_device_images=True" %
+                    package_path_gcs)
         if common.FULL_ZIPFILE not in self.device_image_info:
             logging.error("Failed to fetch the given file: %s",
                           package_path_gcs)
@@ -743,7 +744,8 @@ class Console(cmd.Cmd):
             logging.info("Device %s product type: %s", serial, product)
             if product in campaign_common.FLASH_COMMAND_EMITTER:
                 flash_commands.append(
-                    campaign_common.FLASH_COMMAND_EMITTER[product](serial))
+                    campaign_common.FLASH_COMMAND_EMITTER[product](
+                        serial, repacked_imageset=True))
             elif product != "error":
                 flash_commands.append(
                     "flash --current --serial %s --skip-vbmeta=True" % serial)
