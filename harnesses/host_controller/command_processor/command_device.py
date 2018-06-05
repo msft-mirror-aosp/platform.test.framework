@@ -29,6 +29,9 @@ from host_controller.tradefed import remote_operation
 
 from vts.utils.python.common import cmd_utils
 
+# Default timeout for "adb reboot" command in secs.
+DEFAULT_TIMEOUT_SECS = 300
+
 
 class CommandDevice(base_command_processor.BaseCommandProcessor):
     """Command processor for Device command.
@@ -82,7 +85,8 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                         continue
 
                     stdout, _, retcode = cmd_utils.ExecuteOneShellCommand(
-                        "adb -s %s reboot bootloader" % device["serial"])
+                        "adb -s %s reboot bootloader" % device["serial"],
+                        DEFAULT_TIMEOUT_SECS)
                     if retcode == 0:
                         lines_fastboot.append(line)
 

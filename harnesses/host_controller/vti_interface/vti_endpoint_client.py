@@ -151,6 +151,8 @@ class VtiEndpointClient(object):
                 schedule["build_target"] = build_target.name
                 schedule["require_signed_device_build"] = (
                     build_target.require_signed_device_build)
+                schedule["has_bootloader_img"] = build_target.has_bootloader_img
+                schedule["has_radio_img"] = build_target.has_radio_img
                 for test_schedule in build_target.test_schedule:
                     schedule["test_name"] = test_schedule.test_name
                     schedule["period"] = test_schedule.period

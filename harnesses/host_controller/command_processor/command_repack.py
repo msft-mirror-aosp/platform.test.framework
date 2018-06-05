@@ -27,9 +27,6 @@ from host_controller.command_processor import base_command_processor
 # Name of android-info.txt file which contains prerequisite data for the img.zip
 _ANDROID_INFO_TXT_FILENAME = "android-info.txt"
 
-# Dir name in which the addtional files need to be repacked.
-_ADDITIONAL_FILES_DIR = "additional_file"
-
 
 class CommandRepack(base_command_processor.BaseCommandProcessor):
     """Command processor for repack command."""
@@ -100,7 +97,7 @@ class CommandRepack(base_command_processor.BaseCommandProcessor):
                         file_name)
                     zip_ref.write(
                         file_path,
-                        os.path.join(_ADDITIONAL_FILES_DIR, file_name),
+                        os.path.join(common._ADDITIONAL_FILES_DIR, file_name),
                         compress_type=zipfile.ZIP_DEFLATED)
             zip_ref.write(
                 self.console.tools_info[_ANDROID_INFO_TXT_FILENAME],
