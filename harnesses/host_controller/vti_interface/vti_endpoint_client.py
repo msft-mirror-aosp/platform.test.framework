@@ -178,6 +178,8 @@ class VtiEndpointClient(object):
                     schedule["test_branch"] = test_schedule.test_branch
                     schedule["test_build_target"] = test_schedule.test_build_target
                     schedule["test_pab_account_id"] = test_schedule.test_pab_account_id
+                    schedule["image_package_repo_base"] = (
+                        test_schedule.image_package_repo_base)
                     response = requests.post(url, data=json.dumps(schedule),
                                              headers=self._headers)
                     if response.status_code != requests.codes.ok:
