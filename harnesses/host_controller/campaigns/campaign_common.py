@@ -158,6 +158,7 @@ def EmitFetchCommands(**kwargs):
                 result.append(sub_commands)
             else:
                 result.extend(GenerateSdm845SetupCommands(serials[0]))
+            result.append("shell -- cp {device-image[vbmeta.img]} {tmp_dir}/")
 
         if HasAttr("gsi_build_id", **kwargs):
             gsi_build_id = kwargs["gsi_build_id"]
@@ -186,6 +187,11 @@ def EmitFetchCommands(**kwargs):
 
         if HasAttr("gsi_pab_account_id", **kwargs):
             result[-1] += " --account_id=%s" % kwargs["gsi_pab_account_id"]
+
+        if common.SDM845 in build_target:
+            result.append(
+                "shell -- mv {tmp_dir}/vbmeta.img {device-image[vbmeta.img]} -f"
+            )
 
     if HasAttr("test_build_id", **kwargs):
         test_build_id = kwargs["test_build_id"]
