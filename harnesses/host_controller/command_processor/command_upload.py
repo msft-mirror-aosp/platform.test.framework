@@ -212,6 +212,7 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
                 ])
             build_attrs = xml_utils.GetAttributes(
                 latest_result_xml_path, common._BUILD_TAG, [
+                    common._FINGERPRINT_ATTR_KEY,
                     common._SYSTEM_FINGERPRINT_ATTR_KEY,
                     common._VENDOR_FINGERPRINT_ATTR_KEY
                 ])
@@ -237,10 +238,18 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             suite_res_msg.end_time = long(
                 result_attrs[common._END_TIME_ATTR_KEY])
             suite_res_msg.host_name = result_attrs[common._HOST_NAME_ATTR_KEY]
-            suite_res_msg.build_system_fingerprint = build_attrs[
-                common._SYSTEM_FINGERPRINT_ATTR_KEY]
-            suite_res_msg.build_vendor_fingerprint = build_attrs[
-                common._VENDOR_FINGERPRINT_ATTR_KEY]
+            if common._SYSTEM_FINGERPRINT_ATTR_KEY in build_attrs:
+                suite_res_msg.build_system_fingerprint = build_attrs[
+                    common._SYSTEM_FINGERPRINT_ATTR_KEY]
+            else:
+                suite_res_msg.build_system_fingerprint = build_attrs[
+                    common._FINGERPRINT_ATTR_KEY]
+            if common._VENDOR_FINGERPRINT_ATTR_KEY in build_attrs:
+                suite_res_msg.build_vendor_fingerprint = build_attrs[
+                    common._VENDOR_FINGERPRINT_ATTR_KEY]
+            else:
+                suite_res_msg.build_vendor_fingerprint = build_attrs[
+                    common._FINGERPRINT_ATTR_KEY]
             suite_res_msg.passed_test_case_count = int(
                 summary_attrs[common._PASSED_ATTR_KEY])
             suite_res_msg.failed_test_case_count = int(
