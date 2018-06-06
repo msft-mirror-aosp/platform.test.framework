@@ -350,8 +350,8 @@ def EmitCommonConsoleCommands(**kwargs):
         param = " ".join(kwargs["param"])
 
     test_branch = kwargs["test_branch"]
-    if (GetVersion(test_branch) >= 9.0
-            and (suite_name == "cts" or plan_name.startswith("cts"))):
+    if (GetVersion(test_branch) >= 9.0 and
+        (suite_name in ["cts", "gts", "sts"] or plan_name.startswith("cts"))):
         shard_option = "--shard-count"
         retry_option = "--retry_plan=%s-retry" % plan_name
     else:
@@ -387,7 +387,7 @@ def EmitCommonConsoleCommands(**kwargs):
                 retry_command += " --serial %s" % serials[shard_index]
         else:
             retry_command += " --serial %s" % serials[0]
-        if suite_name == "cts" or plan_name == "cts-on-gsi":
+        if suite_name in ["cts", "gts", "sts"] or plan_name.startswith("cts"):
             if common.SDM845 in build_target:
                 # TODO(vtslab-dev): remove after b/77664643 is resolved
                 pass
