@@ -261,7 +261,8 @@ def EmitFlashCommands(gsi, **kwargs):
         repack_command += (" --additional_files")
         for lib_file in common.SDM845_LIB_LIST:
             repack_command += (" {tmp_dir}/%s/%s" % (serials[0], lib_file))
-    result.append(repack_command)
+    # TODO: verify this before re-enabling.
+    # result.append(repack_command)
 
     if shards > 1:
         sub_commands = []
