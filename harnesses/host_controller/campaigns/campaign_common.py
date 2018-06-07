@@ -493,16 +493,33 @@ def GenerateSdm845SetupCommands(serial):
     return result
 
 
-def GenerateSdm845GsiFlashingCommands(serial):
+def GenerateSdm845GsiFlashingCommands(serial, repacked_imageset=False):
     """Returns a sequence of console commands to flash GSI to a device.
 
     Args:
         serial: string, the target device serial number.
+        repacked_imageset: bool, True if this func is called directly from
+                           the console, adjusts the resulting commands for
+                           atomic flashing process.
 
     Returns:
         a list of strings, each string is a console command.
     """
     result = []
+
+    if repacked_imageset:
+        result.append(
+            "fastboot -s %s flash boot {device-image[boot.img]}" % serial)
+        result.append(
+            "fastboot -s %s flash dtbo {device-image[dtbo.img]}" % serial)
+        result.append(
+            "fastboot -s %s flash userdata {device-image[userdata.img]}" %
+            serial)
+        result.append(
+            "fastboot -s %s flash vbmeta {device-image[vbmeta.img]} -- --disable-verity"
+            % serial)
+        result.append(
+            "fastboot -s %s flash vendor {device-image[vendor.img]}" % serial)
 
     result.append(
         "fastboot -s %s flash system {device-image[system.img]}" % serial)
@@ -516,27 +533,40 @@ def GenerateSdm845GsiFlashingCommands(serial):
     result.append("adb -s %s shell chown system:system /bt_firmware" % serial)
     result.append("adb -s %s shell chmod 650 /bt_firmware" % serial)
     result.append("adb -s %s shell setenforce 1" % serial)
-    result.extend([
-        "adb -s %s push {tmp_dir}/%s/%s /system/lib64" % (serial, serial,
-                                                          lib_file)
-        for lib_file in common.SDM845_LIB_LIST
-    ])
+    if repacked_imageset:
+        result.extend([
+            "adb -s %s push {tools[%s/%s]} /system/lib64" %
+            (serial, common._ADDITIONAL_FILES_DIR, lib_file)
+            for lib_file in common.SDM845_LIB_LIST
+        ])
+    else:
+        result.extend([
+            "adb -s %s push {tmp_dir}/%s/%s /system/lib64" % (serial, serial,
+                                                              lib_file)
+            for lib_file in common.SDM845_LIB_LIST
+        ])
     result.append("shell -- rm {tmp_dir}/%s -rf" % serial)
     result.append("adb -s %s reboot bootloader" % serial)
     result.append("sleep 5")
     # removed -w from below command
     result.append("fastboot -s %s  -- reboot" % serial)
-    result.append("sleep 300")  # wait for boot_complete (success)
+    if not repacked_imageset:
+        result.append("sleep 300")  # wait for boot_complete (success)
 
     return result
 
 
-def GenerateMt6739GsiFlashingCommands(serial, gsi=False):
+def GenerateMt6739GsiFlashingCommands(serial,
+                                      gsi=False,
+                                      repacked_imageset=False):
     """Returns a sequence of console commands to flash device imgs and GSI.
 
     Args:
         serial: string, the target device serial number.
         gsi: bool, whether to flash GSI over vendor images or not.
+        repacked_imageset: bool, True if this func is called directly from
+                           the console, adjusts the resulting commands for
+                           atomic flashing process.
 
     Returns:
         a list of strings, each string is a console command.
@@ -575,17 +605,23 @@ def GenerateMt6739GsiFlashingCommands(serial, gsi=False):
         result.append(flash_img_cmd % (serial, "system", "system.img"))
 
     result.append("fastboot -s %s reboot" % serial)
-    result.append("sleep 300")  # wait for boot_complete (success)
+    if not repacked_imageset:
+        result.append("sleep 300")  # wait for boot_complete (success)
 
     return result
 
 
-def GenerateUniversal9810GsiFlashingCommands(serial, gsi=False):
+def GenerateUniversal9810GsiFlashingCommands(serial,
+                                             gsi=False,
+                                             repacked_imageset=False):
     """Returns a sequence of console commands to flash device imgs and GSI.
 
     Args:
         serial: string, the target device serial number.
         gsi: bool, whether to flash GSI over vendor images or not.
+        repacked_imageset: bool, True if this func is called directly from
+                           the console, adjusts the resulting commands for
+                           atomic flashing process.
 
     Returns:
         a list of strings, each string is a console command.
@@ -617,13 +653,14 @@ def GenerateUniversal9810GsiFlashingCommands(serial, gsi=False):
             "fastboot -s %s flash system "
             "{device-image[full-zipfile-dir]}/system.img -- -S 512M" % serial))
     result.append("fastboot -s %s reboot -- -w" % serial)
-    result.append("sleep 300")  # wait for boot_complete (success)
+    if not repacked_imageset:
+        result.append("sleep 300")  # wait for boot_complete (success)
 
     return result
 
 
 FLASH_COMMAND_EMITTER = {
     common.K39TV1_BSP: GenerateMt6739GsiFlashingCommands,
-    common.SDM845: GenerateSdm845SetupCommands,
+    common.SDM845: GenerateSdm845GsiFlashingCommands,
     common.UNIVERSAL9810: GenerateUniversal9810GsiFlashingCommands,
 }
