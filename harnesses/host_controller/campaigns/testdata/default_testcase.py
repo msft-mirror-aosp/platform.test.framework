@@ -23,7 +23,7 @@ input_data = {
             "param": "",
             "status": 1,
             "period": 24 * 60,  # 1 day
-        
+
             # GSI information
             "gsi_storage_type": 1,
             "gsi_branch": "my_gsi_branch",
@@ -44,11 +44,11 @@ input_data = {
             "retry_count": 3,
 
             "infra_log_url": "infra_log_url",
-        
+
             #parent_schedule = ndb.KeyProperty(kind="ScheduleModel")
-        
+
             "image_package_repo_base": "image_package_repo_base",
-        
+
             "report_bucket": ["report_bucket"],
             "report_spreadsheet_id": ["report_spreadsheet_id"],
         }
@@ -62,7 +62,6 @@ expected_output = [
   'info',
   'gsispl --version_from_path=boot.img',
   'info',
-  'repack --dest=image_package_repo_base',
   [['flash --current --serial my_serial1 --skip-vbmeta=True ',
     'adb -s my_serial1 root',
     'dut --operation=wifi_on --serial=my_serial1 --ap=GoogleGuest',
