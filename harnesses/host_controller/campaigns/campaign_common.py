@@ -311,7 +311,7 @@ def EmitFlashCommands(gsi, **kwargs):
                           (serials[0], common._DEFAULT_WIFI_AP))
             result.append(
                 "dut --operation=volume_mute --serial=%s --version=%s" %
-                serials[0], system_version)
+                (serials[0], system_version))
         if serials:
             serial_arg_list = []
             for serial in serials:
