@@ -109,6 +109,16 @@ class BaseCommandProcessor(object):
                     else:
                         new_message = new_message.replace(var, "{undefined}")
 
+            vars = re.findall(r"{tools\[[^]]+\]}", message)
+            if vars:
+                for var in vars:
+                    var_name = var[len("{tools")+1:-2]
+                    if var_name and var_name in self.console.tools_info:
+                        new_message = new_message.replace(
+                            var, self.console.tools_info[var_name])
+                    else:
+                        new_message = new_message.replace(var, "{undefined}")
+
             if TMP_DIR_VAR in new_message:
                 new_message = new_message.replace(
                     TMP_DIR_VAR, self.console.tmpdir_default)

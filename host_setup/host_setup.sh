@@ -77,7 +77,7 @@ elif [ "$TASK" == "SetupPackages" ]; then
   else
     runlocalssh --prodaccessargs=--nossh_cert fab SetPassword:$PASSWORD GetHosts:$HOSTS_PATH $TASK:$IPADDRESSES_PATH
   fi
-elif [ "$TASK" == "DeployVtslab" ]; then
+elif [ "$TASK" == "DeployVtslab" ] || [ "$TASK" == "DeployGCE" ]; then
   if [ -z "$VTSLAB_PACKAGE_GCS_URL" ]; then
     echo "Please specify vtslab package file URL using -f option."
     exit
