@@ -142,4 +142,6 @@ class CommandRepack(base_command_processor.BaseCommandProcessor):
                 gsi_branch, gsi_target, gsi_build_id))
             dest_url_base = os.path.join(dest_url_base, gsi_branch, gsi_target)
 
-        return os.path.join(dest_url_base, new_zipfile_name)
+        ret = os.path.join(dest_url_base, new_zipfile_name)
+        self.console.repack_dest_path = ret
+        return ret

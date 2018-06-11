@@ -298,6 +298,7 @@ class Console(cmd.Cmd):
         self._detailed_fetch_info = {}
         self.test_results = {}
         self._file_lock = file_lock.FileLock()
+        self.repack_dest_path = ""
 
         if common._ANDROID_SERIAL in os.environ:
             self._serials = [os.environ[common._ANDROID_SERIAL]]
@@ -505,12 +506,15 @@ class Console(cmd.Cmd):
                     value = os.path.basename(value)
                 elif name == "hc_log_upload_path":
                     value = self._logfile_upload_path
+            elif name in ("repack_path"):
+                value = self.repack_dest_path
+                self.repack_dest_path = ""
             elif name in ("hostname"):
                 value = socket.gethostname()
             else:
                 value = None
 
-            if not value:
+            if value is None:
                 raise KeyError(name)
 
             return value

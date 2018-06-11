@@ -45,7 +45,7 @@ class CommandUploadTest(unittest.TestCase):
         mock_cmd_util.ExecuteOneShellCommand = mock.Mock(
             return_value=("", "", 0))
         mock_console.vti_endpoint_client.CheckBootUpStatus.return_value = False
-        mock_console.FormatString.return_value = "FormatString"
+        mock_console.FormatString.side_effect = side_effect
         mock_console.fetch_info = {
             "branch": "git_device_branch",
             "target": "device-userdebug",
@@ -78,9 +78,10 @@ class CommandUploadTest(unittest.TestCase):
                          "git_aosp_gsi_branch/gsi-userdebug/2345678")
         self.assertEqual(mock_pb2.build_vendor_fingerprint,
                          "git_device_branch/device-userdebug/1234567")
+        self.assertEqual(mock_pb2.repacked_image_path, ["{repack_path}"])
         mock_cmd_util.ExecuteOneShellCommand.assert_called_with(
-            "/path/to/bin/gsutil cp tmp/log/FormatString "
-            "gs://report-bucket/FormatString")
+            "/path/to/bin/gsutil cp tmp/log/{timestamp_time}.bin "
+            "gs://report-bucket/{timestamp_time}.bin")
 
     @mock.patch("host_controller.console.Console")
     @mock.patch("host_controller.command_processor.command_upload.open")
@@ -95,7 +96,7 @@ class CommandUploadTest(unittest.TestCase):
         mock_cmd_util.ExecuteOneShellCommand = mock.Mock(
             return_value=("", "", 0))
         mock_console.vti_endpoint_client.CheckBootUpStatus.return_value = True
-        mock_console.FormatString.return_value = "FormatString"
+        mock_console.FormatString.side_effect = side_effect
         mock_console.tmp_logdir = "tmp/log"
         mock_pb2.TestSuiteResultMessage.return_value = mock_pb2
         mock_os.listdir.return_value = ["1", "2", "3"]
@@ -154,9 +155,10 @@ class CommandUploadTest(unittest.TestCase):
         self.assertEqual(mock_pb2.failed_test_case_count, 43)
         self.assertEqual(mock_pb2.modules_total, 100)
         self.assertEqual(mock_pb2.modules_done, 98)
+        self.assertEqual(mock_pb2.repacked_image_path, ["{repack_path}"])
         mock_cmd_util.ExecuteOneShellCommand.assert_called_with(
-            "/path/to/bin/gsutil cp tmp/log/FormatString "
-            "gs://report-bucket/FormatString")
+            "/path/to/bin/gsutil cp tmp/log/{timestamp_time}.bin "
+            "gs://report-bucket/{timestamp_time}.bin")
 
     @mock.patch("host_controller.console.Console")
     @mock.patch("host_controller.command_processor.command_upload.os")
@@ -164,7 +166,7 @@ class CommandUploadTest(unittest.TestCase):
     def testUploadReportResultDirAbsent(self, mock_logger, mock_os,
                                         mock_console):
         mock_console.vti_endpoint_client.CheckBootUpStatus.return_value = True
-        mock_console.FormatString.return_value = "FormatString"
+        mock_console.FormatString.side_effect = side_effect
         mock_console.tmp_logdir = "tmp/log"
         mock_os.listdir.return_value = []
         command = command_upload.CommandUpload()
