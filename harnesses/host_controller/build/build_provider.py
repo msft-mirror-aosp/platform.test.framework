@@ -139,6 +139,16 @@ class BuildProvider(object):
             return self._device_images
         return self._device_images[name]
 
+    def RemoveDeviceImage(self, name):
+        """Removes certain device image info.
+
+        Args:
+            name: string, the name of the device image file
+                  that needs to be removed.
+        """
+        if name in self._device_images:
+            self._device_images.pop(name)
+
     def SetTestSuitePackage(self, test_suite, path):
         """Sets test suite package `path` for the specified `type`.
 
