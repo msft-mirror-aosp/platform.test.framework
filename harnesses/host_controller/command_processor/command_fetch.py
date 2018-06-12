@@ -161,10 +161,12 @@ class CommandFetch(base_command_processor.BaseCommandProcessor):
 
         if args.gsi:
             filtered_images = {}
-            for image_name in device_images:
+            image_names = device_images.keys()
+            for image_name in image_names:
                 if image_name.endswith(".img") and image_name not in [
                         "system.img", "vbmeta.img"
                 ]:
+                    provider.RemoveDeviceImage(image_name)
                     continue
                 filtered_images[image_name] = device_images[image_name]
             device_images = filtered_images
