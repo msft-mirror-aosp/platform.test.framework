@@ -21,8 +21,8 @@ import socket
 import time
 
 from host_controller import common
-from host_controller.build import build_provider_gcs
 from host_controller.command_processor import base_command_processor
+from host_controller.utils.gcp import gcs_utils
 from host_controller.utils.parser import xml_utils
 
 from vts.utils.python.common import cmd_utils
@@ -85,7 +85,7 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
         """Upload args.src file to args.dest Google Cloud Storage."""
         args = self.arg_parser.ParseLine(arg_line)
 
-        gsutil_path = build_provider_gcs.BuildProviderGCS.GetGsutilPath()
+        gsutil_path = gcs_utils.GetGsutilPath()
         if not gsutil_path:
             logging.error("Please check gsutil is installed and on your PATH")
             return False
@@ -128,11 +128,8 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             return False
         """ TODO(jongmok) : Before upload, login status, authorization,
                             and dest check are required. """
-        copy_command = "{} cp {} {}".format(gsutil_path, src_paths, dest_path)
-        _, stderr, err_code = cmd_utils.ExecuteOneShellCommand(copy_command)
-
-        if err_code:
-            logging.error(stderr)
+        if not gcs_utils.Copy(gsutil_path, src_paths, dest_path):
+            logging.error("Fail to copy %s to %s", src_paths, dest_path)
 
         if args.report_path or args.clear_results:
             tools_path = ""
