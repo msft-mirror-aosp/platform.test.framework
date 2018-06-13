@@ -20,8 +20,8 @@ import os
 import zipfile
 
 from host_controller import common
-from host_controller.build import build_provider_gcs
 from host_controller.command_processor import base_command_processor
+from host_controller.utils.gcp import gcs_utils
 from host_controller.utils.parser import xml_utils
 
 from vts.utils.python.common import cmd_utils
@@ -78,14 +78,13 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
             None if the download has failed or the downloaded zip file
             is not a correct result archive.
         """
-        gsutil_path = build_provider_gcs.BuildProviderGCS.GetGsutilPath()
+        gsutil_path = gcs_utils.GetGsutilPath()
         if not gsutil_path:
             logging.error("Please check gsutil is installed and on your PATH")
             return None
 
         if (not gcs_result_path.startswith("gs://")
-                or not build_provider_gcs.BuildProviderGCS.IsGcsFile(
-                    gsutil_path, gcs_result_path)):
+                or not gcs_utils.IsGcsFile(gsutil_path, gcs_result_path)):
             logging.error("%s is not correct GCS url.", gcs_result_path)
             return None
         if not gcs_result_path.endswith(".zip"):
@@ -95,12 +94,8 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
 
         if not os.path.exists(local_results_dir):
             os.mkdir(local_results_dir)
-        copy_command = "%s cp %s %s" % (gsutil_path, gcs_result_path,
-                                        local_results_dir)
-        stdout, stderr, err_code = cmd_utils.ExecuteOneShellCommand(
-            copy_command)
-        if err_code != 0:
-            logging.error("Error in copy file from %s (code %s).", err_code)
+        if not gcs_utils.Copy(gsutil_path, gcs_result_path, local_results_dir):
+            logging.error("Fail to copy from %s.", gcs_result_path)
             return None
         result_zip = os.path.join(local_results_dir,
                                   gcs_result_path.split("/")[-1])
