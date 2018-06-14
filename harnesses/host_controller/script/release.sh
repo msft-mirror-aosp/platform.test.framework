@@ -15,6 +15,3 @@ if [ $# -eq 1 ]; then
   echo "To upload, please run:"
   echo gsutil cp out/host/linux-x86/vtslab/android-vtslab.zip gs://vtslab-release/$1/android-vtslab-$(date +%F).zip
 fi
-
-
-
