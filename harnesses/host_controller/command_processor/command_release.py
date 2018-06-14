@@ -26,6 +26,7 @@ from host_controller.command_processor import base_command_processor
 
 _REPACKAGE_ADDITIONAL_FILE_LIST = [
     "android-vtslab/testcases/DATA/app/WifiUtil/WifiUtil.apk",
+    "android-vtslab/testcases/DATA/xml/media_profiles_vendor.xml",
     "android-vtslab/testcases/host_controller/build/client_secrets.json",
     "android-vtslab/testcases/host_controller/build/credentials",
 ]
