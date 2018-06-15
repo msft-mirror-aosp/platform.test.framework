@@ -158,7 +158,6 @@ def EmitFetchCommands(**kwargs):
                 result.append(sub_commands)
             else:
                 result.extend(GenerateSdm845SetupCommands(serials[0]))
-            result.append("shell -- cp {device-image[vbmeta.img]} {tmp_dir}/")
 
         if HasAttr("gsi_build_id", **kwargs):
             gsi_build_id = kwargs["gsi_build_id"]
@@ -187,11 +186,6 @@ def EmitFetchCommands(**kwargs):
 
         if HasAttr("gsi_pab_account_id", **kwargs):
             result[-1] += " --account_id=%s" % kwargs["gsi_pab_account_id"]
-
-        if common.SDM845 in build_target:
-            result.append(
-                "shell -- mv {tmp_dir}/vbmeta.img {device-image[vbmeta.img]} -f"
-            )
 
     if HasAttr("test_build_id", **kwargs):
         test_build_id = kwargs["test_build_id"]
@@ -493,10 +487,14 @@ def GenerateSdm845SetupCommands(serial):
                                                           serial)
         for lib_file in common.SDM845_LIB_LIST
     ])
-    result.append("adb -s %s reboot bootloader" % serial)
+
+    # TODO: remove this paragraph after b/74552817 is fixed.
     result.append(
-        "fastboot -s %s flash vbmeta {device-image[full-zipfile-dir]}/vbmeta.img"
-        " -- --disable-verity" % serial)
+        "fetch --type=gcs --path=gs://vts-release/v9.0/sdm845/vbmeta.img "
+        "--artifact_name=vbmeta.img")
+    result.append("adb -s %s reboot bootloader" % serial)
+    result.append("fastboot -s %s flash vbmeta {device-image[vbmeta.img]}"
+                  " -- --disable-verity" % serial)
 
     return result
 
@@ -506,7 +504,7 @@ def GenerateSdm845GsiFlashingCommands(serial, repacked_imageset=False):
 
     Args:
         serial: string, the target device serial number.
-        repacked_imageset: bool, True if this func is called directly from
+        repacked_imageset: bool, True if this function is called directly from
                            the console, adjusts the resulting commands for
                            atomic flashing process.
 
@@ -560,6 +558,10 @@ def GenerateSdm845GsiFlashingCommands(serial, repacked_imageset=False):
                                                               lib_file)
             for lib_file in common.SDM845_LIB_LIST
         ])
+        result.extend(
+            [("adb -s %s push ../testcases/DATA/xml/media_profiles_vendor.xml "
+              "/vendor/etc/media_profiles_vendor.xml") % serial])
+
     result.append("shell -- rm {tmp_dir}/%s -rf" % serial)
     result.append("adb -s %s reboot bootloader" % serial)
     result.append("sleep 5")
@@ -591,8 +593,7 @@ def GenerateMt6739GsiFlashingCommands(serial,
     flash_gsi_cmd = ("fastboot -s %s flash system "
                      "{device-image[gsi-zipfile-dir]}/system.img")
     result = [
-        flash_img_cmd % (serial, partition, image)
-        for partition, image in (
+        flash_img_cmd % (serial, partition, image) for partition, image in (
             ("lk", "lk.img"),
             ("md1img", "md1img.img"),
             ("md1dsp", "md1dsp.img"),
