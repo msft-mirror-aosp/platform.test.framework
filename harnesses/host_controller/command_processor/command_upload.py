@@ -93,7 +93,7 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
         if args.src.startswith("latest-"):
             src_name = args.src[7:]
             if src_name in self.console.device_image_info:
-                src_path = self.console.device_image_info[src_name]
+                src_paths = self.console.device_image_info[src_name]
             else:
                 logging.error(
                     "Unable to find {} in device_image_info".format(src_name))
