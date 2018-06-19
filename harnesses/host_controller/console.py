@@ -197,6 +197,8 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
 
                 del console._build_provider["pab"]
                 del console._build_provider["gcs"]
+                console.fetch_info = {}
+                console._detailed_fetch_info = {}
         else:
             logging.error("Unknown job command %s", command)
 
@@ -473,7 +475,7 @@ class Console(cmd.Cmd):
                 string value corresponding to the input variable name.
             """
             name = match.group(1)
-            if name in ("build_id", "branch", "target"):
+            if name in ("build_id", "branch", "target", "account_id"):
                 value = self.fetch_info[name]
             elif name in ("result_full", "result_zip", "suite_plan",
                           "suite_name"):
