@@ -50,6 +50,30 @@ def ExtractResultZip(zip_file, output_dir, xml_only=True):
         return os.path.join(output_dir, xml_name)
 
 
+def LoadTestSummary(result_xml):
+    """Gets attributes of <Result>, <Build>, and <Summary>.
+
+    Args:
+        result_xml: A file object of the TradeFed report in XML format.
+
+    Returns:
+        3 dictionaries, the attributes of <Result>, <Build>, and <Summary>.
+    """
+    result_attrib = {}
+    build_attrib = {}
+    summary_attrib = {}
+    for event, elem in ElementTree.iterparse(result_xml, events=("start", )):
+        if all((result_attrib, build_attrib, summary_attrib)):
+            break
+        if elem.tag == common._RESULT_TAG:
+            result_attrib = dict(elem.attrib)
+        elif elem.tag == common._BUILD_TAG:
+            build_attrib = dict(elem.attrib)
+        elif elem.tag == common._SUMMARY_TAG:
+            summary_attrib = dict(elem.attrib)
+    return result_attrib, build_attrib, summary_attrib
+
+
 def IterateTestResults(result_xml):
     """Yields test records in test_result.xml.
 
@@ -74,6 +98,18 @@ def IterateTestResults(result_xml):
             yield module_elem, testcase_elem, elem
 
 
+def GetAbiBitness(abi):
+    """Gets bitness of an ABI.
+
+    Args:
+        abi: A string, the ABI name.
+
+    Returns:
+        32 or 64, the ABI bitness.
+    """
+    return 64 if "arm64" in abi or "x86_64" in abi else 32
+
+
 def GetTestName(module, testcase, test):
     """Gets the bitness and the full test name.
 
@@ -86,7 +122,7 @@ def GetTestName(module, testcase, test):
         A tuple of (bitness, module_name, testcase_name, test_name).
     """
     abi = module.attrib.get(common._ABI_ATTR_KEY, "")
-    bitness = "64" if "arm64" in abi or "x86_64" in abi else "32"
+    bitness = str(GetAbiBitness(abi))
     module_name = module.attrib.get(common._NAME_ATTR_KEY, "")
     testcase_name = testcase.attrib.get(common._NAME_ATTR_KEY, "")
     test_name = test.attrib.get(common._NAME_ATTR_KEY, "")
