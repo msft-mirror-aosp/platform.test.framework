@@ -121,6 +121,17 @@ BITNESS,TEST_MODULE,TEST_CLASS,TEST_CASE,RESULT
 too many to be displayed
 """
 
+_PRIMARY_ABI_RESULTS_1 = _CSV_HEAD + """\
+pass,1
+failed,3
+modules_total,2
+modules_done,2
+BITNESS,TEST_MODULE,TEST_CLASS,TEST_CASE,RESULT
+64,module2,testcase2,test1,pass
+64,module2,testcase2,test2,fail
+64,module2,testcase2,test3,fail
+"""
+
 _COMPARISON_1_2 = _CSV_HEAD + """\
 pass,1
 failed,3
@@ -128,6 +139,17 @@ modules_total,2
 modules_done,2
 BITNESS,TEST_MODULE,TEST_CLASS,TEST_CASE,RESULT,REFERENCE_RESULT
 32,module1,testcase1,test1,fail,no_data
+64,module2,testcase2,test2,fail,pass
+64,module2,testcase2,test3,fail,fail
+"""
+
+_PRIMARY_ABI_COMPARISON_1_2 = _CSV_HEAD + """\
+pass,1
+failed,3
+modules_total,2
+modules_done,2
+BITNESS,TEST_MODULE,TEST_CLASS,TEST_CASE,RESULT,REFERENCE_RESULT
+64,module2,testcase2,test1,pass,
 64,module2,testcase2,test2,fail,pass
 64,module2,testcase2,test3,fail,fail
 """
@@ -234,6 +256,18 @@ class CommandSheetTest(unittest.TestCase):
 
         mock_client.import_csv.assert_called_with("123", _TRUNCATED_RESULTS_1)
 
+    def testPrimaryAbiOnly(self, mock_credentials, mock_gspread):
+        """Tests showing only results for primary ABI."""
+        """Tests showing only failing tests."""
+        mock_client = mock.Mock()
+        mock_gspread.authorize.return_value = mock_client
+
+        self._cmd.Run("--src %s --dest 123 --client_secret /abc "
+                      "--extra_rows %s --primary_abi_only" %
+                      (self._CreateXml(_XML_1), " ".join(_EXTRA_ROWS)))
+
+        mock_client.import_csv.assert_called_with("123", _PRIMARY_ABI_RESULTS_1)
+
     def testCompareLocal(self, mock_credentials, mock_gspread):
         """Tests comparing two local XML files."""
         mock_client = mock.Mock()
@@ -245,6 +279,19 @@ class CommandSheetTest(unittest.TestCase):
                        " ".join(_EXTRA_ROWS)))
 
         mock_client.import_csv.assert_called_with("123", _COMPARISON_1_2)
+
+    def testComparePrimaryAbi(self, mock_credentials, mock_gspread):
+        """Tests comparing primary ABI only."""
+        mock_client = mock.Mock()
+        mock_gspread.authorize.return_value = mock_client
+
+        self._cmd.Run("--src %s --ref %s --dest 123 --client_secret /abc "
+                      "--extra_rows %s --primary_abi_only" %
+                      (self._CreateXml(_XML_1), self._CreateZip(_XML_2),
+                       " ".join(_EXTRA_ROWS)))
+
+        mock_client.import_csv.assert_called_with("123",
+                                                  _PRIMARY_ABI_COMPARISON_1_2)
 
     @mock.patch("host_controller.command_processor.command_sheet.gcs_utils")
     def testCompareGcs(self, mock_gcs_utils, mock_credentials, mock_gspread):

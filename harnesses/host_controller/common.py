@@ -148,6 +148,8 @@ _END_DISPLAY_TIME_ATTR_KEY = "end_display"
 _SUITE_NAME_ATTR_KEY = "suite_name"
 
 # The key value for retrieving build fingerprint values from the result xml.
+_ABIS_ATTR_KEY = "build_abis"
+
 _FINGERPRINT_ATTR_KEY = "build_fingerprint"
 
 _SYSTEM_FINGERPRINT_ATTR_KEY = "build_system_fingerprint"
