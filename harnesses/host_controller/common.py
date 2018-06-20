@@ -108,6 +108,8 @@ _RESULTS_BASE_PATH = "../results"
 # Test result file contains invoked test plan results.
 _TEST_RESULT_XML = "test_result.xml"
 
+_LOG_RESULT_XML = "log-result.xml"
+
 # XML tag name whose attributes represent a module.
 _MODULE_TAG = "Module"
 
@@ -166,6 +168,9 @@ _MODULES_DONE_ATTR_KEY = "modules_done"
 
 # The key value for retrieving name of a test, testcase, or module.
 _NAME_ATTR_KEY = "name"
+
+# The key value for retrieving ABI of a module.
+_ABI_ATTR_KEY = "abi"
 
 # The key value for retrieving result of a test.
 _RESULT_ATTR_KEY = "result"
