@@ -38,6 +38,25 @@ from host_controller.utils.gcp import gcs_utils
 from host_controller.utils.parser import result_utils
 from host_controller.utils.parser import xml_utils
 
+# Attributes shown on spreadsheet
+_RESULT_ATTR_KEYS = [
+    common._SUITE_NAME_ATTR_KEY, common._SUITE_PLAN_ATTR_KEY,
+    common._SUITE_VERSION_ATTR_KEY, common._SUITE_BUILD_NUM_ATTR_KEY,
+    common._START_DISPLAY_TIME_ATTR_KEY,
+    common._END_DISPLAY_TIME_ATTR_KEY
+]
+
+_BUILD_ATTR_KEYS = [
+    common._FINGERPRINT_ATTR_KEY,
+    common._SYSTEM_FINGERPRINT_ATTR_KEY,
+    common._VENDOR_FINGERPRINT_ATTR_KEY
+]
+
+_SUMMARY_ATTR_KEYS = [
+    common._PASSED_ATTR_KEY, common._FAILED_ATTR_KEY,
+    common._MODULES_TOTAL_ATTR_KEY, common._MODULES_DONE_ATTR_KEY
+]
+
 # Texts on spreadsheet
 _TABLE_HEADER = ("BITNESS", "TEST_MODULE", "TEST_CLASS", "TEST_CASE", "RESULT")
 
@@ -92,6 +111,12 @@ class CommandSheet(base_command_processor.BaseCommandProcessor):
             help="Maximum number of results written to the spreadsheet. "
             "If there are too many results, only failing ones are written.")
         self.arg_parser.add_argument(
+            "--primary_abi_only",
+            action="store_true",
+            help="Whether to upload only the test results for primary ABI. If "
+            "ref is also specified, this command loads the primary ABI "
+            "results from ref and compares regardless of bitness.")
+        self.arg_parser.add_argument(
             "--client_secrets",
             default=None,
             help="The path to the client secrets file in JSON format for "
@@ -120,7 +145,8 @@ class CommandSheet(base_command_processor.BaseCommandProcessor):
                 scopes=self._SCOPE)
         client = gspread.authorize(credentials)
 
-        # Load summary_attrs, src_dict, ref_dict, and exceed_max
+        # Load result_attrs, build_attrs, summary_attrs,
+        # src_dict, ref_dict, and exceed_max
         temp_dir = tempfile.mkdtemp()
         try:
             src_path = _GetResultAsXml(src_path, os.path.join(temp_dir, "src"))
@@ -128,18 +154,18 @@ class CommandSheet(base_command_processor.BaseCommandProcessor):
                 return False
 
             with open(src_path, "r") as src_file:
-                summary_attrs = _ParseSummary(src_file)
-                result_cnt = _GetResultCount(summary_attrs)
-                show_pass = result_cnt >= 0 and result_cnt <= args.max
-
+                (result_attrs,
+                 build_attrs,
+                 summary_attrs) = result_utils.LoadTestSummary(src_file)
                 src_file.seek(0)
-                src_dict = _FilterTestResults(
-                    src_file, args.max + 1,
-                    lambda name, result: show_pass or result != "pass")
-
-            exceed_max = len(src_dict) > args.max
-            if src_dict and exceed_max:
-                del src_dict[max(src_dict)]
+                if args.primary_abi_only:
+                    abis = build_attrs.get(
+                        common._ABIS_ATTR_KEY, "").split(",")
+                    src_bitness = str(result_utils.GetAbiBitness(abis[0]))
+                    src_dict, exceed_max = _LoadSrcResults(src_file, args.max,
+                                                           src_bitness)
+                else:
+                    src_dict, exceed_max = _LoadSrcResults(src_file, args.max)
 
             if ref_path:
                 ref_path = _GetResultAsXml(
@@ -147,9 +173,18 @@ class CommandSheet(base_command_processor.BaseCommandProcessor):
                 if not ref_path:
                     return False
                 with open(ref_path, "r") as ref_file:
-                    ref_dict = _FilterTestResults(
-                        ref_file, args.max,
-                        lambda name, result: src_dict.get(name, "") == "fail")
+                    if args.primary_abi_only:
+                        ref_build_attrs = xml_utils.GetAttributes(
+                            ref_file, common._BUILD_TAG,
+                            (common._ABIS_ATTR_KEY, ))
+                        ref_file.seek(0)
+                        abis = ref_build_attrs[
+                            common._ABIS_ATTR_KEY].split(",")
+                        ref_bitness = str(result_utils.GetAbiBitness(abis[0]))
+                        ref_dict = _LoadRefResults(ref_file, src_dict,
+                                                   ref_bitness, src_bitness)
+                    else:
+                        ref_dict = _LoadRefResults(ref_file, src_dict)
         finally:
             shutil.rmtree(temp_dir)
 
@@ -159,7 +194,12 @@ class CommandSheet(base_command_processor.BaseCommandProcessor):
             writer = csv.writer(csv_file, lineterminator="\n")
 
             writer.writerows(row.split(",") for row in args.extra_rows)
-            writer.writerows(summary_attrs)
+
+            for keys, attrs in (
+                    (_RESULT_ATTR_KEYS, result_attrs),
+                    (_BUILD_ATTR_KEYS, build_attrs),
+                    (_SUMMARY_ATTR_KEYS, summary_attrs)):
+                writer.writerows((k, attrs.get(k, "")) for k in keys)
 
             src_list = sorted(src_dict.items())
             if ref_path:
@@ -250,78 +290,8 @@ def _GetResultAsXml(src, temp_dir):
     return src
 
 
-def _ParseSummary(result_xml):
-    """Gets test summary from an XML.
-
-    Args:
-        result_xml: The input file object in XML format.
-
-    Returns:
-        A list of (attribute_name, value).
-    """
-    result_attr_keys = [
-        common._SUITE_NAME_ATTR_KEY, common._SUITE_PLAN_ATTR_KEY,
-        common._SUITE_VERSION_ATTR_KEY, common._SUITE_BUILD_NUM_ATTR_KEY,
-        common._START_DISPLAY_TIME_ATTR_KEY,
-        common._END_DISPLAY_TIME_ATTR_KEY
-    ]
-    build_attr_keys = [
-        common._FINGERPRINT_ATTR_KEY,
-        common._SYSTEM_FINGERPRINT_ATTR_KEY,
-        common._VENDOR_FINGERPRINT_ATTR_KEY
-    ]
-    summary_attr_keys = [
-        common._PASSED_ATTR_KEY, common._FAILED_ATTR_KEY,
-        common._MODULES_TOTAL_ATTR_KEY, common._MODULES_DONE_ATTR_KEY
-    ]
-    result_xml.seek(0)
-    result_attrs = xml_utils.GetAttributes(
-        result_xml, common._RESULT_TAG, result_attr_keys)
-    result_xml.seek(0)
-    build_attrs = xml_utils.GetAttributes(
-        result_xml, common._BUILD_TAG, build_attr_keys)
-    result_xml.seek(0)
-    summary_attrs = xml_utils.GetAttributes(
-        result_xml, common._SUMMARY_TAG, summary_attr_keys)
-
-    attr_list = []
-
-    for attr_keys, attrs in (
-            (result_attr_keys, result_attrs),
-            (build_attr_keys, build_attrs),
-            (summary_attr_keys, summary_attrs)):
-        for attr_key in attr_keys:
-            attr_list.append((attr_key, attrs.get(attr_key, "")))
-
-    return attr_list
-
-
-def _GetResultCount(attr_list):
-    """Gets total number of results from a test summary.
-
-    Args:
-        attr_list: A list of (attribute_name, value).
-
-    Returns:
-        An integer, number of results.
-        -1 if fails to parse the number.
-    """
-    try:
-        pass_cnt = next(v for k, v in attr_list if
-                        k == common._PASSED_ATTR_KEY)
-        fail_cnt = next(v for k, v in attr_list if
-                        k == common._FAILED_ATTR_KEY)
-    except StopIteration:
-        return -1
-
-    try:
-        return int(pass_cnt) + int(fail_cnt)
-    except ValueError:
-        return -1
-
-
 def _FilterTestResults(xml_file, max_return, filter_func):
-    """Converts a TradeFed report from XML to dictionary.
+    """Loads test results from XML to dictionary with a filter.
 
     Args:
         xml_file: The input file object in XML format.
@@ -343,6 +313,79 @@ def _FilterTestResults(xml_file, max_return, filter_func):
             result_dict[test_name] = result
 
     return result_dict
+
+
+def _LoadSrcResults(src_xml, max_return, bitness=""):
+    """Loads test results from XML to dictionary.
+
+    If number of results exceeds max_return, only failures are returned.
+    If number of failures exceeds max_return, the results are truncated.
+
+    Args
+        src_xml: The file object in XML format.
+        max_return: Maximum number of returned results.
+        bitness: A string, the bitness of the returned results.
+
+    Returns:
+        A dict of {name: result} and a boolean which represents whether the
+        results are truncated.
+    """
+    def FilterBitness(name):
+        return not bitness or bitness == name[0]
+
+    results = _FilterTestResults(
+        src_xml, max_return + 1, lambda name, result: FilterBitness(name))
+
+    if len(results) > max_return:
+        src_xml.seek(0)
+        results = _FilterTestResults(
+            src_xml, max_return + 1,
+            lambda name, result: result == "fail" and FilterBitness(name))
+
+    exceed_max = len(results) > max_return
+    if results and exceed_max:
+        del results[max(results)]
+
+    return results, exceed_max
+
+
+def _LoadRefResults(ref_xml, base_results, ref_bitness="", base_bitness=""):
+    """Loads reference results from XML to dictionary.
+
+    A test result in ref_xml is returned if the test fails in base_results.
+
+    Args:
+        ref_xml: The file object in XML format.
+        base_results: A dict of {name: result} containing the test names to be
+                      loaded from ref_xml.
+        ref_bitness: A string, the bitness of the results to be loaded from
+                     ref_xml.
+        base_bitness: A string, the bitness of the returned results. If this
+                      argument is specified, the function ignores bitness when
+                      comparing test names.
+
+    Returns:
+        A dict of {name: result}, the test name in base_results and the result
+        in ref_xml.
+    """
+    ref_results = dict()
+    for module, testcase, test in result_utils.IterateTestResults(ref_xml):
+        if len(ref_results) >= len(base_results):
+            break
+        result = test.attrib.get(common._RESULT_ATTR_KEY, "")
+        name = result_utils.GetTestName(module, testcase, test)
+
+        if ref_bitness and name[0] != ref_bitness:
+            continue
+        if base_bitness:
+            name_in_base = (base_bitness, ) + name[1:]
+        else:
+            name_in_base = name
+
+        if base_results.get(name_in_base, "") == "fail":
+            ref_results[name_in_base] = result
+
+    return ref_results
 
 
 def _WriteResultsToCsv(result_list, writer):
