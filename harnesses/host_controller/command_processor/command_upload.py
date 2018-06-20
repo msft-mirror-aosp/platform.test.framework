@@ -281,6 +281,9 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
 
         suite_res_msg.infra_log_path = self.console.FormatString(
             "{hc_log_upload_path}")
+        repack_path_list = []
+        repack_path_list.append(self.console.FormatString("{repack_path}"))
+        suite_res_msg.repacked_image_path.extend(repack_path_list)
 
         report_file_path = os.path.join(
             self.console.tmp_logdir,
