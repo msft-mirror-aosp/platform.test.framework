@@ -197,6 +197,8 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
 
                 del console._build_provider["pab"]
                 del console._build_provider["gcs"]
+                console.fetch_info = {}
+                console._detailed_fetch_info = {}
         else:
             logging.error("Unknown job command %s", command)
 
@@ -296,6 +298,7 @@ class Console(cmd.Cmd):
         self._detailed_fetch_info = {}
         self.test_results = {}
         self._file_lock = file_lock.FileLock()
+        self.repack_dest_path = ""
 
         if common._ANDROID_SERIAL in os.environ:
             self._serials = [os.environ[common._ANDROID_SERIAL]]
@@ -473,7 +476,7 @@ class Console(cmd.Cmd):
                 string value corresponding to the input variable name.
             """
             name = match.group(1)
-            if name in ("build_id", "branch", "target"):
+            if name in ("build_id", "branch", "target", "account_id"):
                 value = self.fetch_info[name]
             elif name in ("result_full", "result_zip", "suite_plan",
                           "suite_name"):
@@ -503,12 +506,15 @@ class Console(cmd.Cmd):
                     value = os.path.basename(value)
                 elif name == "hc_log_upload_path":
                     value = self._logfile_upload_path
+            elif name in ("repack_path"):
+                value = self.repack_dest_path
+                self.repack_dest_path = ""
             elif name in ("hostname"):
                 value = socket.gethostname()
             else:
                 value = None
 
-            if not value:
+            if value is None:
                 raise KeyError(name)
 
             return value

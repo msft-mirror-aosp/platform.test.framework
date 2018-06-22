@@ -108,6 +108,8 @@ _RESULTS_BASE_PATH = "../results"
 # Test result file contains invoked test plan results.
 _TEST_RESULT_XML = "test_result.xml"
 
+_LOG_RESULT_XML = "log-result.xml"
+
 # XML tag name whose attributes represent a module.
 _MODULE_TAG = "Module"
 
@@ -146,6 +148,8 @@ _END_DISPLAY_TIME_ATTR_KEY = "end_display"
 _SUITE_NAME_ATTR_KEY = "suite_name"
 
 # The key value for retrieving build fingerprint values from the result xml.
+_ABIS_ATTR_KEY = "build_abis"
+
 _FINGERPRINT_ATTR_KEY = "build_fingerprint"
 
 _SYSTEM_FINGERPRINT_ATTR_KEY = "build_system_fingerprint"
@@ -166,6 +170,9 @@ _MODULES_DONE_ATTR_KEY = "modules_done"
 
 # The key value for retrieving name of a test, testcase, or module.
 _NAME_ATTR_KEY = "name"
+
+# The key value for retrieving ABI of a module.
+_ABI_ATTR_KEY = "abi"
 
 # The key value for retrieving result of a test.
 _RESULT_ATTR_KEY = "result"

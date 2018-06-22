@@ -20,6 +20,8 @@ import requests
 import threading
 import time
 
+from host_controller.utils.parser import pb2_utils
+
 # Job status dict
 JOB_STATUS_DICT = {
     # scheduled but not leased yet
@@ -34,6 +36,11 @@ JOB_STATUS_DICT = {
     "expired": 4,
     # device boot error after flashing the given img sets
     "bootup-err": 5
+}
+
+SCHEDULE_INFO_PB2_ATTR_FILTERS = {
+    "pab_account_id": "device_pab_account_id",
+    "name": "build_target",
 }
 
 
@@ -145,47 +152,10 @@ class VtiEndpointClient(object):
         url = self._url + "schedule_info/v1/set"
         for pb in pbs:
             schedule = {}
-            schedule["manifest_branch"] = pb.manifest_branch
-            schedule["build_storage_type"] = pb.build_storage_type
-            for build_target in pb.build_target:
-                schedule["build_target"] = build_target.name
-                schedule["require_signed_device_build"] = (
-                    build_target.require_signed_device_build)
-                schedule["has_bootloader_img"] = build_target.has_bootloader_img
-                schedule["has_radio_img"] = build_target.has_radio_img
-                for test_schedule in build_target.test_schedule:
-                    schedule["test_name"] = test_schedule.test_name
-                    schedule["period"] = test_schedule.period
-                    schedule["priority"] = test_schedule.priority
-                    schedule["device"] = []
-                    schedule["device"].extend(test_schedule.device)
-                    schedule["required_host_equipment"] = []
-                    schedule["required_host_equipment"].extend(
-                        test_schedule.required_host_equipment)
-                    schedule["required_device_equipment"] = []
-                    schedule["required_device_equipment"].extend(
-                        test_schedule.required_device_equipment)
-                    schedule["device_pab_account_id"] = pb.pab_account_id
-                    schedule["shards"] = test_schedule.shards
-                    schedule["param"] = test_schedule.param
-                    schedule["retry_count"] = test_schedule.retry_count
-                    schedule["gsi_storage_type"] = test_schedule.gsi_storage_type
-                    schedule["gsi_branch"] = test_schedule.gsi_branch
-                    schedule["gsi_build_target"] = test_schedule.gsi_build_target
-                    schedule["gsi_pab_account_id"] = test_schedule.gsi_pab_account_id
-                    schedule["gsi_vendor_version"] = test_schedule.gsi_vendor_version
-                    schedule["test_storage_type"] = test_schedule.test_storage_type
-                    schedule["test_branch"] = test_schedule.test_branch
-                    schedule["test_build_target"] = test_schedule.test_build_target
-                    schedule["test_pab_account_id"] = test_schedule.test_pab_account_id
-                    schedule["image_package_repo_base"] = (
-                        test_schedule.image_package_repo_base)
-                    response = requests.post(url, data=json.dumps(schedule),
-                                             headers=self._headers)
-                    if response.status_code != requests.codes.ok:
-                        logging.error(
-                            "UploadScheduleInfo error: %s", response)
-                        succ = False
+            succ = succ and pb2_utils.FillDictAndPost(
+                pb, schedule, url, self._headers,
+                SCHEDULE_INFO_PB2_ATTR_FILTERS, "UploadScheduleInfo")
+
         return succ
 
     def UploadLabInfo(self, pbs, clear_labinfo):
