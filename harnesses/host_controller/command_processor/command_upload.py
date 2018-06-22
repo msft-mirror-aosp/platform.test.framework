@@ -28,6 +28,7 @@ from host_controller.utils.parser import xml_utils
 from vts.utils.python.common import cmd_utils
 
 from vti.dashboard.proto import TestSuiteResultMessage_pb2 as SuiteResMsg
+from vti.test_serving.proto import TestScheduleConfigMessage_pb2 as SchedCfgMsg
 
 
 class CommandUpload(base_command_processor.BaseCommandProcessor):
@@ -179,9 +180,18 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
         suite_res_msg.result_path = log_path
         suite_res_msg.branch = self.console.FormatString("{branch}")
         suite_res_msg.target = self.console.FormatString("{target}")
+        suite_res_msg.suite_account_id = self.console.FormatString(
+            "{account_id}")
         vti = self.console.vti_endpoint_client
         suite_res_msg.boot_success = vti.CheckBootUpStatus()
         suite_res_msg.test_type = vti.GetJobTestType()
+
+        device_fetch_info = self.console.detailed_fetch_info[
+            common._ARTIFACT_TYPE_DEVICE]
+        gsi_fetch_info = None
+        if common._ARTIFACT_TYPE_GSI in self.console.detailed_fetch_info:
+            gsi_fetch_info = self.console.detailed_fetch_info[
+                common._ARTIFACT_TYPE_GSI]
 
         if vti.CheckBootUpStatus():
             former_results = [
@@ -256,10 +266,6 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             suite_res_msg.modules_total = int(
                 summary_attrs[common._MODULES_TOTAL_ATTR_KEY])
         else:
-            device_fetch_info = self.console.detailed_fetch_info[
-                common._ARTIFACT_TYPE_DEVICE]
-            gsi_fetch_info = self.console.detailed_fetch_info[
-                common._ARTIFACT_TYPE_GSI]
             suite_res_msg.build_id = self.console.fetch_info["build_id"]
             suite_res_msg.suite_name = suite_name
             suite_res_msg.suite_plan = plan_name
@@ -268,12 +274,15 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             suite_res_msg.start_time = long(time.time() * 1000)
             suite_res_msg.end_time = suite_res_msg.start_time
             suite_res_msg.host_name = socket.gethostname()
-            suite_res_msg.build_system_fingerprint = "%s/%s/%s" % (
-                gsi_fetch_info["branch"], gsi_fetch_info["target"],
-                gsi_fetch_info["build_id"])
             suite_res_msg.build_vendor_fingerprint = "%s/%s/%s" % (
                 device_fetch_info["branch"], device_fetch_info["target"],
                 device_fetch_info["build_id"])
+            if gsi_fetch_info:
+                suite_res_msg.build_system_fingerprint = "%s/%s/%s" % (
+                    gsi_fetch_info["branch"], gsi_fetch_info["target"],
+                    gsi_fetch_info["build_id"])
+            else:
+                suite_res_msg.build_system_fingerprint = suite_res_msg.build_vendor_fingerprint
             suite_res_msg.passed_test_case_count = 0
             suite_res_msg.failed_test_case_count = 0
             suite_res_msg.modules_done = 0
@@ -284,6 +293,33 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
         repack_path_list = []
         repack_path_list.append(self.console.FormatString("{repack_path}"))
         suite_res_msg.repacked_image_path.extend(repack_path_list)
+
+        suite_res_msg.schedule_config.build_target.extend(
+            [SchedCfgMsg.BuildScheduleConfigMessage()])
+        build_target_msg = suite_res_msg.schedule_config.build_target[0]
+        build_target_msg.test_schedule.extend(
+            [SchedCfgMsg.TestScheduleConfigMessage()])
+        test_schedule_msg = build_target_msg.test_schedule[0]
+
+        suite_res_msg.vendor_build_id = device_fetch_info["build_id"]
+        suite_res_msg.schedule_config.manifest_branch = device_fetch_info[
+            "branch"]
+        build_target_msg.name = device_fetch_info["target"]
+        if device_fetch_info["account_id"]:
+            suite_res_msg.schedule_config.pab_account_id = device_fetch_info[
+                "account_id"]
+        if device_fetch_info["fetch_signed_build"]:
+            build_target_msg.require_signed_device_build = device_fetch_info[
+                "fetch_signed_build"]
+        if gsi_fetch_info:
+            test_schedule_msg.gsi_branch = gsi_fetch_info["branch"]
+            test_schedule_msg.gsi_build_target = gsi_fetch_info["target"]
+            suite_res_msg.gsi_build_id = gsi_fetch_info["build_id"]
+            if gsi_fetch_info["account_id"]:
+                test_schedule_msg.gsi_pab_account_id = gsi_fetch_info[
+                    "account_id"]
+        build_target_msg.has_bootloader_img = "bootloader.img" in self.console.device_image_info
+        build_target_msg.has_radio_img = "radio.img" in self.console.device_image_info
 
         report_file_path = os.path.join(
             self.console.tmp_logdir,
