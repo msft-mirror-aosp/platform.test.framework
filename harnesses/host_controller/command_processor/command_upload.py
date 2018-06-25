@@ -64,6 +64,10 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             "--report_path",
             help="Google Cloud Storage URL, the dest path of a report file")
         self.arg_parser.add_argument(
+            "--clear_dest",
+            action="store_true",
+            help="Delete dest recursively before the upload.")
+        self.arg_parser.add_argument(
             "--clear_results",
             default=False,
             help="True to clear all the results after the upload.")
@@ -129,6 +133,10 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             return False
         """ TODO(jongmok) : Before upload, login status, authorization,
                             and dest check are required. """
+        if args.clear_dest:
+            if not gcs_utils.Remove(gsutil_path, dest_path, recursive=True):
+                logging.error("Fail to remove %s", dest_path)
+
         if not gcs_utils.Copy(gsutil_path, src_paths, dest_path):
             logging.error("Fail to copy %s to %s", src_paths, dest_path)
 

@@ -51,6 +51,8 @@ input_data = {
 
             "report_bucket": ["report_bucket"],
             "report_spreadsheet_id": ["report_spreadsheet_id"],
+            "report_persistent_url": ["report_persistent_url"],
+            "report_reference_url": ["report_reference_url"],
         }
 
 expected_output = [
@@ -76,6 +78,7 @@ expected_output = [
     'dut --operation=volume_mute --serial=my_serial3 --version=9.0']],
   'test --suite vts --keep-result -- vts --shards 3  --serial my_serial1 --serial my_serial2 --serial my_serial3',
   'retry --suite vts --count 3  --shards 3 --serial my_serial1 --serial my_serial2 --serial my_serial3',
-  'sheet --src {result_zip} --dest report_spreadsheet_id --extra_rows logs,report_bucket/{suite_plan}/vts/{branch}/{target}/my_build_target_{build_id}_{timestamp}/',
-  'upload --src={result_full} --dest=report_bucket/{suite_plan}/vts/{branch}/{target}/my_build_target_{build_id}_{timestamp}/ --report_path=report_bucket/suite_result/{timestamp_year}/{timestamp_month}/{timestamp_day} --clear_results=True']
+  'sheet --src {result_zip} --dest report_spreadsheet_id --extra_rows logs,report_bucket/{suite_plan}/vts/{branch}/{target}/my_build_target_{build_id}_{timestamp}/ logs,report_persistent_url --ref report_reference_url',
+  'upload --src={result_full} --dest=report_bucket/{suite_plan}/vts/{branch}/{target}/my_build_target_{build_id}_{timestamp}/ --report_path=report_bucket/suite_result/{timestamp_year}/{timestamp_month}/{timestamp_day}',
+  'upload --src={result_full} --dest=report_persistent_url --clear_dest --clear_results=True']
 
