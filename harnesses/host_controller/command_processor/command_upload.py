@@ -188,8 +188,6 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
         suite_res_msg.result_path = log_path
         suite_res_msg.branch = self.console.FormatString("{branch}")
         suite_res_msg.target = self.console.FormatString("{target}")
-        suite_res_msg.suite_account_id = self.console.FormatString(
-            "{account_id}")
         vti = self.console.vti_endpoint_client
         suite_res_msg.boot_success = vti.CheckBootUpStatus()
         suite_res_msg.test_type = vti.GetJobTestType()
@@ -326,6 +324,8 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             if gsi_fetch_info["account_id"]:
                 test_schedule_msg.gsi_pab_account_id = gsi_fetch_info[
                     "account_id"]
+        test_schedule_msg.test_pab_account_id = self.console.FormatString(
+            "{account_id}")
         build_target_msg.has_bootloader_img = "bootloader.img" in self.console.device_image_info
         build_target_msg.has_radio_img = "radio.img" in self.console.device_image_info
 
