@@ -426,14 +426,31 @@ def EmitCommonConsoleCommands(**kwargs):
             "--report_path=%s/suite_result/{timestamp_year}/{timestamp_month}/"
             "{timestamp_day}" % (upload_dest, report_bucket))
 
+    if HasAttr("report_persistent_url", **kwargs):
+        for upload_dest in kwargs["report_persistent_url"]:
+            upload_dests.append(upload_dest)
+            upload_commands.append(
+                "upload --src={result_full} --dest=%s "
+                "--clear_dest" % upload_dest)
+
     if len(upload_commands) > 0:
         upload_commands[-1] += " --clear_results=True"
 
+    if HasAttr("report_reference_url", **kwargs):
+        ref_urls = kwargs["report_reference_url"]
+    else:
+        ref_urls = []
+
     extra_rows = " ".join("logs," + x for x in upload_dests)
     if HasAttr("report_spreadsheet_id", **kwargs):
-        for sheet_id in kwargs["report_spreadsheet_id"]:
-            result.append("sheet --src {result_zip} --dest %s "
-                          "--extra_rows %s" % (sheet_id, extra_rows))
+        for index, sheet_id in enumerate(kwargs["report_spreadsheet_id"]):
+            sheet_command = ("sheet --src {result_zip} --dest %s "
+                             "--extra_rows %s" % (sheet_id, extra_rows))
+            if plan_name == "cts-on-gsi":
+                sheet_command += " --primary_abi_only"
+            if index < len(ref_urls):
+                sheet_command += " --ref " + ref_urls[index]
+            result.append(sheet_command)
 
     result.extend(upload_commands)
 

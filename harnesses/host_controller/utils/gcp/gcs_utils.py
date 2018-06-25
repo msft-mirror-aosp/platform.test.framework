@@ -82,3 +82,23 @@ def List(gsutil_path, url):
     ls_command = "%s ls %s" % (gsutil_path, url)
     stdout, _, ret_code = cmd_utils.ExecuteOneShellCommand(ls_command)
     return stdout.strip("\n").split("\n") if ret_code == 0 else []
+
+
+def Remove(gsutil_path, url, recursive=False):
+    """Removes a directory or file on GCS.
+
+    Args:
+        gsutil_path: string, the path of a gsutil binary.
+        url: string, the GCS URL of the directory or file.
+        recursive: boolean, whether to remove the directory recursively.
+
+    Returns:
+        True if the command succeeded, False otherwise.
+    """
+    if "/" not in url.lstrip("gs://").rstrip("/"):
+        logging.error("Cannot remove bucket %s", url)
+        return False
+    rm_command = "%s rm -f%s %s" % (
+        gsutil_path, ("r" if recursive else ""), url)
+    ret_code = cmd_utils.ExecuteOneShellCommand(rm_command)
+    return ret_code == 0
