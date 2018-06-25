@@ -38,8 +38,8 @@ class CommandUploadTest(unittest.TestCase):
     @mock.patch("host_controller.command_processor.command_upload.open")
     @mock.patch("host_controller.command_processor.command_upload.cmd_utils")
     @mock.patch("host_controller.command_processor.command_upload.SuiteResMsg")
-    def testUploadReportBootupErr(self, mock_pb2, mock_cmd_util, mock_open,
-                                  mock_console):
+    def testUploadReportBootupErr(self, mock_suite_res_msg, mock_cmd_util,
+                                  mock_open, mock_console):
         mock_open.__enter__ = mock.Mock(return_value=mock_open)
         mock_open.__exit__ = mock.Mock(return_value=None)
         mock_cmd_util.ExecuteOneShellCommand = mock.Mock(
@@ -64,7 +64,9 @@ class CommandUploadTest(unittest.TestCase):
             }
         }
         mock_console.tmp_logdir = "tmp/log"
-        mock_pb2.TestSuiteResultMessage.return_value = mock_pb2
+        mock_pb2 = mock.Mock()
+        mock_pb2.repacked_image_path = []
+        mock_suite_res_msg.TestSuiteResultMessage.return_value = mock_pb2
         command = command_upload.CommandUpload()
         command._SetUp(mock_console)
         command.UploadReport("/path/to/bin/gsutil", "gs://report-bucket/",
@@ -89,8 +91,9 @@ class CommandUploadTest(unittest.TestCase):
     @mock.patch("host_controller.command_processor.command_upload.SuiteResMsg")
     @mock.patch("host_controller.command_processor.command_upload.os")
     @mock.patch("host_controller.command_processor.command_upload.xml_utils")
-    def testUploadReportBootupOk(self, mock_xml_util, mock_os, mock_pb2,
-                                 mock_cmd_util, mock_open, mock_console):
+    def testUploadReportBootupOk(self, mock_xml_util, mock_os,
+                                 mock_suite_res_msg, mock_cmd_util, mock_open,
+                                 mock_console):
         mock_open.__enter__ = mock.Mock(return_value=mock_open)
         mock_open.__exit__ = mock.Mock(return_value=None)
         mock_cmd_util.ExecuteOneShellCommand = mock.Mock(
@@ -98,7 +101,9 @@ class CommandUploadTest(unittest.TestCase):
         mock_console.vti_endpoint_client.CheckBootUpStatus.return_value = True
         mock_console.FormatString.side_effect = side_effect
         mock_console.tmp_logdir = "tmp/log"
-        mock_pb2.TestSuiteResultMessage.return_value = mock_pb2
+        mock_pb2 = mock.Mock()
+        mock_pb2.repacked_image_path = []
+        mock_suite_res_msg.TestSuiteResultMessage.return_value = mock_pb2
         mock_os.listdir.return_value = ["1", "2", "3"]
         mock_os.path.isdir.return_value = True
         mock_os.path.islink.return_value = False
@@ -219,10 +224,14 @@ class CommandUploadTest(unittest.TestCase):
         command.UploadReport = mock.Mock()
         command._SetUp(mock_console)
         ret = command._Run(
-            "--src=latest-system.img --dest=gs://report-bucket/")
+            "--src=latest-system.img --dest=gs://report-bucket/dir "
+            "--clear_dest")
         self.assertIsNone(ret)
+        mock_gcs_util.Remove.assert_called_with(
+            "/path/to/bin/gsutil", "gs://report-bucket/dir", recursive=True)
         mock_gcs_util.Copy.assert_called_with(
-            '/path/to/bin/gsutil', 'path/to/system.img', 'gs://report-bucket/')
+            '/path/to/bin/gsutil', 'path/to/system.img',
+            'gs://report-bucket/dir')
 
     @mock.patch("host_controller.console.Console")
     @mock.patch("host_controller.command_processor.command_upload.gcs_utils")
@@ -254,10 +263,10 @@ class CommandUploadTest(unittest.TestCase):
         command.UploadReport = mock.Mock()
         command._SetUp(mock_console)
         ret = command._Run(
-            "--src=result1.zip,result2.zip --dest=gs://report-bucket/")
+            "--src=result.zip --dest=gs://report-bucket/")
         self.assertIsNone(ret)
         mock_gcs_util.Copy.assert_called_with('/path/to/bin/gsutil',
-                                              'result1.zip,result2.zip',
+                                              'result.zip',
                                               'gs://report-bucket/')
 
 
