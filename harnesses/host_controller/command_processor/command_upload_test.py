@@ -38,8 +38,10 @@ class CommandUploadTest(unittest.TestCase):
     @mock.patch("host_controller.command_processor.command_upload.open")
     @mock.patch("host_controller.command_processor.command_upload.cmd_utils")
     @mock.patch("host_controller.command_processor.command_upload.SuiteResMsg")
-    def testUploadReportBootupErr(self, mock_suite_res_msg, mock_cmd_util,
-                                  mock_open, mock_console):
+    @mock.patch("host_controller.command_processor.command_upload.SchedCfgMsg")
+    def testUploadReportBootupErr(self, mock_sched_config_msg,
+                                  mock_suite_res_msg, mock_cmd_util, mock_open,
+                                  mock_console):
         mock_open.__enter__ = mock.Mock(return_value=mock_open)
         mock_open.__exit__ = mock.Mock(return_value=None)
         mock_cmd_util.ExecuteOneShellCommand = mock.Mock(
@@ -49,24 +51,39 @@ class CommandUploadTest(unittest.TestCase):
         mock_console.fetch_info = {
             "branch": "git_device_branch",
             "target": "device-userdebug",
-            "build_id": "1234567"
+            "build_id": "1234567",
+            "account_id": common._DEFAULT_ACCOUNT_ID,
         }
         mock_console.detailed_fetch_info = {
             "device": {
                 "branch": "git_device_branch",
                 "target": "device-userdebug",
-                "build_id": "1234567"
+                "build_id": "1234567",
+                "account_id": common._DEFAULT_ACCOUNT_ID,
+                "fetch_signed_build": False,
             },
             "gsi": {
                 "branch": "git_aosp_gsi_branch",
                 "target": "gsi-userdebug",
-                "build_id": "2345678"
+                "build_id": "2345678",
+                "account_id": common._DEFAULT_ACCOUNT_ID_INTERNAL,
             }
         }
         mock_console.tmp_logdir = "tmp/log"
+        mock_console.device_image_info = {
+            "bootloader.img": "path/to/bootloader.img"
+        }
         mock_pb2 = mock.Mock()
         mock_pb2.repacked_image_path = []
+        mock_pb2.schedule_config.build_target = []
+        mock_build_sched_config_pb2 = mock.Mock()
+        mock_build_sched_config_pb2.test_schedule = []
+        mock_test_sched_config_pb2 = mock.Mock()
         mock_suite_res_msg.TestSuiteResultMessage.return_value = mock_pb2
+        mock_sched_config_msg.BuildScheduleConfigMessage.return_value = (
+            mock_build_sched_config_pb2)
+        mock_sched_config_msg.TestScheduleConfigMessage.return_value = (
+            mock_test_sched_config_pb2)
         command = command_upload.CommandUpload()
         command._SetUp(mock_console)
         command.UploadReport("/path/to/bin/gsutil", "gs://report-bucket/",
@@ -81,6 +98,20 @@ class CommandUploadTest(unittest.TestCase):
         self.assertEqual(mock_pb2.build_vendor_fingerprint,
                          "git_device_branch/device-userdebug/1234567")
         self.assertEqual(mock_pb2.repacked_image_path, ["{repack_path}"])
+        self.assertEqual(mock_pb2.schedule_config.manifest_branch,
+                         "git_device_branch")
+        self.assertEqual(mock_pb2.schedule_config.pab_account_id,
+                         common._DEFAULT_ACCOUNT_ID)
+
+        self.assertTrue(mock_build_sched_config_pb2.has_bootloader_img)
+        self.assertFalse(mock_build_sched_config_pb2.has_radio_img)
+
+        self.assertEqual(mock_test_sched_config_pb2.gsi_branch,
+                         "git_aosp_gsi_branch")
+        self.assertEqual(mock_test_sched_config_pb2.gsi_build_target,
+                         "gsi-userdebug")
+        self.assertEqual(mock_test_sched_config_pb2.gsi_pab_account_id,
+                         common._DEFAULT_ACCOUNT_ID_INTERNAL)
         mock_cmd_util.ExecuteOneShellCommand.assert_called_with(
             "/path/to/bin/gsutil cp tmp/log/{timestamp_time}.bin "
             "gs://report-bucket/{timestamp_time}.bin")
@@ -91,9 +122,10 @@ class CommandUploadTest(unittest.TestCase):
     @mock.patch("host_controller.command_processor.command_upload.SuiteResMsg")
     @mock.patch("host_controller.command_processor.command_upload.os")
     @mock.patch("host_controller.command_processor.command_upload.xml_utils")
-    def testUploadReportBootupOk(self, mock_xml_util, mock_os,
-                                 mock_suite_res_msg, mock_cmd_util, mock_open,
-                                 mock_console):
+    @mock.patch("host_controller.command_processor.command_upload.SchedCfgMsg")
+    def testUploadReportBootupOk(self, mock_sched_config_msg, mock_xml_util,
+                                 mock_os, mock_suite_res_msg, mock_cmd_util,
+                                 mock_open, mock_console):
         mock_open.__enter__ = mock.Mock(return_value=mock_open)
         mock_open.__exit__ = mock.Mock(return_value=None)
         mock_cmd_util.ExecuteOneShellCommand = mock.Mock(
@@ -103,7 +135,15 @@ class CommandUploadTest(unittest.TestCase):
         mock_console.tmp_logdir = "tmp/log"
         mock_pb2 = mock.Mock()
         mock_pb2.repacked_image_path = []
+        mock_pb2.schedule_config.build_target = []
+        mock_build_sched_config_pb2 = mock.Mock()
+        mock_build_sched_config_pb2.test_schedule = []
+        mock_test_sched_config_pb2 = mock.Mock()
         mock_suite_res_msg.TestSuiteResultMessage.return_value = mock_pb2
+        mock_sched_config_msg.BuildScheduleConfigMessage.return_value = (
+            mock_build_sched_config_pb2)
+        mock_sched_config_msg.TestScheduleConfigMessage.return_value = (
+            mock_test_sched_config_pb2)
         mock_os.listdir.return_value = ["1", "2", "3"]
         mock_os.path.isdir.return_value = True
         mock_os.path.islink.return_value = False
@@ -229,9 +269,9 @@ class CommandUploadTest(unittest.TestCase):
         self.assertIsNone(ret)
         mock_gcs_util.Remove.assert_called_with(
             "/path/to/bin/gsutil", "gs://report-bucket/dir", recursive=True)
-        mock_gcs_util.Copy.assert_called_with(
-            '/path/to/bin/gsutil', 'path/to/system.img',
-            'gs://report-bucket/dir')
+        mock_gcs_util.Copy.assert_called_with('/path/to/bin/gsutil',
+                                              'path/to/system.img',
+                                              'gs://report-bucket/dir')
 
     @mock.patch("host_controller.console.Console")
     @mock.patch("host_controller.command_processor.command_upload.gcs_utils")
@@ -262,12 +302,10 @@ class CommandUploadTest(unittest.TestCase):
         command = command_upload.CommandUpload()
         command.UploadReport = mock.Mock()
         command._SetUp(mock_console)
-        ret = command._Run(
-            "--src=result.zip --dest=gs://report-bucket/")
+        ret = command._Run("--src=result.zip --dest=gs://report-bucket/")
         self.assertIsNone(ret)
-        mock_gcs_util.Copy.assert_called_with('/path/to/bin/gsutil',
-                                              'result.zip',
-                                              'gs://report-bucket/')
+        mock_gcs_util.Copy.assert_called_with(
+            '/path/to/bin/gsutil', 'result.zip', 'gs://report-bucket/')
 
 
 if __name__ == "__main__":
