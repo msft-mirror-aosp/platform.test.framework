@@ -513,6 +513,15 @@ class Console(cmd.Cmd):
                 self.repack_dest_path = ""
             elif name in ("hostname"):
                 value = socket.gethostname()
+            elif "." in name and name.split(".")[0] in self.command_processors:
+                command, arg = name.split(".")
+                try:
+                    value = self.command_processors[command].arg_buffer[arg]
+                except KeyError as e:
+                    logging.exception(e)
+                    value = ""
+                if value is None:
+                    value = ""
             else:
                 value = None
 

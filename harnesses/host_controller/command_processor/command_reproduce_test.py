@@ -23,7 +23,17 @@ try:
 except ImportError:
     import mock
 
+from host_controller import common
 from host_controller.command_processor import command_reproduce
+
+
+def emit_fetch_commands(**kwargs):
+    gsi = "gsi_branch" in kwargs
+    return [], gsi
+
+
+def emit_flash_commands(gsi, **kwargs):
+    return []
 
 
 class CommandReproduceTest(unittest.TestCase):
@@ -32,7 +42,7 @@ class CommandReproduceTest(unittest.TestCase):
     @mock.patch("host_controller.command_processor.command_reproduce.logging")
     def testGenerateSetupCommandsNoFetchInfo(self, mock_logging):
         mock_msg = mock.Mock()
-        mock_msg.vendor_branch = ""
+        mock_msg.schedule_config.manifest_branch = ""
         command = command_reproduce.CommandReproduce()
         ret = command.GenerateSetupCommands(mock_msg, ["serial1", "serial2"])
         self.assertEqual(ret, [])
@@ -43,13 +53,93 @@ class CommandReproduceTest(unittest.TestCase):
     @mock.patch("host_controller.command_processor.command_reproduce.logging")
     def testGenerateSetupCommandsNoSerial(self, mock_logging):
         mock_msg = mock.Mock()
-        mock_msg.vendor_branch = "some_branch"
+        mock_msg.schedule_config.manifest_branch = "some_branch"
         command = command_reproduce.CommandReproduce()
         ret = command.GenerateSetupCommands(mock_msg, [])
         self.assertEqual(ret, [])
         mock_logging.error.assert_called_with(
             "Device serial number(s) not given. "
             "Aborting pre-test setups on the device(s).")
+
+    @mock.patch("host_controller.command_processor.command_reproduce.imp")
+    def testGenerateSetupCommands(self, mock_imp):
+        mock_campiagn = mock.Mock()
+        mock_campiagn.EmitFetchCommands.side_effect = emit_fetch_commands
+        mock_campiagn.EmitFlashCommands.side_effect = emit_flash_commands
+        mock_imp.load_source.return_value = mock_campiagn
+        mock_msg = mock.Mock()
+        mock_msg.suite_name = "vts"
+        mock_msg.suite_plan = "vts"
+        mock_msg.vendor_build_id = "1234567"
+        mock_msg.gsi_build_id = "2345678"
+        mock_msg.build_id = "3456789"
+        mock_msg.branch = "git_whatever-release"
+        mock_msg.target = "test_suites_bitness"
+        mock_msg.schedule_config.manifest_branch = "git_whatever-release"
+        mock_msg.schedule_config.pab_account_id = common._DEFAULT_ACCOUNT_ID_INTERNAL
+        mock_msg.schedule_config.build_target = []
+        mock_build_target_msg = mock.Mock()
+        mock_build_target_msg.name = "somefish-userdebug"
+        mock_build_target_msg.test_schedule = []
+        mock_build_target_msg.require_signed_device_build = False
+        mock_build_target_msg.has_bootloader_img = True
+        mock_build_target_msg.has_radio_img = True
+        mock_test_schedule_msg = mock.Mock()
+        mock_test_schedule_msg.gsi_branch = "git_whatever-gsi"
+        mock_test_schedule_msg.gsi_build_target = "aosp_bitness-userdebug"
+        mock_test_schedule_msg.gsi_pab_account_id = common._DEFAULT_ACCOUNT_ID
+        mock_test_schedule_msg.test_pab_account_id = common._DEFAULT_ACCOUNT_ID
+        mock_build_target_msg.test_schedule.append(mock_test_schedule_msg)
+        mock_msg.schedule_config.build_target.append(mock_build_target_msg)
+        command = command_reproduce.CommandReproduce()
+        command.GenerateSetupCommands(mock_msg, ["serial1", "serial2"])
+        mock_campiagn.EmitFetchCommands.assert_called_with(
+            build_id="1234567",
+            build_storage_type=1,
+            build_target="somefish-userdebug",
+            gsi_branch="git_whatever-gsi",
+            gsi_build_id="2345678",
+            gsi_build_target="aosp_bitness-userdebug",
+            gsi_pab_account_id="543365459",
+            gsi_storage_type=1,
+            gsi_vendor_version=mock.ANY,
+            has_bootloader_img=True,
+            has_radio_img=True,
+            manifest_branch="git_whatever-release",
+            pab_account_id="541462473",
+            require_signed_device_build=False,
+            serial=["serial1", "serial2"],
+            shards="2",
+            test_branch="git_whatever-release",
+            test_build_id="3456789",
+            test_build_target="test_suites_bitness",
+            test_name="vts/vts",
+            test_pab_account_id="543365459"
+        )
+        mock_campiagn.EmitFlashCommands.assert_called_with(
+            True,
+            build_id="1234567",
+            build_storage_type=1,
+            build_target="somefish-userdebug",
+            gsi_branch="git_whatever-gsi",
+            gsi_build_id="2345678",
+            gsi_build_target="aosp_bitness-userdebug",
+            gsi_pab_account_id="543365459",
+            gsi_storage_type=1,
+            gsi_vendor_version=mock.ANY,
+            has_bootloader_img=True,
+            has_radio_img=True,
+            manifest_branch="git_whatever-release",
+            pab_account_id="541462473",
+            require_signed_device_build=False,
+            serial=["serial1", "serial2"],
+            shards="2",
+            test_branch="git_whatever-release",
+            test_build_id="3456789",
+            test_build_target="test_suites_bitness",
+            test_name="vts/vts",
+            test_pab_account_id="543365459"
+        )
 
     def testGenerateTestSuiteFetchCommandGCS(self):
         report_msg = mock.Mock()
@@ -201,7 +291,7 @@ class CommandReproduceTest(unittest.TestCase):
         ret = command._Run("--report_path=gs://bucket/path/to/report/file")
         self.assertFalse(ret)
         mock_logging.error.assert_called_with(
-            "Please check gsutil is installed and on your PATH")
+            "Please check whether gsutil is installed and on your PATH")
 
     @mock.patch("host_controller.console.Console")
     @mock.patch(
@@ -214,7 +304,7 @@ class CommandReproduceTest(unittest.TestCase):
         command._SetUp(mock_console)
         ret = command._Run("--report_path=/some/path/to/report/file")
         self.assertFalse(ret)
-        mock_logging.error.assert_called_with("%s is not a correct GCS path.",
+        mock_logging.error.assert_called_with("%s is not a valid GCS path.",
                                               "/some/path/to/report/file")
 
 

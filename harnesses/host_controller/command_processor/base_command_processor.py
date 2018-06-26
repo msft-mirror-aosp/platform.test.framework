@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import argparse
 import logging
 import re
 
@@ -28,6 +29,7 @@ class BaseCommandProcessor(object):
 
     Attributes:
         arg_parser: ConsoleArgumentParser object, argument parser.
+        arg_buffer: dict, stores last parsed argument, value pairs.
         console: cmd.Cmd console object.
         command: string, command name which this processor will handle.
         command_detail: string, detailed explanation for the command.
@@ -43,6 +45,7 @@ class BaseCommandProcessor(object):
             console: Console object.
         '''
         self.console = console
+        self.arg_buffer = {}
         self.arg_parser = console_argument_parser.ConsoleArgumentParser(
             self.command, self.command_detail)
         self.SetUp()
@@ -58,6 +61,11 @@ class BaseCommandProcessor(object):
             arg_line: string, line of command arguments
         '''
         ret = self.Run(arg_line)
+        args = self.arg_parser.ParseLine(arg_line)
+        for arg_tuple in args._get_kwargs():
+            key = arg_tuple[0]
+            value = arg_tuple[1]
+            self.arg_buffer[key] = value
 
         if ret is not None:
             if ret == True:  # exit command executed.
