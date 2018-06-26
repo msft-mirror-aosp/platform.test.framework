@@ -57,6 +57,7 @@ from host_controller.command_processor import command_sheet
 from host_controller.command_processor import command_shell
 from host_controller.command_processor import command_sleep
 from host_controller.command_processor import command_test
+from host_controller.command_processor import command_reproduce
 from host_controller.command_processor import command_upload
 from host_controller.build import build_info
 from host_controller.build import build_provider_ab
@@ -94,6 +95,7 @@ COMMAND_PROCESSORS = [
     command_shell.CommandShell,
     command_sleep.CommandSleep,
     command_test.CommandTest,
+    command_reproduce.CommandReproduce,
     command_upload.CommandUpload,
 ]
 
