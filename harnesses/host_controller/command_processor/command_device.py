@@ -51,16 +51,30 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                      server_type,
                      host,
                      lease,
-                     suppress_lock_warning=True):
+                     suppress_lock_warning=True, from_job_pool=False):
         """Updates the device state of all devices on a given host.
 
         Args:
             server_type: string, the type of a test secheduling server.
             host: HostController object
             lease: boolean, True to lease and execute jobs.
+            suppress_lock_warning: bool, True to suppress the warning msg from
+                                   file_lock.
+            from_job_pool: bool, True if the 'device' command is executed from
+                           one of the job pool processes. Checks only
+                           the availability of the devices when set.
         """
         if server_type == "vti":
             devices = []
+
+            if from_job_pool:
+                devices_dict = {}
+                for serial in self.console.GetSerials():
+                    device = {}
+                    device["serial"] = serial
+                    device["status"] = common._DEVICE_STATUS_DICT["no-response"]
+                    device["product"] = "error"
+                    devices_dict[serial] = device
 
             stdout, stderr, returncode = cmd_utils.ExecuteOneShellCommand(
                 "adb devices")
@@ -75,6 +89,11 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                     device = {}
                     device["serial"] = line.split()[0]
                     serial = device["serial"]
+
+                    if from_job_pool:
+                        if serial in devices_dict:
+                            devices_dict.pop(serial)
+                        continue
 
                     if self.console.file_lock.LockDevice(
                             serial, suppress_lock_warning) == False:
@@ -97,6 +116,11 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                     device = {}
                     device["serial"] = line.split()[0]
                     serial = device["serial"]
+
+                    if from_job_pool:
+                        if serial in devices_dict:
+                            devices_dict.pop(serial)
+                        continue
 
                     if self.console.file_lock.LockDevice(
                             serial, suppress_lock_warning) == False:
@@ -127,6 +151,13 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
 
                     self.console.file_lock.UnlockDevice(serial)
 
+            if from_job_pool:
+                devices = devices_dict.values()
+                if devices:
+                    self.console._vti_endpoint_client.UploadDeviceInfo(
+                        host.hostname, devices)
+                return
+
             self.console._vti_endpoint_client.UploadDeviceInfo(
                 host.hostname, devices)
 
@@ -152,7 +183,7 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                            host,
                            lease,
                            update_interval,
-                           suppress_lock_warning=True):
+                           suppress_lock_warning=True, from_job_pool=False):
         """Regularly updates the device state of devices on a given host.
 
         Args:
@@ -160,12 +191,16 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
             host: HostController object
             lease: boolean, True to lease and execute jobs.
             update_interval: int, number of seconds before repeating
+            suppress_lock_warning: bool, True to suppress the warning msg from
+                                   file_lock.
+            from_job_pool: bool, True if the 'device' command is executed form
+                           one of the job pool processes.
         """
         thread = threading.currentThread()
         while getattr(thread, 'keep_running', True):
             try:
                 self.UpdateDevice(server_type, host, lease,
-                                  suppress_lock_warning)
+                                  suppress_lock_warning, from_job_pool)
             except (socket.error, remote_operation.RemoteOperationException,
                     httplib2.HttpLib2Error, errors.HttpError) as e:
                 logging.exception(e)
@@ -205,6 +240,12 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
             "--suppress_lock_warning",
             default=True,
             help="Whether to suppress device lock warning messages.")
+        self.arg_parser.add_argument(
+            "--from_job_pool",
+            action="store_true",
+            help="Whether the command is executed from the job pool. "
+                 "Check only the availability of the devices when set."
+        )
 
     # @Override
     def Run(self, arg_line):
@@ -229,7 +270,7 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
 
             if args.update == "single":
                 self.UpdateDevice(args.server_type, host, args.lease,
-                                  suppress_lock_warning)
+                                  suppress_lock_warning, args.from_job_pool)
             elif args.update == "start":
                 if args.interval <= 0:
                     raise ConsoleArgumentError(
@@ -249,6 +290,7 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                         args.lease,
                         args.interval,
                         suppress_lock_warning,
+                        args.from_job_pool,
                     ))
                 self.update_thread.daemon = True
                 self.update_thread.start()
