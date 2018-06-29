@@ -338,6 +338,8 @@ def EmitCommonConsoleCommands(**kwargs):
     suite_name, plan_name = kwargs["test_name"].split("/")
     serials = kwargs["serial"]
 
+    result.append("device --set_serial=%s --from_job_pool" % ",".join(serials))
+
     fetch_commands_result, gsi = EmitFetchCommands(**kwargs)
     result.extend(fetch_commands_result)
     flash_commands_result = EmitFlashCommands(gsi, **kwargs)
@@ -453,6 +455,8 @@ def EmitCommonConsoleCommands(**kwargs):
             result.append(sheet_command)
 
     result.extend(upload_commands)
+
+    result.append("device --update=stop")
 
     return result
 

@@ -58,7 +58,8 @@ _DEVICE_STATUS_DICT = {
     "online": 2,
     "ready": 3,
     "use": 4,
-    "error": 5}
+    "error": 5,
+    "no-response": 6}
 
 _STORAGE_TYPE_DICT = {
     pb.UNKNOWN_BUILD_STORAGE_TYPE: "unknown",
