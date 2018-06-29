@@ -308,26 +308,26 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
         test_schedule_msg = build_target_msg.test_schedule[0]
 
         suite_res_msg.vendor_build_id = device_fetch_info["build_id"]
-        suite_res_msg.schedule_config.manifest_branch = device_fetch_info[
-            "branch"]
-        build_target_msg.name = device_fetch_info["target"]
+        suite_res_msg.schedule_config.manifest_branch = str(
+            device_fetch_info["branch"])
+        build_target_msg.name = str(device_fetch_info["target"])
         if device_fetch_info["account_id"]:
-            suite_res_msg.schedule_config.pab_account_id = device_fetch_info[
-                "account_id"]
+            suite_res_msg.schedule_config.pab_account_id = str(
+                device_fetch_info["account_id"])
         if device_fetch_info["fetch_signed_build"]:
             build_target_msg.require_signed_device_build = device_fetch_info[
                 "fetch_signed_build"]
         if gsi_fetch_info:
-            test_schedule_msg.gsi_branch = gsi_fetch_info["branch"]
-            test_schedule_msg.gsi_build_target = gsi_fetch_info["target"]
-            suite_res_msg.gsi_build_id = gsi_fetch_info["build_id"]
+            test_schedule_msg.gsi_branch = str(gsi_fetch_info["branch"])
+            test_schedule_msg.gsi_build_target = str(gsi_fetch_info["target"])
+            suite_res_msg.gsi_build_id = str(gsi_fetch_info["build_id"])
             if gsi_fetch_info["account_id"]:
-                test_schedule_msg.gsi_pab_account_id = gsi_fetch_info[
-                    "account_id"]
-            test_schedule_msg.gsi_vendor_version = self.console.FormatString(
-                "{gsispl.vendor_version}")
-        test_schedule_msg.test_pab_account_id = self.console.FormatString(
-            "{account_id}")
+                test_schedule_msg.gsi_pab_account_id = str(
+                    gsi_fetch_info["account_id"])
+            test_schedule_msg.gsi_vendor_version = str(
+                self.console.FormatString("{gsispl.vendor_version}"))
+        test_schedule_msg.test_pab_account_id = str(
+            self.console.FormatString("{account_id}"))
         build_target_msg.has_bootloader_img = "bootloader.img" in self.console.device_image_info
         build_target_msg.has_radio_img = "radio.img" in self.console.device_image_info
 
