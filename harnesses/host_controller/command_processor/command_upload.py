@@ -324,6 +324,8 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             if gsi_fetch_info["account_id"]:
                 test_schedule_msg.gsi_pab_account_id = gsi_fetch_info[
                     "account_id"]
+            test_schedule_msg.gsi_vendor_version = self.console.FormatString(
+                "{gsispl.vendor_version}")
         test_schedule_msg.test_pab_account_id = self.console.FormatString(
             "{account_id}")
         build_target_msg.has_bootloader_img = "bootloader.img" in self.console.device_image_info
