@@ -87,7 +87,9 @@ class CommandReproduce(base_command_processor.BaseCommandProcessor):
             except IOError as e:
                 logging.exception(e)
                 return False
-            serial = args.serial.split(",")
+            serial = []
+            if args.serial:
+                serial = args.serial.split(",")
             setup_command_list = self.GenerateSetupCommands(
                 report_msg, serial)
             if not setup_command_list:
