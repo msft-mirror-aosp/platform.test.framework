@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import imp  # Python v2 compatibility
 import logging
 import os
 import re
@@ -86,9 +87,11 @@ class CommandReproduce(base_command_processor.BaseCommandProcessor):
             except IOError as e:
                 logging.exception(e)
                 return False
-
+            serial = []
+            if args.serial:
+                serial = args.serial.split(",")
             setup_command_list = self.GenerateSetupCommands(
-                report_msg, args.serial)
+                report_msg, serial)
             if not setup_command_list:
                 suite_fetch_command = self.GenerateTestSuiteFetchCommand(
                     report_msg)
@@ -122,14 +125,78 @@ class CommandReproduce(base_command_processor.BaseCommandProcessor):
             list of string, console commands to fetch device/gsi images
             and flash the device(s).
         """
-        # TODO(hyunwooko): complete the method using campaign.
         ret = []
-        if not report_msg.vendor_branch:
+        schedule_config = report_msg.schedule_config
+        if not schedule_config.manifest_branch:
             logging.error("Report contains no fetch information. "
                           "Aborting pre-test setups on the device(s).")
         elif not serial:
             logging.error("Device serial number(s) not given. "
                           "Aborting pre-test setups on the device(s).")
+        else:
+            try:
+                build_target_msg = schedule_config.build_target[0]
+                test_schedule_msg = build_target_msg.test_schedule[0]
+            except IndexError as e:
+                logging.exception(e)
+                return ret
+            kwargs = {}
+            # common fetch info
+            kwargs["shards"] = str(len(serial))
+            kwargs["test_name"] = "%s/%s" % (report_msg.suite_name.lower(),
+                                             report_msg.suite_plan)
+            kwargs["serial"] = serial
+
+            # fetch info for device images
+            kwargs["manifest_branch"] = schedule_config.manifest_branch
+            kwargs["build_target"] = build_target_msg.name
+            kwargs["build_id"] = report_msg.vendor_build_id
+            kwargs["pab_account_id"] = schedule_config.pab_account_id
+            if kwargs["manifest_branch"].startswith("gs://"):
+                kwargs[
+                    "build_storage_type"] = SchedCfgMsg.BUILD_STORAGE_TYPE_GCS
+            else:
+                kwargs[
+                    "build_storage_type"] = SchedCfgMsg.BUILD_STORAGE_TYPE_PAB
+            kwargs["require_signed_device_build"] = (
+                build_target_msg.require_signed_device_build)
+            kwargs["has_bootloader_img"] = build_target_msg.has_bootloader_img
+            kwargs["has_radio_img"] = build_target_msg.has_radio_img
+
+            # fetch info for gsi images and gsispl command
+            kwargs["gsi_branch"] = test_schedule_msg.gsi_branch
+            kwargs["gsi_build_target"] = test_schedule_msg.gsi_build_target
+            kwargs["gsi_build_id"] = report_msg.gsi_build_id
+            kwargs["gsi_pab_account_id"] = test_schedule_msg.gsi_pab_account_id
+            if kwargs["gsi_branch"].startswith("gs://"):
+                kwargs["gsi_storage_type"] = SchedCfgMsg.BUILD_STORAGE_TYPE_GCS
+            else:
+                kwargs["gsi_storage_type"] = SchedCfgMsg.BUILD_STORAGE_TYPE_PAB
+            kwargs["gsi_vendor_version"] = test_schedule_msg.gsi_vendor_version
+
+            # fetch info for test suite
+            kwargs["test_build_id"] = report_msg.build_id
+            kwargs["test_branch"] = report_msg.branch
+            kwargs["test_build_target"] = report_msg.target
+            kwargs[
+                "test_pab_account_id"] = test_schedule_msg.test_pab_account_id
+            if kwargs["test_branch"].startswith("gs://"):
+                kwargs[
+                    "test_storage_type"] = SchedCfgMsg.BUILD_STORAGE_TYPE_GCS
+            else:
+                kwargs["gsi_storage_type"] = SchedCfgMsg.BUILD_STORAGE_TYPE_PAB
+
+            campaign_common = imp.load_source(
+                "campaign_common",
+                os.path.join(os.getcwd(), "host_controller", "campaigns",
+                             "campaign_common.py"))
+            fetch_commands_result, gsi = campaign_common.EmitFetchCommands(
+                **kwargs)
+            ret.extend(fetch_commands_result)
+            flash_commands_result = campaign_common.EmitFlashCommands(
+                gsi, **kwargs)
+            ret.extend(flash_commands_result)
+
         return ret
 
     def GenerateTestSuiteFetchCommand(self, report_msg):
