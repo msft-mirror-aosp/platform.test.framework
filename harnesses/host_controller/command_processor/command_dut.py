@@ -16,6 +16,7 @@
 
 import logging
 
+from host_controller import common
 from host_controller.command_processor import base_command_processor
 
 from vts.utils.python.common import cmd_utils
@@ -85,7 +86,15 @@ class CommandDUT(base_command_processor.BaseCommandProcessor):
         args = self.arg_parser.ParseLine(arg_line)
         device = android_device.AndroidDevice(
             args.serial, device_callback_port=-1)
-        device.waitForBootCompletion()
+        boot_complete = device.waitForBootCompletion()
+        if not boot_complete:
+            logging.error("Device %s failed to bootup.", args.serial)
+            self.console.device_status[
+                args.serial] = common._DEVICE_STATUS_DICT["error"]
+            self.console.vti_endpoint_client.SetJobStatusFromLeasedTo(
+                "bootup-err")
+            return False
+
         adb_proxy = adb.AdbProxy(serial=args.serial)
         adb_proxy.root()
         try:
