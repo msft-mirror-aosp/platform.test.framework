@@ -16,6 +16,9 @@
 
 import unittest
 
+from host_controller.campaigns import cts
+from host_controller.campaigns import gts
+from host_controller.campaigns import sts
 from host_controller.campaigns import vts
 
 from host_controller.campaigns.testdata import default_testcase
@@ -29,8 +32,43 @@ class CampaignTest(unittest.TestCase):
 
     def testVtsBaseline(self):
         """Tests the default device's vts scenario."""
-        results = vts.EmitConsoleCommands(**default_testcase.input_data)
-        self.assertEqual(default_testcase.expected_output, results)
+        test_name = "vts/vts"
+        results = vts.EmitConsoleCommands(
+            **default_testcase.GenerateInputData(test_name))
+        self.assertEqual(
+            default_testcase.GenerateOutputData(test_name), results)
+
+    def testCtsOnGsiBaseline(self):
+        """Tests the default device's vts scenario."""
+        test_name = "vts/cts-on-gsi"
+        results = vts.EmitConsoleCommands(
+            **default_testcase.GenerateInputData(test_name))
+        self.assertEqual(
+            default_testcase.GenerateOutputData(test_name), results)
+
+    def testCtsBaseline(self):
+        """Tests the default device's vts scenario."""
+        test_name = "cts/cts"
+        results = cts.EmitConsoleCommands(
+            **default_testcase.GenerateInputData(test_name))
+        self.assertEqual(
+            default_testcase.GenerateOutputData(test_name), results)
+
+    def testGtsBaseline(self):
+        """Tests the default device's vts scenario."""
+        test_name = "gts/gts"
+        results = gts.EmitConsoleCommands(
+            **default_testcase.GenerateInputData(test_name))
+        self.assertEqual(
+            default_testcase.GenerateOutputData(test_name), results)
+
+    def testStsBaseline(self):
+        """Tests the default device's vts scenario."""
+        test_name = "sts/sts"
+        results = sts.EmitConsoleCommands(
+            **default_testcase.GenerateInputData(test_name))
+        self.assertEqual(
+            default_testcase.GenerateOutputData(test_name), results)
 
 
 if __name__ == '__main__':
