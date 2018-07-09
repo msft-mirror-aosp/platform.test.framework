@@ -118,7 +118,7 @@ class NonDaemonizedPool(multiprocessing.pool.Pool):
     Process = NonDaemonizedProcess
 
 
-def JobMain(vti_address, in_queue, out_queue, device_status, password):
+def JobMain(vti_address, in_queue, out_queue, device_status, password, hosts):
     """Main() for a child process that executes a leased job.
 
     Currently, lease jobs must use VTI (not TFC).
@@ -133,6 +133,7 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
                   string(ctypes.c_char_p) represents the password which is
                   to be passed to the prompt when executing certain command
                   as root user.
+        hosts: A list of HostController objects. Needed for the device command.
     """
 
     def SigTermHandler(signum, frame):
@@ -145,12 +146,7 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
     signal.signal(signal.SIGTERM, SigTermHandler)
 
     vti_client = vti_endpoint_client.VtiEndpointClient(vti_address)
-    console = Console(
-        vti_client,
-        None,
-        None,
-        None,
-        job_pool=True)
+    console = Console(vti_client, None, None, hosts, job_pool=True)
     console.device_status = device_status
     console.password = password
     multiprocessing.util.Finalize(console, console.__exit__, exitpriority=0)
@@ -166,8 +162,10 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
                 # TODO: redirect console output and add
                 # console command to access them.
 
-                console._build_provider["pab"] = build_provider_pab.BuildProviderPAB()
-                console._build_provider["gcs"] = build_provider_gcs.BuildProviderGCS()
+                console._build_provider[
+                    "pab"] = build_provider_pab.BuildProviderPAB()
+                console._build_provider[
+                    "gcs"] = build_provider_gcs.BuildProviderGCS()
 
                 for serial in kwargs["serial"]:
                     console.ChangeDeviceState(
@@ -807,7 +805,7 @@ class Console(cmd.Cmd):
         self._job_pool = NonDaemonizedPool(
             common._MAX_LEASED_JOBS, JobMain,
             (self._vti_address, self._job_in_queue, self._job_out_queue,
-             self._device_status, self._password))
+             self._device_status, self._password, self._hosts))
 
         self._job_thread = threading.Thread(target=self.JobThread)
         self._job_thread.daemon = True
