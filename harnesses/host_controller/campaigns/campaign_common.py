@@ -338,8 +338,6 @@ def EmitCommonConsoleCommands(**kwargs):
     suite_name, plan_name = kwargs["test_name"].split("/")
     serials = kwargs["serial"]
 
-    result.append("device --set_serial=%s --from_job_pool" % ",".join(serials))
-
     fetch_commands_result, gsi = EmitFetchCommands(**kwargs)
     result.extend(fetch_commands_result)
     flash_commands_result = EmitFlashCommands(gsi, **kwargs)
@@ -357,6 +355,8 @@ def EmitCommonConsoleCommands(**kwargs):
     else:
         shard_option = "--shards"
         retry_option = ""
+
+    result.append("device --set_serial=%s --from_job_pool" % ",".join(serials))
 
     if shards > 1:
         test_command = "test --suite %s --keep-result -- %s %s %d %s" % (
