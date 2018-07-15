@@ -50,9 +50,14 @@ def FillDictAndPost(msg,
         else:
             if filters and field.name in filters:
                 filtered_key = filters[field.name]
-                dict_to_fill[filtered_key] = msg.__getattribute__(field.name)
             else:
-                dict_to_fill[field.name] = msg.__getattribute__(field.name)
+                filtered_key = field.name
+
+            if field.label == field.LABEL_REPEATED:
+                dict_to_fill[filtered_key] = list(
+                    msg.__getattribute__(field.name))
+            else:
+                dict_to_fill[filtered_key] = msg.__getattribute__(field.name)
 
     for sub_msg in sub_msg_list:
         ret = ret and FillDictAndPost(sub_msg, dict_to_fill, url, headers,
