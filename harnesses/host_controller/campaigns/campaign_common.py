@@ -356,7 +356,8 @@ def EmitCommonConsoleCommands(**kwargs):
         shard_option = "--shards"
         retry_option = ""
 
-    result.append("device --set_serial=%s --from_job_pool" % ",".join(serials))
+    result.append("device --set_serial=%s --from_job_pool --interval=%s" %
+                  (",".join(serials), common.DEFAULT_DEVICE_TIMEOUT_SECS))
 
     if shards > 1:
         test_command = "test --suite %s --keep-result -- %s %s %d %s" % (
@@ -431,9 +432,8 @@ def EmitCommonConsoleCommands(**kwargs):
     if HasAttr("report_persistent_url", **kwargs):
         for upload_dest in kwargs["report_persistent_url"]:
             upload_dests.append(upload_dest)
-            upload_commands.append(
-                "upload --src={result_full} --dest=%s "
-                "--clear_dest" % upload_dest)
+            upload_commands.append("upload --src={result_full} --dest=%s "
+                                   "--clear_dest" % upload_dest)
 
     if len(upload_commands) > 0:
         upload_commands[-1] += " --clear_results=True"
@@ -614,7 +614,8 @@ def GenerateMt6739GsiFlashingCommands(serial,
     flash_gsi_cmd = ("fastboot -s %s flash system "
                      "{device-image[gsi-zipfile-dir]}/system.img")
     result = [
-        flash_img_cmd % (serial, partition, image) for partition, image in (
+        flash_img_cmd % (serial, partition, image)
+        for partition, image in (
             ("lk", "lk.img"),
             ("md1img", "md1img.img"),
             ("md1dsp", "md1dsp.img"),

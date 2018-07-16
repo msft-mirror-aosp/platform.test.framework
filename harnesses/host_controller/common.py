@@ -59,7 +59,8 @@ _DEVICE_STATUS_DICT = {
     "ready": 3,
     "use": 4,
     "error": 5,
-    "no-response": 6}
+    "no-response": 6
+}
 
 _STORAGE_TYPE_DICT = {
     pb.UNKNOWN_BUILD_STORAGE_TYPE: "unknown",
@@ -199,3 +200,6 @@ _ARTIFACT_TYPE_LIST = [
 ]
 # Directory relative to the home directory, in which the devices' lock files will be.
 _DEVLOCK_DIR = ".devlock"
+
+# Default timeout for "adb reboot/fastboot getvar" command in secs.
+DEFAULT_DEVICE_TIMEOUT_SECS = 300

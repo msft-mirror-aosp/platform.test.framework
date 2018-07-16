@@ -30,9 +30,6 @@ from host_controller.utils.usb import usb_utils
 
 from vts.utils.python.common import cmd_utils
 
-# Default timeout for "adb reboot" command in secs.
-DEFAULT_TIMEOUT_SECS = 300
-
 
 class CommandDevice(base_command_processor.BaseCommandProcessor):
     """Command processor for Device command.
@@ -107,10 +104,10 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                         continue
 
                     usb_reset_timer = self.RunUSBResetTimer(
-                        device["serial"], DEFAULT_TIMEOUT_SECS)
+                        device["serial"], common.DEFAULT_DEVICE_TIMEOUT_SECS)
                     stdout, _, retcode = cmd_utils.ExecuteOneShellCommand(
                         "adb -s %s reboot bootloader" % device["serial"],
-                        DEFAULT_TIMEOUT_SECS)
+                        common.DEFAULT_DEVICE_TIMEOUT_SECS)
                     usb_reset_timer.cancel()
                     if retcode == 0:
                         lines_fastboot.append(line)
@@ -137,7 +134,7 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                         continue
 
                     usb_reset_timer = self.RunUSBResetTimer(
-                        device["serial"], DEFAULT_TIMEOUT_SECS)
+                        device["serial"], common.DEFAULT_DEVICE_TIMEOUT_SECS)
                     _, stderr, retcode = cmd_utils.ExecuteOneShellCommand(
                         "fastboot -s %s getvar product" % device["serial"])
                     usb_reset_timer.cancel()
