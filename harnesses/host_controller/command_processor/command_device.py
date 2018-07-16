@@ -26,6 +26,7 @@ from host_controller import common
 from host_controller.command_processor import base_command_processor
 from host_controller.console_argument_parser import ConsoleArgumentError
 from host_controller.tradefed import remote_operation
+from host_controller.utils.usb import usb_utils
 
 from vts.utils.python.common import cmd_utils
 
@@ -51,7 +52,8 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                      server_type,
                      host,
                      lease,
-                     suppress_lock_warning=True, from_job_pool=False):
+                     suppress_lock_warning=True,
+                     from_job_pool=False):
         """Updates the device state of all devices on a given host.
 
         Args:
@@ -72,7 +74,8 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                 for serial in self.console.GetSerials():
                     device = {}
                     device["serial"] = serial
-                    device["status"] = common._DEVICE_STATUS_DICT["no-response"]
+                    device["status"] = common._DEVICE_STATUS_DICT[
+                        "no-response"]
                     device["product"] = "error"
                     devices_dict[serial] = device
 
@@ -103,9 +106,12 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                             logging.info("Device %s already locked." % serial)
                         continue
 
+                    usb_reset_timer = self.RunUSBResetTimer(
+                        device["serial"], DEFAULT_TIMEOUT_SECS)
                     stdout, _, retcode = cmd_utils.ExecuteOneShellCommand(
                         "adb -s %s reboot bootloader" % device["serial"],
                         DEFAULT_TIMEOUT_SECS)
+                    usb_reset_timer.cancel()
                     if retcode == 0:
                         lines_fastboot.append(line)
 
@@ -130,8 +136,11 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                             logging.info("Device %s already locked." % serial)
                         continue
 
+                    usb_reset_timer = self.RunUSBResetTimer(
+                        device["serial"], DEFAULT_TIMEOUT_SECS)
                     _, stderr, retcode = cmd_utils.ExecuteOneShellCommand(
                         "fastboot -s %s getvar product" % device["serial"])
+                    usb_reset_timer.cancel()
                     if retcode == 0:
                         res = stderr.splitlines()[0].rstrip()
                         if ":" in res:
@@ -183,7 +192,8 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                            host,
                            lease,
                            update_interval,
-                           suppress_lock_warning=True, from_job_pool=False):
+                           suppress_lock_warning=True,
+                           from_job_pool=False):
         """Regularly updates the device state of devices on a given host.
 
         Args:
@@ -205,6 +215,40 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                     httplib2.HttpLib2Error, errors.HttpError) as e:
                 logging.exception(e)
             time.sleep(update_interval)
+
+    def RunUSBResetTimer(self, serial, interval):
+        """Sets up a timer to run the target function after 'interval' secs.
+
+        Args:
+            serial: string, serial number of the device whose USB device file
+                    will reset when the timeout happens.
+            interval: int, sets up the timer for the target function to be
+                      executed after 'interval' seconds, if not canceled.
+
+        Returns:
+            threading.Timer, set to reset USB port corresponding the device
+            with the given serial number.
+        """
+        usb_reset_timer = threading.Timer(interval, self.USBResetCallback,
+                                          (serial, ))
+        usb_reset_timer.daemon = True
+        usb_reset_timer.start()
+
+        return usb_reset_timer
+
+    def USBResetCallback(self, serial):
+        """Resets USB device file corresponding to the given device serial.
+
+        Args:
+            serial: string, serial number of the device whose USB device file
+                    will reset.
+        """
+        device_file_path = usb_utils.GetDevicesUSBFilePath()
+        if serial in device_file_path:
+            logging.error(
+                "Device %s not responding. Resetting device file %s.", serial,
+                device_file_path)
+            usb_utils.ResetDeviceUsb(device_file_path[serial])
 
     # @Override
     def SetUp(self):
@@ -244,8 +288,7 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
             "--from_job_pool",
             action="store_true",
             help="Whether the command is executed from the job pool. "
-                 "Check only the availability of the devices when set."
-        )
+            "Check only the availability of the devices when set.")
 
     # @Override
     def Run(self, arg_line):
