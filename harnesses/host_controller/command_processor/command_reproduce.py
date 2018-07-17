@@ -178,6 +178,8 @@ class CommandReproduce(base_command_processor.BaseCommandProcessor):
             kwargs["test_build_id"] = report_msg.build_id
             kwargs["test_branch"] = report_msg.branch
             kwargs["test_build_target"] = report_msg.target
+            if kwargs["test_build_target"].endswith(".zip"):
+                kwargs["test_build_target"] = kwargs["test_build_target"][:-4]
             kwargs[
                 "test_pab_account_id"] = test_schedule_msg.test_pab_account_id
             if kwargs["test_branch"].startswith("gs://"):
