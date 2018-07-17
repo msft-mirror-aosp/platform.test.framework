@@ -109,6 +109,7 @@ class CommandGsispl(base_command_processor.BaseCommandProcessor):
                     if not os.path.exists(img_path):
                         logging.error("No %s file in device img .zip.",
                                       args.version_from_path)
+                        shutil.rmtree(dest_path)
                         return
             else:
                 logging.error("Cannot find %s file.", args.version_from_path)
