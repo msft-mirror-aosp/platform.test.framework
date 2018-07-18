@@ -91,7 +91,8 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                     serial = device["serial"]
 
                     if from_job_pool:
-                        if serial in devices_dict:
+                        if (serial in devices_dict
+                                and line.split()[1] == "device"):
                             devices_dict.pop(serial)
                         continue
 
