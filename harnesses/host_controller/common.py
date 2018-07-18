@@ -85,6 +85,7 @@ _DEFAULT_WIFI_AP = "GoogleGuest"
 
 # SoC name list.
 K39TV1_BSP = "k39tv1_bsp"
+K39TV1_BSP_1G = "k39tv1_bsp_1g"
 
 SDM845 = "sdm845"
 
