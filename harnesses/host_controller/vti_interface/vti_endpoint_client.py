@@ -396,3 +396,17 @@ class VtiEndpointClient(object):
             except ValueError as e:
                 logging.exception(e)
         return 0
+
+    def GetJobDeviceProductName(self):
+        """Returns the product name of the DUTs of the leased job.
+
+        Returns:
+            string, product name. An empty string if there is no job leased or
+            "device" attr of the job obj is not well formatted.
+        """
+        if self._job and "device" in self._job:
+            try:
+                return self._job["device"].split("/")[1]
+            except IndexError as e:
+                logging.exception(e)
+        return ""

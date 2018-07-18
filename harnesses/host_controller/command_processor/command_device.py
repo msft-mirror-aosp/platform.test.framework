@@ -93,7 +93,13 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                     if from_job_pool:
                         if (serial in devices_dict
                                 and line.split()[1] == "device"):
-                            devices_dict.pop(serial)
+                            devices_dict[serial][
+                                "status"] = common._DEVICE_STATUS_DICT[
+                                    "online"]
+                            product = (self.console._vti_endpoint_client.
+                                       GetJobDeviceProductName())
+                            if product:
+                                devices_dict[serial]["product"] = product
                         continue
 
                     if self.console.file_lock.LockDevice(
@@ -123,7 +129,13 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
 
                     if from_job_pool:
                         if serial in devices_dict:
-                            devices_dict.pop(serial)
+                            devices_dict[serial][
+                                "status"] = common._DEVICE_STATUS_DICT[
+                                    "fastboot"]
+                            product = (self.console._vti_endpoint_client.
+                                       GetJobDeviceProductName())
+                            if product:
+                                devices_dict[serial]["product"] = product
                         continue
 
                     if self.console.file_lock.LockDevice(
