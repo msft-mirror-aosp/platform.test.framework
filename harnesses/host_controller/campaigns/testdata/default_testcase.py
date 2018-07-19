@@ -66,6 +66,7 @@ input_data = {
 }
 
 expected_output = [
+    'device --set_serial=my_serial1,my_serial2,my_serial3 --from_job_pool --interval=300',
     'fetch --type=pab --branch=my_branch --target=my_build_target --artifact_name=my_build_target-img-my_build_id.zip --build_id=my_build_id --account_id=my_pab_account_id --fetch_signed_build=True',
     'fetch --type=pab --branch=my_branch --target=my_build_target --artifact_name=bootloader.img --build_id=my_build_id --account_id=my_pab_account_id',
     'fetch --type=pab --branch=my_branch --target=my_build_target --artifact_name=radio.img --build_id=my_build_id --account_id=my_pab_account_id',
@@ -88,7 +89,6 @@ expected_output = [
         'dut --operation=wifi_on --serial=my_serial3 --ap=GoogleGuest',
         'dut --operation=volume_mute --serial=my_serial3 --version=9.0'
     ]],
-    'device --set_serial=my_serial1,my_serial2,my_serial3 --from_job_pool --interval=300',
     'test --suite {{test_suite}} --keep-result -- {{test_plan}} --shards 3  --serial my_serial1 --serial my_serial2 --serial my_serial3',
     'retry --suite {{test_suite}} --count 3 {{retry_plan}} --shards 3 --serial my_serial1 --serial my_serial2 --serial my_serial3{{cleanup_device}}',
     'sheet --src {result_zip} --dest report_spreadsheet_id --extra_rows logs,report_bucket/{suite_plan}/{{test_plan}}/{branch}/{target}/my_build_target_{build_id}_{timestamp}/ --primary_abi_only',
