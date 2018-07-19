@@ -264,7 +264,8 @@ def EmitFlashCommands(gsi, **kwargs):
         if shards <= len(serials):
             for shard_index in range(shards):
                 new_cmd_list = []
-                if common.K39TV1_BSP in build_target:
+                if (common.K39TV1_BSP in build_target or
+                        common.K39TV1_BSP_1G in build_target):
                     new_cmd_list.extend(
                         GenerateMt6739GsiFlashingCommands(
                             serials[shard_index], gsi))
@@ -291,7 +292,8 @@ def EmitFlashCommands(gsi, **kwargs):
                 sub_commands.append(new_cmd_list)
         result.append(sub_commands)
     else:
-        if common.K39TV1_BSP in build_target:
+        if (common.K39TV1_BSP in build_target or
+                common.K39TV1_BSP_1G in build_target):
             result.extend(GenerateMt6739GsiFlashingCommands(serials[0], gsi))
         elif common.SDM845 in build_target and gsi:
             result.extend(GenerateSdm845GsiFlashingCommands(serials[0]))
@@ -616,18 +618,24 @@ def GenerateMt6739GsiFlashingCommands(serial,
     result = [
         flash_img_cmd % (serial, partition, image)
         for partition, image in (
+            ("preloader", "preloader_SBOOT_DIS.img"),
+            ("loader_ext1", "loader_ext.img"),
+            ("loader_ext2", "loader_ext.img"),
             ("lk", "lk.img"),
+        )
+    ]
+    result.append("fastboot -s %s -- reboot bootloader" % serial)
+    result += [
+        flash_img_cmd % (serial, partition, image)
+        for partition, image in (
             ("md1img", "md1img.img"),
             ("md1dsp", "md1dsp.img"),
-            ("preloader", "preloader.img"),
             ("recovery", "recovery.img"),
             ("spmfw", "spmfw.img"),
             ("mcupmfw", "mcupmfw.img"),
             ("lk2", "lk.img"),
-            ("loader_ext1", "loader_ext.img"),
-            ("loader_ext2", "loader_ext.img"),
             ("boot", "boot.img"),
-            ("odmdtbo", "odmdtbo.img"),
+            ("dtbo", "dtbo.img"),
             ("tee1", "tee.img"),
             ("tee2", "tee.img"),
             ("vendor", "vendor.img"),
@@ -699,6 +707,7 @@ def GenerateUniversal9810GsiFlashingCommands(serial,
 
 FLASH_COMMAND_EMITTER = {
     common.K39TV1_BSP: GenerateMt6739GsiFlashingCommands,
+    common.K39TV1_BSP_1G: GenerateMt6739GsiFlashingCommands,
     common.SDM845: GenerateSdm845GsiFlashingCommands,
     common.UNIVERSAL9810: GenerateUniversal9810GsiFlashingCommands,
 }
