@@ -620,6 +620,8 @@ class Console(cmd.Cmd):
                 " --result_from_suite=%s" % suite_name)
             infra_log_upload_command += (" --result_from_plan=%s" % plan_name)
         self.onecmd(infra_log_upload_command)
+        if self.GetSerials():
+            self.onecmd("device --update=stop")
         logging.getLogger().removeHandler(file_handler)
         os.remove(self._logfile_path)
         return (ret != False), dest
@@ -786,6 +788,10 @@ class Console(cmd.Cmd):
             A list of strings, the serial numbers.
         """
         return self._serials
+
+    def ResetSerials(self):
+        """Clears all the serial numbers set to this console obj."""
+        self._serials = []
 
     def JobThread(self):
         """Job thread which monitors and uploads results."""
