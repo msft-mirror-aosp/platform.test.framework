@@ -349,3 +349,5 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                 self.update_thread.start()
             elif args.update == "stop":
                 self.update_thread.keep_running = False
+                if self.console.GetSerials():
+                    self.console.ResetSerials()
