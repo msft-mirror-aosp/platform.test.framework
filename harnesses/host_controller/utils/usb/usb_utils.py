@@ -74,3 +74,39 @@ def ResetDeviceUsb(dev_file_path):
         return False
 
     return True
+
+
+def ResetUsbDeviceOfSerial(serial):
+    """Resets a USB device file corresponding to the given serial.
+
+    Args:
+        serial: string, serial number of the device whose USB device file
+                will reset.
+
+    Returns:
+        True if successful, False otherwise.
+    """
+    device_file_path = GetDevicesUSBFilePath()
+    if serial in device_file_path:
+        logging.error(
+            "Device %s not responding. Resetting device file %s.", serial,
+            device_file_path[serial])
+        return ResetDeviceUsb(device_file_path[serial])
+    return False
+
+
+def ResetUsbDeviceOfSerial_Callback(*args):
+    """Wrapper of the ResetUsbDeviceOfSerial(), for handling the *args.
+
+    Args:
+        args: tuple of arguments, expected to have the serial number of
+              the devices as the first element.
+
+    Returns:
+        True if successful, False otherwise.
+    """
+    try:
+        return ResetUsbDeviceOfSerial(args[0])
+    except IndexError as e:
+        logging.exception(e)
+        return False
