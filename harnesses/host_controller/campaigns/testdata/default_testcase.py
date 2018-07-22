@@ -66,13 +66,14 @@ input_data = {
 }
 
 expected_output = [
+    'device --set_serial=my_serial1,my_serial2,my_serial3 --from_job_pool --interval=300',
     'fetch --type=pab --branch=my_branch --target=my_build_target --artifact_name=my_build_target-img-my_build_id.zip --build_id=my_build_id --account_id=my_pab_account_id --fetch_signed_build=True',
     'fetch --type=pab --branch=my_branch --target=my_build_target --artifact_name=bootloader.img --build_id=my_build_id --account_id=my_pab_account_id',
     'fetch --type=pab --branch=my_branch --target=my_build_target --artifact_name=radio.img --build_id=my_build_id --account_id=my_pab_account_id',
     'fetch --type=pab --branch=my_gsi_branch --target=my_gsi_build_target --gsi=True --artifact_name=my_gsi_build_target-img-{build_id}.zip --build_id=my_gsi_build_id --account_id=my_gsi_pab_account_id',
     'fetch --type=pab --branch=my_test_branch --target=my_test_build_target --artifact_name=android-{{test_suite}}.zip --build_id=my_test_build_id --account_id=my_test_pab_account_id',
     'info', 'gsispl --version_from_path=boot.img', 'info',
-    'repack --dest=image_package_repo_base', [[
+    [[
         'flash --current --serial my_serial1 --skip-vbmeta=True ',
         'adb -s my_serial1 root',
         'dut --operation=wifi_on --serial=my_serial1 --ap=GoogleGuest',
@@ -90,8 +91,9 @@ expected_output = [
     ]],
     'test --suite {{test_suite}} --keep-result -- {{test_plan}} --shards 3  --serial my_serial1 --serial my_serial2 --serial my_serial3',
     'retry --suite {{test_suite}} --count 3 {{retry_plan}} --shards 3 --serial my_serial1 --serial my_serial2 --serial my_serial3{{cleanup_device}}',
-    'sheet --src {result_zip} --dest report_spreadsheet_id --extra_rows logs,report_bucket/{suite_plan}/{{test_plan}}/{branch}/{target}/my_build_target_{build_id}_{timestamp}/',
-    'upload --src={result_full} --dest=report_bucket/{suite_plan}/{{test_plan}}/{branch}/{target}/my_build_target_{build_id}_{timestamp}/ --report_path=report_bucket/suite_result/{timestamp_year}/{timestamp_month}/{timestamp_day} --clear_results=True'
+    'sheet --src {result_zip} --dest report_spreadsheet_id --extra_rows logs,report_bucket/{suite_plan}/{{test_plan}}/{branch}/{target}/my_build_target_{build_id}_{timestamp}/ --primary_abi_only',
+    'upload --src={result_full} --dest=report_bucket/{suite_plan}/{{test_plan}}/{branch}/{target}/my_build_target_{build_id}_{timestamp}/ --report_path=report_bucket/suite_result/{timestamp_year}/{timestamp_month}/{timestamp_day} --clear_results=True',
+    'device --update=stop',
 ]
 
 
@@ -109,6 +111,8 @@ def GenerateOutputData(test_name):
     def ReplaceChars(line):
         line = line.replace('{{test_suite}}', test_suite)
         line = line.replace('{{test_plan}}', test_plan)
+        if test_plan != "cts-on-gsi":
+            line = line.replace(' --primary_abi_only', '')
         if (test_suite == "cts" or test_suite == "gts" or test_suite == "sts"
                 or test_plan.startswith("cts-")):
             line = line.replace('--shards', "--shard-count")
