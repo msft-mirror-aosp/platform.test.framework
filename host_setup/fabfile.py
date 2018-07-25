@@ -16,9 +16,11 @@
 
 import imp
 import os
+import sys
 import time
 
 from fabric.api import env
+from fabric.api import local
 from fabric.api import run
 from fabric.api import settings
 from fabric.api import sudo
@@ -33,6 +35,12 @@ _PIP_REQUIREMENTS_PATHS = [
 # Path to the file that contains the abs path to the deployed vtslab pakcage.
 _VTSLAB_PACKAGE_PATH_FILENAME = ".vtslab_package_path"
 
+# Zone filter list for GCE instances.
+_DEFAULT_GCE_ZONE_LIST = [
+    "us-east1-b",
+    "asia-northeast1-a",
+]
+
 
 def SetPassword(password):
     """Sets password for hosts to access through ssh and to run sudo commands
@@ -45,7 +53,7 @@ def SetPassword(password):
     env.password = password
 
 
-def GetHosts(hosts_file_path):
+def GetHosts(hosts_file_path, gce_instance_name=None, account=None):
     """Configures env.hosts to a given list of hosts.
 
     usage: $ fab GetHosts:<path to a source file contains hosts info>
@@ -53,9 +61,27 @@ def GetHosts(hosts_file_path):
     Args:
         hosts_file_path: string, path to a python file passed from command file
                          input.
+        gce_instance_name: string, GCE instance name.
+        account: string, account name used for the ssh connection.
     """
-    hosts_module = imp.load_source('hosts_module', hosts_file_path)
-    env.hosts = hosts_module.EmitHostList()
+    if hosts_file_path.endswith(".py"):
+        hosts_module = imp.load_source('hosts_module', hosts_file_path)
+        env.hosts = hosts_module.EmitHostList()
+    else:
+        if not gce_instance_name or not account:
+            print(
+                "Please specify gce_instance_name and account using -H option. "
+                "Example: -H <Google_Cloud_project>,<GCE_instance>,<account>"
+            )
+            sys.exit(0)
+        env.key_filename = "~/.ssh/google_compute_engine"
+        gce_list_out = local(
+            "gcloud compute instances list --project=%s --filter=\"zone:(%s)\""
+            % (hosts_file_path, " ".join(_DEFAULT_GCE_ZONE_LIST)),
+            capture=True)
+        for line in gce_list_out.split("\n")[1:]:
+            if line.startswith(gce_instance_name):
+                env.hosts.append("%s@%s" % (account, line.strip().split()[-2]))
 
 
 def SetupIptables(ip_address_file_path):
@@ -154,7 +180,7 @@ def SetupPackages(ip_address_file_path=None):
     sudo("apt-get install -y git-core gnupg flex bison gperf build-essential "
          "zip curl zlib1g-dev gcc-multilib g++-multilib x11proto-core-dev "
          "libx11-dev lib32z-dev ccache libgl1-mesa-dev libxml2-utils xsltproc "
-         "unzip liblz4-tool")
+         "unzip liblz4-tool udev")
 
     sudo("apt-get install -y android-tools-adb")
     sudo("usermod -aG plugdev $LOGNAME")
@@ -208,7 +234,7 @@ def SetupPackages(ip_address_file_path=None):
 def DeployVtslab(vtslab_package_gcs_url=None):
     """Deploys vtslab package.
 
-    Fetches and deploy vtlab by going through the processes described below
+    Fetches and deploy vtslab by going through the processes described below
     1. Send the "exit --wait_for_jobs=True" command to all detached screen.
        And let the screen to terminate itself.
     2. Create a new screen instance that downloads and runs the new HC,
@@ -265,3 +291,41 @@ def DeployVtslab(vtslab_package_gcs_url=None):
 
     with cd("~/run/%s.dir" % vtslab_package_file_name):
         run("rm %s" % vtslab_package_file_name)
+
+
+def DeployGCE(vtslab_package_gcs_url=None):
+    """Deploys a vtslab package to GCE nodes.
+
+    Fetches and deploy vtslab on monitor-hc by doing;
+    1. Download android-vtslab-<>.zip from GCS using the given URL and upzip it.
+    2. Send the Ctrl-c key input to all detached screen, then cursor-up
+       key input and enter key input, making the screen to execute
+       the last run command.
+
+    usage: $ fab DeployVtslab -p <password> -H <Google Cloud Platform project name> -f <gs://vtslab-release/...>
+
+    Args:
+        vtslab_package_gcs_url: string, URL to a certain vtslab package file.
+    """
+    if not vtslab_package_gcs_url:
+        print("Please specify vtslab package file URL using -f option.")
+        return
+    elif not vtslab_package_gcs_url.startswith("gs://"):
+        print("Please spcify a valid URL for the vtslab package.")
+        return
+
+    vtslab_package_file_name = os.path.basename(vtslab_package_gcs_url)
+    with cd("~/run"):
+        run("gsutil cp %s ./" % vtslab_package_gcs_url)
+        run("unzip -o %s" % vtslab_package_file_name)
+        run("rm %s" % vtslab_package_file_name)
+
+    with settings(warn_only=True):
+        screen_list_result = run("screen -list")
+    lines = screen_list_result.split("\n")
+    for line in lines:
+        if "(Detached)" in line:
+            screen_name = line.split("\t")[1]
+            run("screen -S %s -X stuff \"^C\"" % screen_name)
+            run("screen -S %s -X stuff \"\033[A\"" % screen_name)
+            run("screen -S %s -X stuff \"^M\"" % screen_name)

@@ -109,7 +109,8 @@ class BuildProviderPAB(build_provider.BuildProvider):
         """Creates a temp dir."""
         super(BuildProviderPAB, self).__init__()
 
-    def Authenticate(self, userinfo_file=None, noauth_local_webserver=False):
+    def Authenticate(self, userinfo_file=None, noauth_local_webserver=False,
+                     scopes=SCOPE):
         """Authenticate using OAuth2.
 
         Args:
@@ -117,6 +118,7 @@ class BuildProviderPAB(build_provider.BuildProvider):
                            "email" and "password" string fields.
             noauth_local_webserver: boolean, True if do not (or can not) use
                                     a local web server.
+            scopes: string or iterable of strings, the scopes to request.
         """
         # this should be a JSON file with "email" and "password" string fields
         self._userinfo_file = userinfo_file
@@ -127,7 +129,7 @@ class BuildProviderPAB(build_provider.BuildProvider):
         flags, unknown = parser.parse_known_args()
         flags.noauth_local_webserver = noauth_local_webserver
         logging.info('Preparing OAuth token')
-        flow = flow_from_clientsecrets(self.CLIENT_SECRETS, scope=self.SCOPE)
+        flow = flow_from_clientsecrets(self.CLIENT_SECRETS, scope=scopes)
         storage = Storage(self.CLIENT_STORAGE)
         if self._credentials is None:
             self._credentials = storage.get()

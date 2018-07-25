@@ -21,13 +21,14 @@ import socket
 import time
 
 from host_controller import common
-from host_controller.build import build_provider_gcs
 from host_controller.command_processor import base_command_processor
+from host_controller.utils.gcp import gcs_utils
 from host_controller.utils.parser import xml_utils
 
 from vts.utils.python.common import cmd_utils
 
 from vti.dashboard.proto import TestSuiteResultMessage_pb2 as SuiteResMsg
+from vti.test_serving.proto import TestScheduleConfigMessage_pb2 as SchedCfgMsg
 
 
 class CommandUpload(base_command_processor.BaseCommandProcessor):
@@ -63,6 +64,10 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             "--report_path",
             help="Google Cloud Storage URL, the dest path of a report file")
         self.arg_parser.add_argument(
+            "--clear_dest",
+            action="store_true",
+            help="Delete dest recursively before the upload.")
+        self.arg_parser.add_argument(
             "--clear_results",
             default=False,
             help="True to clear all the results after the upload.")
@@ -85,7 +90,7 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
         """Upload args.src file to args.dest Google Cloud Storage."""
         args = self.arg_parser.ParseLine(arg_line)
 
-        gsutil_path = build_provider_gcs.BuildProviderGCS.GetGsutilPath()
+        gsutil_path = gcs_utils.GetGsutilPath()
         if not gsutil_path:
             logging.error("Please check gsutil is installed and on your PATH")
             return False
@@ -93,7 +98,7 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
         if args.src.startswith("latest-"):
             src_name = args.src[7:]
             if src_name in self.console.device_image_info:
-                src_path = self.console.device_image_info[src_name]
+                src_paths = self.console.device_image_info[src_name]
             else:
                 logging.error(
                     "Unable to find {} in device_image_info".format(src_name))
@@ -128,11 +133,12 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             return False
         """ TODO(jongmok) : Before upload, login status, authorization,
                             and dest check are required. """
-        copy_command = "{} cp {} {}".format(gsutil_path, src_paths, dest_path)
-        _, stderr, err_code = cmd_utils.ExecuteOneShellCommand(copy_command)
+        if args.clear_dest:
+            if not gcs_utils.Remove(gsutil_path, dest_path, recursive=True):
+                logging.error("Fail to remove %s", dest_path)
 
-        if err_code:
-            logging.error(stderr)
+        if not gcs_utils.Copy(gsutil_path, src_paths, dest_path):
+            logging.error("Fail to copy %s to %s", src_paths, dest_path)
 
         if args.report_path or args.clear_results:
             tools_path = ""
@@ -186,6 +192,13 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
         suite_res_msg.boot_success = vti.CheckBootUpStatus()
         suite_res_msg.test_type = vti.GetJobTestType()
 
+        device_fetch_info = self.console.detailed_fetch_info[
+            common._ARTIFACT_TYPE_DEVICE]
+        gsi_fetch_info = None
+        if common._ARTIFACT_TYPE_GSI in self.console.detailed_fetch_info:
+            gsi_fetch_info = self.console.detailed_fetch_info[
+                common._ARTIFACT_TYPE_GSI]
+
         if vti.CheckBootUpStatus():
             former_results = [
                 result for result in os.listdir(results_path)
@@ -212,6 +225,7 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
                 ])
             build_attrs = xml_utils.GetAttributes(
                 latest_result_xml_path, common._BUILD_TAG, [
+                    common._FINGERPRINT_ATTR_KEY,
                     common._SYSTEM_FINGERPRINT_ATTR_KEY,
                     common._VENDOR_FINGERPRINT_ATTR_KEY
                 ])
@@ -237,10 +251,18 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             suite_res_msg.end_time = long(
                 result_attrs[common._END_TIME_ATTR_KEY])
             suite_res_msg.host_name = result_attrs[common._HOST_NAME_ATTR_KEY]
-            suite_res_msg.build_system_fingerprint = build_attrs[
-                common._SYSTEM_FINGERPRINT_ATTR_KEY]
-            suite_res_msg.build_vendor_fingerprint = build_attrs[
-                common._VENDOR_FINGERPRINT_ATTR_KEY]
+            if common._SYSTEM_FINGERPRINT_ATTR_KEY in build_attrs:
+                suite_res_msg.build_system_fingerprint = build_attrs[
+                    common._SYSTEM_FINGERPRINT_ATTR_KEY]
+            else:
+                suite_res_msg.build_system_fingerprint = build_attrs[
+                    common._FINGERPRINT_ATTR_KEY]
+            if common._VENDOR_FINGERPRINT_ATTR_KEY in build_attrs:
+                suite_res_msg.build_vendor_fingerprint = build_attrs[
+                    common._VENDOR_FINGERPRINT_ATTR_KEY]
+            else:
+                suite_res_msg.build_vendor_fingerprint = build_attrs[
+                    common._FINGERPRINT_ATTR_KEY]
             suite_res_msg.passed_test_case_count = int(
                 summary_attrs[common._PASSED_ATTR_KEY])
             suite_res_msg.failed_test_case_count = int(
@@ -250,10 +272,6 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             suite_res_msg.modules_total = int(
                 summary_attrs[common._MODULES_TOTAL_ATTR_KEY])
         else:
-            device_fetch_info = self.console.detailed_fetch_info[
-                common._ARTIFACT_TYPE_DEVICE]
-            gsi_fetch_info = self.console.detailed_fetch_info[
-                common._ARTIFACT_TYPE_GSI]
             suite_res_msg.build_id = self.console.fetch_info["build_id"]
             suite_res_msg.suite_name = suite_name
             suite_res_msg.suite_plan = plan_name
@@ -262,12 +280,15 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
             suite_res_msg.start_time = long(time.time() * 1000)
             suite_res_msg.end_time = suite_res_msg.start_time
             suite_res_msg.host_name = socket.gethostname()
-            suite_res_msg.build_system_fingerprint = "%s/%s/%s" % (
-                gsi_fetch_info["branch"], gsi_fetch_info["target"],
-                gsi_fetch_info["build_id"])
             suite_res_msg.build_vendor_fingerprint = "%s/%s/%s" % (
                 device_fetch_info["branch"], device_fetch_info["target"],
                 device_fetch_info["build_id"])
+            if gsi_fetch_info:
+                suite_res_msg.build_system_fingerprint = "%s/%s/%s" % (
+                    gsi_fetch_info["branch"], gsi_fetch_info["target"],
+                    gsi_fetch_info["build_id"])
+            else:
+                suite_res_msg.build_system_fingerprint = suite_res_msg.build_vendor_fingerprint
             suite_res_msg.passed_test_case_count = 0
             suite_res_msg.failed_test_case_count = 0
             suite_res_msg.modules_done = 0
@@ -275,6 +296,40 @@ class CommandUpload(base_command_processor.BaseCommandProcessor):
 
         suite_res_msg.infra_log_path = self.console.FormatString(
             "{hc_log_upload_path}")
+        repack_path_list = []
+        repack_path_list.append(self.console.FormatString("{repack_path}"))
+        suite_res_msg.repacked_image_path.extend(repack_path_list)
+
+        suite_res_msg.schedule_config.build_target.extend(
+            [SchedCfgMsg.BuildScheduleConfigMessage()])
+        build_target_msg = suite_res_msg.schedule_config.build_target[0]
+        build_target_msg.test_schedule.extend(
+            [SchedCfgMsg.TestScheduleConfigMessage()])
+        test_schedule_msg = build_target_msg.test_schedule[0]
+
+        suite_res_msg.vendor_build_id = device_fetch_info["build_id"]
+        suite_res_msg.schedule_config.manifest_branch = str(
+            device_fetch_info["branch"])
+        build_target_msg.name = str(device_fetch_info["target"])
+        if device_fetch_info["account_id"]:
+            suite_res_msg.schedule_config.pab_account_id = str(
+                device_fetch_info["account_id"])
+        if device_fetch_info["fetch_signed_build"]:
+            build_target_msg.require_signed_device_build = device_fetch_info[
+                "fetch_signed_build"]
+        if gsi_fetch_info:
+            test_schedule_msg.gsi_branch = str(gsi_fetch_info["branch"])
+            test_schedule_msg.gsi_build_target = str(gsi_fetch_info["target"])
+            suite_res_msg.gsi_build_id = str(gsi_fetch_info["build_id"])
+            if gsi_fetch_info["account_id"]:
+                test_schedule_msg.gsi_pab_account_id = str(
+                    gsi_fetch_info["account_id"])
+            test_schedule_msg.gsi_vendor_version = str(
+                self.console.FormatString("{gsispl.vendor_version}"))
+        test_schedule_msg.test_pab_account_id = str(
+            self.console.FormatString("{account_id}"))
+        build_target_msg.has_bootloader_img = "bootloader.img" in self.console.device_image_info
+        build_target_msg.has_radio_img = "radio.img" in self.console.device_image_info
 
         report_file_path = os.path.join(
             self.console.tmp_logdir,

@@ -58,7 +58,9 @@ _DEVICE_STATUS_DICT = {
     "online": 2,
     "ready": 3,
     "use": 4,
-    "error": 5}
+    "error": 5,
+    "no-response": 6
+}
 
 _STORAGE_TYPE_DICT = {
     pb.UNKNOWN_BUILD_STORAGE_TYPE: "unknown",
@@ -83,10 +85,25 @@ _DEFAULT_WIFI_AP = "GoogleGuest"
 
 # SoC name list.
 K39TV1_BSP = "k39tv1_bsp"
+K39TV1_BSP_1G = "k39tv1_bsp_1g"
 
 SDM845 = "sdm845"
 
 UNIVERSAL9810 = "universal9810"
+
+# Lib files from SDM845 vendor system image need to be re-pushed
+# into GSI system image to boot the devices up properly.
+SDM845_LIB_LIST = [
+    "libdrm.so",
+    "vendor.display.color@1.0.so",
+    "vendor.display.config@1.0.so",
+    "vendor.display.config@1.1.so",
+    "vendor.display.postproc@1.0.so",
+    "vendor.qti.hardware.perf@1.0.so",
+]
+
+# Dir name in which the addtional files need to be repacked.
+_ADDITIONAL_FILES_DIR = "additional_file"
 
 # Relative path to the "results" directory from the tools directory.
 _RESULTS_BASE_PATH = "../results"
@@ -94,8 +111,19 @@ _RESULTS_BASE_PATH = "../results"
 # Test result file contains invoked test plan results.
 _TEST_RESULT_XML = "test_result.xml"
 
+_LOG_RESULT_XML = "log-result.xml"
+
+# XML tag name whose attributes represent a module.
+_MODULE_TAG = "Module"
+
 # XML tag name whose attribute is test plan.
 _RESULT_TAG = "Result"
+
+# XML tag name whose attributes represent a test case in a module.
+_TESTCASE_TAG = "TestCase"
+
+# XML tag name whose attributes represent a test result in a test case.
+_TEST_TAG = "Test"
 
 # XML tag name whose attributes are about the build info of the device.
 _BUILD_TAG = "Build"
@@ -114,11 +142,19 @@ _HOST_NAME_ATTR_KEY = "host_name"
 
 _START_TIME_ATTR_KEY = "start"
 
+_START_DISPLAY_TIME_ATTR_KEY = "start_display"
+
 _END_TIME_ATTR_KEY = "end"
+
+_END_DISPLAY_TIME_ATTR_KEY = "end_display"
 
 _SUITE_NAME_ATTR_KEY = "suite_name"
 
 # The key value for retrieving build fingerprint values from the result xml.
+_ABIS_ATTR_KEY = "build_abis"
+
+_FINGERPRINT_ATTR_KEY = "build_fingerprint"
+
 _SYSTEM_FINGERPRINT_ATTR_KEY = "build_system_fingerprint"
 
 _VENDOR_FINGERPRINT_ATTR_KEY = "build_vendor_fingerprint"
@@ -134,6 +170,15 @@ _MODULES_TOTAL_ATTR_KEY = "modules_total"
 
 # The key value for retrieving run module count
 _MODULES_DONE_ATTR_KEY = "modules_done"
+
+# The key value for retrieving name of a test, testcase, or module.
+_NAME_ATTR_KEY = "name"
+
+# The key value for retrieving ABI of a module.
+_ABI_ATTR_KEY = "abi"
+
+# The key value for retrieving result of a test.
+_RESULT_ATTR_KEY = "result"
 
 # VTSLAB package version file
 _VTSLAB_VERSION_TXT = "version.txt"
@@ -156,3 +201,6 @@ _ARTIFACT_TYPE_LIST = [
 ]
 # Directory relative to the home directory, in which the devices' lock files will be.
 _DEVLOCK_DIR = ".devlock"
+
+# Default timeout for "adb reboot/fastboot getvar" command in secs.
+DEFAULT_DEVICE_TIMEOUT_SECS = 300

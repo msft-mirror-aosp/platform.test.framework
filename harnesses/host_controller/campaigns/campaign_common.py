@@ -117,18 +117,16 @@ def EmitFetchCommands(**kwargs):
             result[-1] += " --full_device_images=True"
 
         if HasAttr("has_bootloader_img", **kwargs):
-            result.append(
-                "fetch --type=pab --branch=%s --target=%s "
-                "--artifact_name=bootloader.img --build_id=%s "
-                "--account_id=%s" %
-                (manifest_branch, build_target, build_id, pab_account_id))
+            result.append("fetch --type=pab --branch=%s --target=%s "
+                          "--artifact_name=bootloader.img --build_id=%s "
+                          "--account_id=%s" % (manifest_branch, build_target,
+                                               build_id, pab_account_id))
 
         if HasAttr("has_radio_img", **kwargs):
-            result.append(
-                "fetch --type=pab --branch=%s --target=%s "
-                "--artifact_name=radio.img --build_id=%s "
-                "--account_id=%s" %
-                (manifest_branch, build_target, build_id, pab_account_id))
+            result.append("fetch --type=pab --branch=%s --target=%s "
+                          "--artifact_name=radio.img --build_id=%s "
+                          "--account_id=%s" % (manifest_branch, build_target,
+                                               build_id, pab_account_id))
 
     elif build_storage_type == pb.BUILD_STORAGE_TYPE_GCS:
         result.append("fetch --type=gcs --path=%s" % (manifest_branch))
@@ -238,9 +236,6 @@ def EmitFlashCommands(gsi, **kwargs):
         list of command string.
     """
     result = []
-    result.append("repack")
-    if HasAttr("image_package_repo_base", **kwargs):
-        result[-1] += " --dest=%s" % kwargs["image_package_repo_base"]
 
     if isinstance(kwargs["build_target"], list):
         build_target = kwargs["build_target"][0]
@@ -248,6 +243,20 @@ def EmitFlashCommands(gsi, **kwargs):
         build_target = kwargs["build_target"]
     shards = int(kwargs["shards"])
     serials = kwargs["serial"]
+    if gsi:
+        system_version = GetVersion(kwargs["gsi_branch"])
+    else:
+        system_version = GetVersion(kwargs["manifest_branch"])
+
+    repack_command = "repack"
+    if HasAttr("image_package_repo_base", **kwargs):
+        repack_command += " --dest=%s" % kwargs["image_package_repo_base"]
+    if common.SDM845 in build_target and gsi:
+        repack_command += (" --additional_files")
+        for lib_file in common.SDM845_LIB_LIST:
+            repack_command += (" {tmp_dir}/%s/%s" % (serials[0], lib_file))
+    # TODO: verify this before re-enabling.
+    # result.append(repack_command)
 
     if shards > 1:
         sub_commands = []
@@ -255,7 +264,8 @@ def EmitFlashCommands(gsi, **kwargs):
         if shards <= len(serials):
             for shard_index in range(shards):
                 new_cmd_list = []
-                if common.K39TV1_BSP in build_target:
+                if (common.K39TV1_BSP in build_target or
+                        common.K39TV1_BSP_1G in build_target):
                     new_cmd_list.extend(
                         GenerateMt6739GsiFlashingCommands(
                             serials[shard_index], gsi))
@@ -276,10 +286,14 @@ def EmitFlashCommands(gsi, **kwargs):
                     new_cmd_list.append(
                         "dut --operation=wifi_on --serial=%s --ap=%s" %
                         (serials[shard_index], common._DEFAULT_WIFI_AP))
+                    new_cmd_list.append(
+                        "dut --operation=volume_mute --serial=%s --version=%s"
+                        % (serials[shard_index], system_version))
                 sub_commands.append(new_cmd_list)
         result.append(sub_commands)
     else:
-        if common.K39TV1_BSP in build_target:
+        if (common.K39TV1_BSP in build_target or
+                common.K39TV1_BSP_1G in build_target):
             result.extend(GenerateMt6739GsiFlashingCommands(serials[0], gsi))
         elif common.SDM845 in build_target and gsi:
             result.extend(GenerateSdm845GsiFlashingCommands(serials[0]))
@@ -292,6 +306,9 @@ def EmitFlashCommands(gsi, **kwargs):
         if common.SDM845 not in build_target:  # b/78487061
             result.append("dut --operation=wifi_on --serial=%s --ap=%s" %
                           (serials[0], common._DEFAULT_WIFI_AP))
+            result.append(
+                "dut --operation=volume_mute --serial=%s --version=%s" %
+                (serials[0], system_version))
         if serials:
             serial_arg_list = []
             for serial in serials:
@@ -323,6 +340,8 @@ def EmitCommonConsoleCommands(**kwargs):
     suite_name, plan_name = kwargs["test_name"].split("/")
     serials = kwargs["serial"]
 
+    result.append("device --set_serial=%s --from_job_pool --interval=%s" %
+                  (",".join(serials), common.DEFAULT_DEVICE_TIMEOUT_SECS))
     fetch_commands_result, gsi = EmitFetchCommands(**kwargs)
     result.extend(fetch_commands_result)
     flash_commands_result = EmitFlashCommands(gsi, **kwargs)
@@ -333,8 +352,8 @@ def EmitCommonConsoleCommands(**kwargs):
         param = " ".join(kwargs["param"])
 
     test_branch = kwargs["test_branch"]
-    if (GetVersion(test_branch) >= 9.0
-            and (suite_name == "cts" or plan_name.startswith("cts"))):
+    if (GetVersion(test_branch) >= 9.0 and
+        (suite_name in ["cts", "gts", "sts"] or plan_name.startswith("cts"))):
         shard_option = "--shard-count"
         retry_option = "--retry_plan=%s-retry" % plan_name
     else:
@@ -362,16 +381,15 @@ def EmitCommonConsoleCommands(**kwargs):
 
     if "retry_count" in kwargs:
         retry_count = int(kwargs["retry_count"])
-        retry_command = ("retry --suite %s --count %d %s" % (suite_name,
-                                                             retry_count,
-                                                             retry_option))
+        retry_command = ("retry --suite %s --count %d %s" %
+                         (suite_name, retry_count, retry_option))
         if shards > 1:
             retry_command += " %s %d" % (shard_option, shards)
             for shard_index in range(shards):
                 retry_command += " --serial %s" % serials[shard_index]
         else:
             retry_command += " --serial %s" % serials[0]
-        if suite_name == "cts" or plan_name == "cts-on-gsi":
+        if suite_name in ["cts", "gts", "sts"] or plan_name.startswith("cts"):
             if common.SDM845 in build_target:
                 # TODO(vtslab-dev): remove after b/77664643 is resolved
                 pass
@@ -387,21 +405,59 @@ def EmitCommonConsoleCommands(**kwargs):
     if HasAttr("test_storage_type", **kwargs):
         test_storage_type = int(kwargs["test_storage_type"])
 
-    upload_command = "upload --src={result_full}"
-    if test_storage_type == pb.BUILD_STORAGE_TYPE_PAB:
-        upload_command += (" --dest=gs://vts-report/{suite_plan}/%s/{branch}/"
-                           "{target}/%s_{build_id}_{timestamp}/" %
-                           (plan_name, build_target))
-    elif test_storage_type == pb.BUILD_STORAGE_TYPE_GCS:
-        upload_command += (" --dest=gs://vts-report/{suite_plan}/%s/"
-                           "%s/%s/%s_%s_{timestamp}/" %
-                           (plan_name, kwargs["test_branch"],
-                            kwargs["test_build_target"], build_target,
-                            test_build_id))
-    upload_command += (" --report_path=gs://vts-report/suite_result/"
-                       "{timestamp_year}/{timestamp_month}/{timestamp_day}"
-                       " --clear_results=True")
-    result.append(upload_command)
+    if HasAttr("report_bucket", **kwargs):
+        report_buckets = kwargs["report_bucket"]
+    else:
+        report_buckets = ["gs://vts-report"]
+
+    upload_dests = []
+    upload_commands = []
+    for report_bucket in report_buckets:
+        if test_storage_type == pb.BUILD_STORAGE_TYPE_PAB:
+            upload_dest = ("%s/{suite_plan}/%s/{branch}/{target}/"
+                           "%s_{build_id}_{timestamp}/" %
+                           (report_bucket, plan_name, build_target))
+        elif test_storage_type == pb.BUILD_STORAGE_TYPE_GCS:
+            upload_dest = ("%s/{suite_plan}/%s/%s/%s/%s_%s_{timestamp}/" %
+                           (report_bucket, plan_name,
+                            kwargs["test_branch"].replace("gs://", "gs_")
+                            if kwargs["test_branch"].startswith("gs://") else
+                            kwargs["test_branch"], kwargs["test_build_target"],
+                            build_target, test_build_id))
+        upload_dests.append(upload_dest)
+        upload_commands.append(
+            "upload --src={result_full} --dest=%s "
+            "--report_path=%s/suite_result/{timestamp_year}/{timestamp_month}/"
+            "{timestamp_day}" % (upload_dest, report_bucket))
+
+    if HasAttr("report_persistent_url", **kwargs):
+        for upload_dest in kwargs["report_persistent_url"]:
+            upload_dests.append(upload_dest)
+            upload_commands.append("upload --src={result_full} --dest=%s "
+                                   "--clear_dest" % upload_dest)
+
+    if len(upload_commands) > 0:
+        upload_commands[-1] += " --clear_results=True"
+
+    if HasAttr("report_reference_url", **kwargs):
+        ref_urls = kwargs["report_reference_url"]
+    else:
+        ref_urls = []
+
+    extra_rows = " ".join("logs," + x for x in upload_dests)
+    if HasAttr("report_spreadsheet_id", **kwargs):
+        for index, sheet_id in enumerate(kwargs["report_spreadsheet_id"]):
+            sheet_command = ("sheet --src {result_zip} --dest %s "
+                             "--extra_rows %s" % (sheet_id, extra_rows))
+            if plan_name == "cts-on-gsi":
+                sheet_command += " --primary_abi_only"
+            if index < len(ref_urls):
+                sheet_command += " --ref " + ref_urls[index]
+            result.append(sheet_command)
+
+    result.extend(upload_commands)
+
+    result.append("device --update=stop")
 
     return result
 
@@ -415,92 +471,141 @@ def GenerateSdm845SetupCommands(serial):
     Returns:
         a list of strings, each string is a console command.
     """
-    return [
-        ("fastboot -s %s flash boot "
-         "{device-image[full-zipfile-dir]}/boot.img" % serial),
-        ("fastboot -s %s flash dtbo "
-         "{device-image[full-zipfile-dir]}/dtbo.img" % serial),
-        ("fastboot -s %s flash system "
-         "{device-image[full-zipfile-dir]}/system.img" % serial),
-        ("fastboot -s %s flash userdata "
-         "{device-image[full-zipfile-dir]}/userdata.img" % serial),
-        ("fastboot -s %s flash vbmeta "
-         "{device-image[full-zipfile-dir]}/vbmeta.img "
-         "-- --disable-verity" % serial),
-        ("fastboot -s %s flash vendor "
-         "{device-image[full-zipfile-dir]}/vendor.img" % serial),
-        "fastboot -s %s reboot" % serial,
-        "sleep 90",  # wait for boot_complete (success)
-        "adb -s %s root" % serial,
-        # TODO: to make sure {tmp_dir} is unique per session and
-        #       is cleaned up at exit.
-        "shell -- mkdir -p {tmp_dir}/%s" % serial,
-        ("adb -s %s pull /system/lib64/libdrm.so "
-         "{tmp_dir}/%s" % (serial, serial)),
-        ("adb -s %s pull /system/lib64/vendor.display.color@1.0.so "
-         "{tmp_dir}/%s" % (serial, serial)),
-        ("adb -s %s pull /system/lib64/vendor.display.config@1.0.so "
-         "{tmp_dir}/%s" % (serial, serial)),
-        ("adb -s %s pull /system/lib64/vendor.display.config@1.1.so "
-         "{tmp_dir}/%s" % (serial, serial)),
-        ("adb -s %s pull /system/lib64/vendor.display.postproc@1.0.so "
-         "{tmp_dir}/%s" % (serial, serial)),
-        ("adb -s %s pull /system/lib64/vendor.qti.hardware.perf@1.0.so "
-         "{tmp_dir}/%s" % (serial, serial)),
-        "adb -s %s reboot bootloader" % serial,
-        ("fastboot -s %s flash vbmeta "
-         "{device-image[full-zipfile-dir]}/vbmeta.img "
-         "-- --disable-verity" % serial),
-    ]
+    result = []
+
+    result.append(
+        "fastboot -s %s flash bootloader {device-image[bootloader.img]}" %
+        serial)
+    result.append("fastboot -s %s -- reboot bootloader" % serial)
+    result.append(
+        "fastboot -s %s flash radio {device-image[radio.img]}" % serial)
+    result.append("fastboot -s %s -- reboot bootloader" % serial)
+    result.append(
+        "fastboot -s %s flash boot {device-image[full-zipfile-dir]}/boot.img" %
+        serial)
+    result.append(
+        "fastboot -s %s flash dtbo {device-image[full-zipfile-dir]}/dtbo.img" %
+        serial)
+    result.append(
+        "fastboot -s %s flash system {device-image[full-zipfile-dir]}/system.img"
+        % serial)
+    result.append(
+        "fastboot -s %s flash userdata {device-image[full-zipfile-dir]}/userdata.img"
+        % serial)
+    result.append(
+        "fastboot -s %s flash vbmeta {device-image[full-zipfile-dir]}/vbmeta.img"
+        " -- --disable-verity" % serial)
+    result.append(
+        "fastboot -s %s flash vendor {device-image[full-zipfile-dir]}/vendor.img"
+        % serial)
+    result.append("fastboot -s %s reboot" % serial)
+    result.append("sleep 90")  # wait for boot_complete (success)
+    result.append("adb -s %s root" % serial)
+    # TODO: to make sure {tmp_dir} is unique per session and
+    #       is cleaned up at exit.
+    result.append("shell -- mkdir -p {tmp_dir}/%s" % serial)
+    result.extend([
+        "adb -s %s pull /system/lib64/%s {tmp_dir}/%s" % (serial, lib_file,
+                                                          serial)
+        for lib_file in common.SDM845_LIB_LIST
+    ])
+
+    # TODO: remove this paragraph after b/74552817 is fixed.
+    result.append(
+        "fetch --type=gcs --path=gs://vts-release/v9.0/sdm845/vbmeta.img "
+        "--artifact_name=vbmeta.img")
+    result.append("adb -s %s reboot bootloader" % serial)
+    result.append("fastboot -s %s flash vbmeta {device-image[vbmeta.img]}"
+                  " -- --disable-verity" % serial)
+
+    return result
 
 
-def GenerateSdm845GsiFlashingCommands(serial):
+def GenerateSdm845GsiFlashingCommands(serial, repacked_imageset=False):
     """Returns a sequence of console commands to flash GSI to a device.
 
     Args:
         serial: string, the target device serial number.
+        repacked_imageset: bool, True if this function is called directly from
+                           the console, adjusts the resulting commands for
+                           atomic flashing process.
 
     Returns:
         a list of strings, each string is a console command.
     """
-    return [
-        "fastboot -s %s flash system {device-image[system.img]}" % serial,
-        # removed -w from below command
-        "fastboot -s %s -- reboot" % serial,
-        "sleep 90",  # wait until adb shell (not boot complete)
-        "adb -s %s root" % serial,
-        "adb -s %s remount" % serial,
-        "adb -s %s shell setenforce 0" % serial,
-        "adb -s %s shell mkdir /bt_firmware" % serial,
-        "adb -s %s shell chown system:system /bt_firmware" % serial,
-        "adb -s %s shell chmod 650 /bt_firmware" % serial,
-        "adb -s %s shell setenforce 1" % serial,
-        ("adb -s %s push {tmp_dir}/%s/libdrm.so "
-         "/system/lib64" % (serial, serial)),
-        ("adb -s %s push {tmp_dir}/%s/vendor.display.color@1.0.so "
-         "/system/lib64" % (serial, serial)),
-        ("adb -s %s push {tmp_dir}/%s/vendor.display.config@1.0.so "
-         "/system/lib64" % (serial, serial)),
-        ("adb -s %s push {tmp_dir}/%s/vendor.display.config@1.1.so "
-         "/system/lib64" % (serial, serial)),
-        ("adb -s %s push {tmp_dir}/%s/vendor.display.postproc@1.0.so "
-         "/system/lib64" % (serial, serial)),
-        ("adb -s %s push {tmp_dir}/%s/vendor.qti.hardware.perf@1.0.so "
-         "/system/lib64" % (serial, serial)),
-        "adb -s %s reboot bootloader" % serial,
-        "sleep 5",
-        # removed -w from below command
-        "fastboot -s %s  -- reboot" % serial,
-        "sleep 300",  # wait for boot_complete (success)
-    ]
+    result = []
+
+    if repacked_imageset:
+        result.append(
+            "fastboot -s %s flash bootloader {device-image[bootloader.img]}" %
+            serial)
+        result.append("fastboot -s %s -- reboot bootloader" % serial)
+        result.append(
+            "fastboot -s %s flash radio {device-image[radio.img]}" % serial)
+        result.append("fastboot -s %s -- reboot bootloader" % serial)
+        result.append(
+            "fastboot -s %s flash boot {device-image[boot.img]}" % serial)
+        result.append(
+            "fastboot -s %s flash dtbo {device-image[dtbo.img]}" % serial)
+        result.append(
+            "fastboot -s %s flash userdata {device-image[userdata.img]}" %
+            serial)
+        result.append(
+            "fastboot -s %s flash vbmeta {device-image[vbmeta.img]} -- --disable-verity"
+            % serial)
+        result.append(
+            "fastboot -s %s flash vendor {device-image[vendor.img]}" % serial)
+
+    result.append(
+        "fastboot -s %s flash system {device-image[system.img]}" % serial)
+    # removed -w from below command
+    result.append("fastboot -s %s -- reboot" % serial)
+    result.append("sleep 90")  # wait until adb shell (not boot complete)
+    result.append("adb -s %s root" % serial)
+    result.append("adb -s %s remount" % serial)
+    result.append("adb -s %s shell setenforce 0" % serial)
+    result.append("adb -s %s shell mkdir /bt_firmware" % serial)
+    result.append("adb -s %s shell chown system:system /bt_firmware" % serial)
+    result.append("adb -s %s shell chmod 650 /bt_firmware" % serial)
+    result.append("adb -s %s shell setenforce 1" % serial)
+    if repacked_imageset:
+        result.extend([
+            "adb -s %s push {tools[%s/%s]} /system/lib64" %
+            (serial, common._ADDITIONAL_FILES_DIR, lib_file)
+            for lib_file in common.SDM845_LIB_LIST
+        ])
+    else:
+        result.extend([
+            "adb -s %s push {tmp_dir}/%s/%s /system/lib64" % (serial, serial,
+                                                              lib_file)
+            for lib_file in common.SDM845_LIB_LIST
+        ])
+        result.extend(
+            [("adb -s %s push ../testcases/DATA/xml/media_profiles_vendor.xml "
+              "/vendor/etc/media_profiles_vendor.xml") % serial])
+
+    result.append("shell -- rm {tmp_dir}/%s -rf" % serial)
+    result.append("adb -s %s reboot bootloader" % serial)
+    result.append("sleep 5")
+    # removed -w from below command
+    result.append("fastboot -s %s  -- reboot" % serial)
+    if not repacked_imageset:
+        result.append("sleep 300")  # wait for boot_complete (success)
+
+    return result
 
 
-def GenerateMt6739GsiFlashingCommands(serial, gsi=False):
+def GenerateMt6739GsiFlashingCommands(serial,
+                                      gsi=False,
+                                      repacked_imageset=False):
     """Returns a sequence of console commands to flash device imgs and GSI.
 
     Args:
         serial: string, the target device serial number.
         gsi: bool, whether to flash GSI over vendor images or not.
+        repacked_imageset: bool, True if this func is called directly from
+                           the console, adjusts the resulting commands for
+                           atomic flashing process.
 
     Returns:
         a list of strings, each string is a console command.
@@ -510,20 +615,26 @@ def GenerateMt6739GsiFlashingCommands(serial, gsi=False):
     flash_gsi_cmd = ("fastboot -s %s flash system "
                      "{device-image[gsi-zipfile-dir]}/system.img")
     result = [
-        flash_img_cmd % (serial, partition, image) for partition, image in (
+        flash_img_cmd % (serial, partition, image)
+        for partition, image in (
+            ("preloader", "preloader_SBOOT_DIS.img"),
+            ("loader_ext1", "loader_ext.img"),
+            ("loader_ext2", "loader_ext.img"),
             ("lk", "lk.img"),
+        )
+    ]
+    result.append("fastboot -s %s -- reboot bootloader" % serial)
+    result += [
+        flash_img_cmd % (serial, partition, image)
+        for partition, image in (
             ("md1img", "md1img.img"),
             ("md1dsp", "md1dsp.img"),
-            ("preloader", "preloader_k39tv1_bsp.bin"),
             ("recovery", "recovery.img"),
             ("spmfw", "spmfw.img"),
             ("mcupmfw", "mcupmfw.img"),
             ("lk2", "lk.img"),
-            ("loader_ext1", "loader_ext.img"),
-            ("loader_ext2", "loader_ext.img"),
             ("boot", "boot.img"),
-            ("logo", "logo.bin"),
-            ("odmdtbo", "odmdtbo.img"),
+            ("dtbo", "dtbo.img"),
             ("tee1", "tee.img"),
             ("tee2", "tee.img"),
             ("vendor", "vendor.img"),
@@ -539,17 +650,23 @@ def GenerateMt6739GsiFlashingCommands(serial, gsi=False):
         result.append(flash_img_cmd % (serial, "system", "system.img"))
 
     result.append("fastboot -s %s reboot" % serial)
-    result.append("sleep 300")  # wait for boot_complete (success)
+    if not repacked_imageset:
+        result.append("sleep 300")  # wait for boot_complete (success)
 
     return result
 
 
-def GenerateUniversal9810GsiFlashingCommands(serial, gsi=False):
+def GenerateUniversal9810GsiFlashingCommands(serial,
+                                             gsi=False,
+                                             repacked_imageset=False):
     """Returns a sequence of console commands to flash device imgs and GSI.
 
     Args:
         serial: string, the target device serial number.
         gsi: bool, whether to flash GSI over vendor images or not.
+        repacked_imageset: bool, True if this func is called directly from
+                           the console, adjusts the resulting commands for
+                           atomic flashing process.
 
     Returns:
         a list of strings, each string is a console command.
@@ -581,13 +698,15 @@ def GenerateUniversal9810GsiFlashingCommands(serial, gsi=False):
             "fastboot -s %s flash system "
             "{device-image[full-zipfile-dir]}/system.img -- -S 512M" % serial))
     result.append("fastboot -s %s reboot -- -w" % serial)
-    result.append("sleep 300")  # wait for boot_complete (success)
+    if not repacked_imageset:
+        result.append("sleep 300")  # wait for boot_complete (success)
 
     return result
 
 
 FLASH_COMMAND_EMITTER = {
     common.K39TV1_BSP: GenerateMt6739GsiFlashingCommands,
-    common.SDM845: GenerateSdm845SetupCommands,
+    common.K39TV1_BSP_1G: GenerateMt6739GsiFlashingCommands,
+    common.SDM845: GenerateSdm845GsiFlashingCommands,
     common.UNIVERSAL9810: GenerateUniversal9810GsiFlashingCommands,
 }

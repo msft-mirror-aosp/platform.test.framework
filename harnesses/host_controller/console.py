@@ -53,9 +53,11 @@ from host_controller.command_processor import command_release
 from host_controller.command_processor import command_retry
 from host_controller.command_processor import command_request
 from host_controller.command_processor import command_repack
+from host_controller.command_processor import command_sheet
 from host_controller.command_processor import command_shell
 from host_controller.command_processor import command_sleep
 from host_controller.command_processor import command_test
+from host_controller.command_processor import command_reproduce
 from host_controller.command_processor import command_upload
 from host_controller.build import build_info
 from host_controller.build import build_provider_ab
@@ -89,9 +91,11 @@ COMMAND_PROCESSORS = [
     command_retry.CommandRetry,
     command_request.CommandRequest,
     command_repack.CommandRepack,
+    command_sheet.CommandSheet,
     command_shell.CommandShell,
     command_sleep.CommandSleep,
     command_test.CommandTest,
+    command_reproduce.CommandReproduce,
     command_upload.CommandUpload,
 ]
 
@@ -114,7 +118,7 @@ class NonDaemonizedPool(multiprocessing.pool.Pool):
     Process = NonDaemonizedProcess
 
 
-def JobMain(vti_address, in_queue, out_queue, device_status, password):
+def JobMain(vti_address, in_queue, out_queue, device_status, password, hosts):
     """Main() for a child process that executes a leased job.
 
     Currently, lease jobs must use VTI (not TFC).
@@ -129,6 +133,7 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
                   string(ctypes.c_char_p) represents the password which is
                   to be passed to the prompt when executing certain command
                   as root user.
+        hosts: A list of HostController objects. Needed for the device command.
     """
 
     def SigTermHandler(signum, frame):
@@ -141,12 +146,7 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
     signal.signal(signal.SIGTERM, SigTermHandler)
 
     vti_client = vti_endpoint_client.VtiEndpointClient(vti_address)
-    console = Console(
-        vti_client,
-        None,
-        None,
-        None,
-        job_pool=True)
+    console = Console(vti_client, None, None, hosts, job_pool=True)
     console.device_status = device_status
     console.password = password
     multiprocessing.util.Finalize(console, console.__exit__, exitpriority=0)
@@ -162,8 +162,10 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
                 # TODO: redirect console output and add
                 # console command to access them.
 
-                console._build_provider["pab"] = build_provider_pab.BuildProviderPAB()
-                console._build_provider["gcs"] = build_provider_gcs.BuildProviderGCS()
+                console._build_provider[
+                    "pab"] = build_provider_pab.BuildProviderPAB()
+                console._build_provider[
+                    "gcs"] = build_provider_gcs.BuildProviderGCS()
 
                 for serial in kwargs["serial"]:
                     console.ChangeDeviceState(
@@ -195,6 +197,8 @@ def JobMain(vti_address, in_queue, out_queue, device_status, password):
 
                 del console._build_provider["pab"]
                 del console._build_provider["gcs"]
+                console.fetch_info = {}
+                console._detailed_fetch_info = {}
         else:
             logging.error("Unknown job command %s", command)
 
@@ -276,6 +280,7 @@ class Console(cmd.Cmd):
                               "Setting version as %s",
                               common._VTSLAB_VERSION_DEFAULT_VALUE)
                 self._vtslab_version = common._VTSLAB_VERSION_DEFAULT_VALUE
+            self._logfile_upload_path = ""
 
         self._vti_endpoint_client = vti_endpoint_client
         self._vti_address = vti_address
@@ -293,6 +298,7 @@ class Console(cmd.Cmd):
         self._detailed_fetch_info = {}
         self.test_results = {}
         self._file_lock = file_lock.FileLock()
+        self.repack_dest_path = ""
 
         if common._ANDROID_SERIAL in os.environ:
             self._serials = [os.environ[common._ANDROID_SERIAL]]
@@ -317,6 +323,11 @@ class Console(cmd.Cmd):
             self._build_provider[bp].__del__()
         if os.path.exists(self._tmp_logdir):
             shutil.rmtree(self._tmp_logdir)
+
+    @property
+    def job_pool(self):
+        """getter for self._job_pool"""
+        return self._job_pool
 
     @property
     def device_status(self):
@@ -465,7 +476,7 @@ class Console(cmd.Cmd):
                 string value corresponding to the input variable name.
             """
             name = match.group(1)
-            if name in ("build_id", "branch", "target"):
+            if name in ("build_id", "branch", "target", "account_id"):
                 value = self.fetch_info[name]
             elif name in ("result_full", "result_zip", "suite_plan",
                           "suite_name"):
@@ -495,12 +506,24 @@ class Console(cmd.Cmd):
                     value = os.path.basename(value)
                 elif name == "hc_log_upload_path":
                     value = self._logfile_upload_path
+            elif name in ("repack_path"):
+                value = self.repack_dest_path
+                self.repack_dest_path = ""
             elif name in ("hostname"):
                 value = socket.gethostname()
+            elif "." in name and name.split(".")[0] in self.command_processors:
+                command, arg = name.split(".")
+                try:
+                    value = self.command_processors[command].arg_buffer[arg]
+                except KeyError as e:
+                    logging.exception(e)
+                    value = ""
+                if value is None:
+                    value = ""
             else:
                 value = None
 
-            if not value:
+            if value is None:
                 raise KeyError(name)
 
             return value
@@ -597,6 +620,8 @@ class Console(cmd.Cmd):
                 " --result_from_suite=%s" % suite_name)
             infra_log_upload_command += (" --result_from_plan=%s" % plan_name)
         self.onecmd(infra_log_upload_command)
+        if self.GetSerials():
+            self.onecmd("device --update=stop")
         logging.getLogger().removeHandler(file_handler)
         os.remove(self._logfile_path)
         return (ret != False), dest
@@ -698,7 +723,8 @@ class Console(cmd.Cmd):
             package_path_gcs: GCS URL to the packaged img zip file. May contain
                               the GSI imgs.
         """
-        self.onecmd("fetch --type=gcs --path=%s" % package_path_gcs)
+        self.onecmd("fetch --type=gcs --path=%s --full_device_images=True" %
+                    package_path_gcs)
         if common.FULL_ZIPFILE not in self.device_image_info:
             logging.error("Failed to fetch the given file: %s",
                           package_path_gcs)
@@ -735,7 +761,8 @@ class Console(cmd.Cmd):
             logging.info("Device %s product type: %s", serial, product)
             if product in campaign_common.FLASH_COMMAND_EMITTER:
                 flash_commands.append(
-                    campaign_common.FLASH_COMMAND_EMITTER[product](serial))
+                    campaign_common.FLASH_COMMAND_EMITTER[product](
+                        serial, repacked_imageset=True))
             elif product != "error":
                 flash_commands.append(
                     "flash --current --serial %s --skip-vbmeta=True" % serial)
@@ -762,6 +789,10 @@ class Console(cmd.Cmd):
         """
         return self._serials
 
+    def ResetSerials(self):
+        """Clears all the serial numbers set to this console obj."""
+        self._serials = []
+
     def JobThread(self):
         """Job thread which monitors and uploads results."""
         thread = threading.currentThread()
@@ -780,7 +811,7 @@ class Console(cmd.Cmd):
         self._job_pool = NonDaemonizedPool(
             common._MAX_LEASED_JOBS, JobMain,
             (self._vti_address, self._job_in_queue, self._job_out_queue,
-             self._device_status, self._password))
+             self._device_status, self._password, self._hosts))
 
         self._job_thread = threading.Thread(target=self.JobThread)
         self._job_thread.daemon = True

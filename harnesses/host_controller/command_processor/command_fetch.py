@@ -127,6 +127,7 @@ class CommandFetch(base_command_processor.BaseCommandProcessor):
                      build_id=args.build_id,
                      method=args.method,
                      full_device_images=args.full_device_images)
+                self.console.fetch_info["fetch_signed_build"] = False
             else:
                 (device_images, test_suites, fetch_environment,
                  _) = provider.GetSignedBuildArtifact(
@@ -137,6 +138,7 @@ class CommandFetch(base_command_processor.BaseCommandProcessor):
                      build_id=args.build_id,
                      method=args.method,
                      full_device_images=args.full_device_images)
+                self.console.fetch_info["fetch_signed_build"] = True
 
             self.console.fetch_info["build_id"] = fetch_environment["build_id"]
         elif args.type == "local_fs":
@@ -161,10 +163,12 @@ class CommandFetch(base_command_processor.BaseCommandProcessor):
 
         if args.gsi:
             filtered_images = {}
-            for image_name in device_images:
+            image_names = device_images.keys()
+            for image_name in image_names:
                 if image_name.endswith(".img") and image_name not in [
                         "system.img", "vbmeta.img"
                 ]:
+                    provider.RemoveDeviceImage(image_name)
                     continue
                 filtered_images[image_name] = device_images[image_name]
             device_images = filtered_images
@@ -174,9 +178,11 @@ class CommandFetch(base_command_processor.BaseCommandProcessor):
             self.console.fetch_info["branch"] = gcs_path
             self.console.fetch_info["target"] = filename
             self.console.fetch_info["build_id"] = "latest"
+            self.console.fetch_info["account_id"] = ""
         else:
             self.console.fetch_info["branch"] = args.branch
             self.console.fetch_info["target"] = args.target
+            self.console.fetch_info["account_id"] = args.account_id
 
         self.console.UpdateFetchInfo(provider.GetFetchedArtifactType())
 
