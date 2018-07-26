@@ -153,8 +153,7 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
             help="True to erase metadata and userdata (equivalent to "
             "factory reset) between retries.")
         self.arg_parser.add_argument(
-            "--retry_plan",
-            help="The name of a retry plan to use.")
+            "--retry_plan", help="The name of a retry plan to use.")
 
     # @Override
     def Run(self, arg_line):
@@ -248,8 +247,8 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
             if shard_flag_literal:
                 retry_test_command = (
                     "test --suite=%s --keep-result -- %s --retry %d %s %d" %
-                    (args.suite, retry_plan,
-                     session_id, shard_flag_literal, shard_num))
+                    (args.suite, retry_plan, session_id, shard_flag_literal,
+                     shard_num))
             else:
                 retry_test_command = (
                     "test --suite=%s --keep-result -- %s --retry %d" %
@@ -261,7 +260,11 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
             if args.cleanup_devices:
                 for (command, serial) in itertools.product(
                         _DEVICE_CLEANUP_COMMAND_LIST, args.serial):
-                    self.console.onecmd(command.format(serial=serial))
+                    if not self.console.onecmd(command.format(serial=serial)):
+                        logging.error(
+                            "Factory reset failed on the devices %s. "
+                            "Skipping retry run(s)", serial)
+                        return
 
             self.console.onecmd(retry_test_command)
 
