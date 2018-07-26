@@ -110,12 +110,11 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                             logging.info("Device %s already locked." % serial)
                         continue
 
-                    usb_reset_timer = self.RunUSBResetTimer(
-                        device["serial"], common.DEFAULT_DEVICE_TIMEOUT_SECS)
                     stdout, _, retcode = cmd_utils.ExecuteOneShellCommand(
                         "adb -s %s reboot bootloader" % device["serial"],
-                        common.DEFAULT_DEVICE_TIMEOUT_SECS)
-                    usb_reset_timer.cancel()
+                        common.DEFAULT_DEVICE_TIMEOUT_SECS,
+                        usb_utils.ResetUsbDeviceOfSerial_Callback,
+                        device["serial"])
                     if retcode == 0:
                         lines_fastboot.append(line)
 
@@ -146,11 +145,11 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                             logging.info("Device %s already locked." % serial)
                         continue
 
-                    usb_reset_timer = self.RunUSBResetTimer(
-                        device["serial"], common.DEFAULT_DEVICE_TIMEOUT_SECS)
                     _, stderr, retcode = cmd_utils.ExecuteOneShellCommand(
-                        "fastboot -s %s getvar product" % device["serial"])
-                    usb_reset_timer.cancel()
+                        "fastboot -s %s getvar product" % device["serial"],
+                        common.DEFAULT_DEVICE_TIMEOUT_SECS,
+                        usb_utils.ResetUsbDeviceOfSerial_Callback,
+                        device["serial"])
                     if retcode == 0:
                         res = stderr.splitlines()[0].rstrip()
                         if ":" in res:
@@ -160,10 +159,12 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
                             device["product"] = res.split(":")[1].strip()
                         else:
                             device["product"] = "error"
+                        self.console.device_status[
+                            serial] = common._DEVICE_STATUS_DICT["fastboot"]
                     else:
                         device["product"] = "error"
-                    self.console.device_status[
-                        serial] = common._DEVICE_STATUS_DICT["fastboot"]
+                        self.console.device_status[
+                            serial] = common._DEVICE_STATUS_DICT["no-response"]
 
                     device["status"] = self.console.device_status[serial]
                     devices.append(device)
@@ -257,7 +258,7 @@ class CommandDevice(base_command_processor.BaseCommandProcessor):
         if serial in device_file_path:
             logging.error(
                 "Device %s not responding. Resetting device file %s.", serial,
-                device_file_path)
+                device_file_path[serial])
             usb_utils.ResetDeviceUsb(device_file_path[serial])
 
     # @Override
