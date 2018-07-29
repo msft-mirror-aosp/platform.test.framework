@@ -27,7 +27,7 @@ from host_controller import common
 from host_controller.command_processor import command_device
 
 
-def cmd_util_side_effect(value, timeout=0):
+def cmd_util_side_effect(value, timeout=0, callback_on_timeout=None, *args):
     ret = ("", "", 0)
     if value == "adb devices":
         ret = ("List of devices attached\ndevice1\tdevice\ndevice2\tdevice",
@@ -93,6 +93,10 @@ class CommandDeviceTest(unittest.TestCase):
                 'status': common._DEVICE_STATUS_DICT["no-response"],
                 'serial': 'device4',
                 'product': 'error'
+            }, {
+                'status': common._DEVICE_STATUS_DICT["online"],
+                'serial': 'device1',
+                'product': mock.ANY
             }])
 
     @mock.patch("host_controller.console.Console")
