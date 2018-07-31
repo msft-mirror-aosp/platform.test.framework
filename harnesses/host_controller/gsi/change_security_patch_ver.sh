@@ -37,7 +37,12 @@ function unmount() {
 }
 
 SCRIPT_NAME=$(basename $0)
-SUPPORTED_VENDOR_VERSIONS="8.1.0"
+
+declare -a SUPPORTED_VENDOR_VERSIONS=(
+  8.1.0
+  9
+)
+SUPPORTED_VENDOR_VERSIONS="${SUPPORTED_VENDOR_VERSIONS[@]}"
 
 param_count=0
 while [[ $# -gt 0 ]]
