@@ -18,6 +18,7 @@ import logging
 
 from host_controller import common
 from host_controller.command_processor import base_command_processor
+from host_controller.utils.usb import usb_utils
 
 from vts.utils.python.common import cmd_utils
 
@@ -62,7 +63,8 @@ class CommandAdb(base_command_processor.BaseCommandProcessor):
             cmd_list.append("-s %s" % args.serial)
         cmd_list.extend(self.ReplaceVars(args.command))
         stdout, stderr, retcode = cmd_utils.ExecuteOneShellCommand(
-            " ".join(cmd_list))
+            " ".join(cmd_list), common.DEFAULT_DEVICE_TIMEOUT_SECS,
+            usb_utils.ResetUsbDeviceOfSerial_Callback, args.serial)
         if stdout:
             logging.info(stdout)
         if stderr:

@@ -18,6 +18,7 @@ import logging
 
 from host_controller import common
 from host_controller.command_processor import base_command_processor
+from host_controller.utils.usb import usb_utils
 
 from vts.utils.python.common import cmd_utils
 
@@ -69,7 +70,9 @@ class CommandFastboot(base_command_processor.BaseCommandProcessor):
         cmd_list.extend(self.ReplaceVars(args.command))
         cmd = " ".join(cmd_list)
         for _ in range(args.retry + 1):
-            stdout, stderr, retcode = cmd_utils.ExecuteOneShellCommand(cmd)
+            stdout, stderr, retcode = cmd_utils.ExecuteOneShellCommand(
+                cmd, common.DEFAULT_DEVICE_TIMEOUT_SECS,
+                usb_utils.ResetUsbDeviceOfSerial_Callback, args.serial)
             if stdout:
                 logging.info(stdout)
             if stderr:
