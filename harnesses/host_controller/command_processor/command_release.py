@@ -75,7 +75,7 @@ class CommandRelease(base_command_processor.BaseCommandProcessor):
             "--schedule-for",
             default="17:00",
             help="Schedule to update HC package at the given time every day. "
-            "Example: --schedule-for=%H:%M")
+            "Example: --schedule-for=%%H:%%M")
         self.arg_parser.add_argument(
             "--account_id",
             default=common._DEFAULT_ACCOUNT_ID,
