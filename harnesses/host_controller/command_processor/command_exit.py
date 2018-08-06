@@ -61,7 +61,3 @@ class CommandExit(base_command_processor.BaseCommandProcessor):
         self.console.StopJobThreadAndProcessPool()
         self.console.__exit__()
         return True
-
-    def Help(self):
-        """Prints help message for exit command."""
-        self._Print("Terminate the console.")
