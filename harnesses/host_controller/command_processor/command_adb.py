@@ -44,6 +44,12 @@ class CommandAdb(base_command_processor.BaseCommandProcessor):
             default=None,
             help="The target device serial to run the command.")
         self.arg_parser.add_argument(
+            "--timeout",
+            type=float,
+            default=common.DEFAULT_DEVICE_TIMEOUT_SECS,
+            help="The maximum timeout value of this command in seconds. "
+            "Set to 0 to disable the timeout functionality.")
+        self.arg_parser.add_argument(
             "command",
             metavar="COMMAND",
             nargs="+",
@@ -62,9 +68,13 @@ class CommandAdb(base_command_processor.BaseCommandProcessor):
                 return False
             cmd_list.append("-s %s" % args.serial)
         cmd_list.extend(self.ReplaceVars(args.command))
-        stdout, stderr, retcode = cmd_utils.ExecuteOneShellCommand(
-            " ".join(cmd_list), common.DEFAULT_DEVICE_TIMEOUT_SECS,
-            usb_utils.ResetUsbDeviceOfSerial_Callback, args.serial)
+        if args.timeout == 0:
+            stdout, stderr, retcode = cmd_utils.ExecuteOneShellCommand(
+                " ".join(cmd_list))
+        else:
+            stdout, stderr, retcode = cmd_utils.ExecuteOneShellCommand(
+                " ".join(cmd_list), args.timeout,
+                usb_utils.ResetUsbDeviceOfSerial_Callback, args.serial)
         if stdout:
             logging.info(stdout)
         if stderr:
