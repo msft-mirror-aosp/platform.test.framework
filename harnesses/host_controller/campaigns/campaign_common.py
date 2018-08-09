@@ -620,23 +620,26 @@ def GenerateMt6739GsiFlashingCommands(serial,
             ("preloader", "preloader_SBOOT_DIS.img"),
             ("loader_ext1", "loader_ext.img"),
             ("loader_ext2", "loader_ext.img"),
+            ("tee1", "tee.img"),
+            ("tee2", "tee.img"),
             ("lk", "lk.img"),
+            ("lk2", "lk.img"),
         )
     ]
     result.append("fastboot -s %s -- reboot bootloader" % serial)
+    # gpt is the partition table and must be flashed first.
+    # The bootloader reloads partition table automatically after flashing gpt.
     result += [
         flash_img_cmd % (serial, partition, image)
         for partition, image in (
+            ("gpt", "PGPT"),
             ("md1img", "md1img.img"),
             ("md1dsp", "md1dsp.img"),
             ("recovery", "recovery.img"),
             ("spmfw", "spmfw.img"),
             ("mcupmfw", "mcupmfw.img"),
-            ("lk2", "lk.img"),
             ("boot", "boot.img"),
             ("dtbo", "dtbo.img"),
-            ("tee1", "tee.img"),
-            ("tee2", "tee.img"),
             ("vendor", "vendor.img"),
             ("cache", "cache.img"),
             ("userdata", "userdata.img"),
