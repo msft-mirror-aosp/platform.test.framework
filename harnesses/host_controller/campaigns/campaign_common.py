@@ -453,6 +453,7 @@ def EmitCommonConsoleCommands(**kwargs):
                 sheet_command += " --primary_abi_only"
             if index < len(ref_urls):
                 sheet_command += " --ref " + ref_urls[index]
+            sheet_command += " --client_secrets DATA/vtslab-gcs.json"
             result.append(sheet_command)
 
     result.extend(upload_commands)
