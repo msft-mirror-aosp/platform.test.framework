@@ -70,19 +70,19 @@ while getopts ":p:H:i:f:" opt; do
 done
 
 if [ "$TASK" == "SetupIptables" ]; then
-  runlocalssh --prodaccessargs=--nossh_cert fab SetPassword:$PASSWORD GetHosts:$HOSTS_PATH $TASK:$IPADDRESSES_PATH
+  fab SetPassword:$PASSWORD GetHosts:$HOSTS_PATH $TASK:$IPADDRESSES_PATH
 elif [ "$TASK" == "SetupPackages" ]; then
   if [ -z "$IPADDRESSES_PATH" ]; then
-    runlocalssh --prodaccessargs=--nossh_cert fab SetPassword:$PASSWORD GetHosts:$HOSTS_PATH $TASK
+    fab SetPassword:$PASSWORD GetHosts:$HOSTS_PATH $TASK
   else
-    runlocalssh --prodaccessargs=--nossh_cert fab SetPassword:$PASSWORD GetHosts:$HOSTS_PATH $TASK:$IPADDRESSES_PATH
+    fab SetPassword:$PASSWORD GetHosts:$HOSTS_PATH $TASK:$IPADDRESSES_PATH
   fi
 elif [ "$TASK" == "DeployVtslab" ] || [ "$TASK" == "DeployGCE" ]; then
   if [ -z "$VTSLAB_PACKAGE_GCS_URL" ]; then
     echo "Please specify vtslab package file URL using -f option."
     exit
   fi
-  runlocalssh --prodaccessargs=--nossh_cert fab SetPassword:$PASSWORD GetHosts:$HOSTS_PATH $TASK:$VTSLAB_PACKAGE_GCS_URL
+  fab SetPassword:$PASSWORD GetHosts:$HOSTS_PATH $TASK:$VTSLAB_PACKAGE_GCS_URL
 else
-  runlocalssh --prodaccessargs=--nossh_cert fab SetPassword:$PASSWORD GetHosts:$HOSTS_PATH $TASK
+  fab SetPassword:$PASSWORD GetHosts:$HOSTS_PATH $TASK
 fi
