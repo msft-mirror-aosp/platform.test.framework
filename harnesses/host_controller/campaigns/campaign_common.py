@@ -615,7 +615,7 @@ def GenerateMt6739GsiFlashingCommands(serial,
     flash_img_cmd = ("fastboot -s %s flash %s "
                      "{device-image[full-zipfile-dir]}/%s")
     flash_gsi_cmd = ("fastboot --timeout=900 -s %s flash system "
-                     "{device-image[gsi-zipfile-dir]}/system.img")
+                     "{device-image[system.img]}")
     result = [
         flash_img_cmd % (serial, partition, image)
         for partition, image in (
@@ -698,7 +698,7 @@ def GenerateUniversal9810GsiFlashingCommands(serial,
     if gsi:
         result.append(
             ("fastboot --timeout=900 -s %s flash system "
-             "{device-image[gsi-zipfile-dir]}/system.img -- -S 512M" % serial))
+             "{device-image[system.img]} -- -S 512M" % serial))
     else:
         result.append((
             "fastboot --timeout=900 -s %s flash system "
