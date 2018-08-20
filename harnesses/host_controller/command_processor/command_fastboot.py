@@ -50,6 +50,12 @@ class CommandFastboot(base_command_processor.BaseCommandProcessor):
             default=2,
             help="The number of times to retry if a command fails.")
         self.arg_parser.add_argument(
+            "--timeout",
+            type=float,
+            default=common.DEFAULT_DEVICE_TIMEOUT_SECS,
+            help="The maximum timeout value of this command in seconds. "
+            "Set to 0 to disable the timeout functionality.")
+        self.arg_parser.add_argument(
             "command",
             metavar="COMMAND",
             nargs="+",
@@ -70,9 +76,12 @@ class CommandFastboot(base_command_processor.BaseCommandProcessor):
         cmd_list.extend(self.ReplaceVars(args.command))
         cmd = " ".join(cmd_list)
         for _ in range(args.retry + 1):
-            stdout, stderr, retcode = cmd_utils.ExecuteOneShellCommand(
-                cmd, common.DEFAULT_DEVICE_TIMEOUT_SECS,
-                usb_utils.ResetUsbDeviceOfSerial_Callback, args.serial)
+            if args.timeout == 0:
+                stdout, stderr, retcode = cmd_utils.ExecuteOneShellCommand(cmd)
+            else:
+                stdout, stderr, retcode = cmd_utils.ExecuteOneShellCommand(
+                    cmd, args.timeout,
+                    usb_utils.ResetUsbDeviceOfSerial_Callback, args.serial)
             if stdout:
                 logging.info(stdout)
             if stderr:
