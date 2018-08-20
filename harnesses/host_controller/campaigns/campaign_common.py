@@ -436,8 +436,7 @@ def EmitCommonConsoleCommands(**kwargs):
             upload_commands.append("upload --src={result_full} --dest=%s "
                                    "--clear_dest" % upload_dest)
 
-    if len(upload_commands) > 0:
-        upload_commands[-1] += " --clear_results=True"
+    result.extend(upload_commands)
 
     if HasAttr("report_reference_url", **kwargs):
         ref_urls = kwargs["report_reference_url"]
@@ -455,8 +454,6 @@ def EmitCommonConsoleCommands(**kwargs):
                 sheet_command += " --ref " + ref_urls[index]
             sheet_command += " --client_secrets DATA/vtslab-gcs.json"
             result.append(sheet_command)
-
-    result.extend(upload_commands)
 
     result.append("device --update=stop")
 
