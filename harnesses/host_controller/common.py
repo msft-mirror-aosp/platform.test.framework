@@ -204,3 +204,6 @@ _DEVLOCK_DIR = ".devlock"
 
 # Default timeout for "adb reboot/fastboot getvar" command in secs.
 DEFAULT_DEVICE_TIMEOUT_SECS = 300
+
+# Maximum number of concurrent adb/fastboot processes.
+MAX_ADB_FASTBOOT_PROCESS = 2
