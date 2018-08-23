@@ -103,7 +103,8 @@ class CommandSheet(base_command_processor.BaseCommandProcessor):
             nargs="*",
             default=[],
             help="The extra rows written to the spreadsheet. Each argument "
-            "is a row. Cells in a row are separated by commas.")
+            "is a row. Cells in a row are separated by commas. Each cell can "
+            "contain variables enclosed in {}.")
         self.arg_parser.add_argument(
             "--max",
             default=30000,
@@ -132,6 +133,10 @@ class CommandSheet(base_command_processor.BaseCommandProcessor):
             src_path = self.console.FormatString(args.src)
             ref_path = (None if args.ref is None else
                         self.console.FormatString(args.ref))
+            extra_rows = []
+            for row in args.extra_rows:
+                extra_rows.append([self.console.FormatString(cell)
+                                   for cell in row.split(",")])
         except KeyError as e:
             logging.error(
                 "Unknown or uninitialized variable in arguments: %s", e)
@@ -193,7 +198,7 @@ class CommandSheet(base_command_processor.BaseCommandProcessor):
         try:
             writer = csv.writer(csv_file, lineterminator="\n")
 
-            writer.writerows(row.split(",") for row in args.extra_rows)
+            writer.writerows(extra_rows)
 
             for keys, attrs in (
                     (_RESULT_ATTR_KEYS, result_attrs),
