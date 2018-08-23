@@ -264,6 +264,8 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
                         logging.error(
                             "Factory reset failed on the devices %s. "
                             "Skipping retry run(s)", serial)
+                        self.console.device_status[
+                            serial] = common._DEVICE_STATUS_DICT["use"]
                         return
 
             self.console.onecmd(retry_test_command)
