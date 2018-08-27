@@ -30,7 +30,13 @@ from vti.test_serving.proto import TestScheduleConfigMessage_pb2 as SchedCfgMsg
 
 
 class CommandReproduce(base_command_processor.BaseCommandProcessor):
-    """Command processor for reproduce command."""
+    """Command processor for reproduce command.
+
+    Attributes:
+        campaign_common: campaign module. Dynamically imported since
+                         the campaign might need to be separated from the
+                         host controller itself.
+    """
 
     command = "reproduce"
     command_detail = ("Reproduce the test environment for a pre-run test and "
@@ -43,6 +49,7 @@ class CommandReproduce(base_command_processor.BaseCommandProcessor):
     # @Override
     def SetUp(self):
         """Initializes the parser for reproduce command."""
+        self.campaign_common = None
         self.arg_parser.add_argument(
             "--suite",
             default="vts",
@@ -58,6 +65,12 @@ class CommandReproduce(base_command_processor.BaseCommandProcessor):
             default=None,
             help="The serial numbers for flashing and testing. "
             "Multiple serial numbers are separated by commas.")
+        self.arg_parser.add_argument(
+            "--automated_retry",
+            action="store_true",
+            help="Retries automatically until all test cases are passed "
+            "or the number or the failed test cases is the same as "
+            "the previous one.")
 
     # @Override
     def Run(self, arg_line):
@@ -90,8 +103,7 @@ class CommandReproduce(base_command_processor.BaseCommandProcessor):
             serial = []
             if args.serial:
                 serial = args.serial.split(",")
-            setup_command_list = self.GenerateSetupCommands(
-                report_msg, serial)
+            setup_command_list = self.GenerateSetupCommands(report_msg, serial)
             if not setup_command_list:
                 suite_fetch_command = self.GenerateTestSuiteFetchCommand(
                     report_msg)
@@ -111,7 +123,19 @@ class CommandReproduce(base_command_processor.BaseCommandProcessor):
                           self.console.test_suite_info)
             return False
 
-        subprocess.call(self.console.test_suite_info[args.suite])
+        if args.automated_retry:
+            if self.campaign_common is None:
+                self.campaign_common = imp.load_source(
+                    'campaign_common',
+                    os.path.join(os.getcwd(), "host_controller", "campaigns",
+                                 "campaign_common.py"))
+            retry_command = self.campaign_common.GenerateRetryCommand(
+                report_msg.schedule_config.build_target[0].name,
+                report_msg.branch, report_msg.suite_name.lower(),
+                report_msg.suite_plan, serial)
+            self.console.onecmd(retry_command)
+        else:
+            subprocess.call(self.console.test_suite_info[args.suite])
 
     def GenerateSetupCommands(self, report_msg, serial):
         """Generates fetch, flash commands using fetch info from report_msg.
@@ -188,14 +212,14 @@ class CommandReproduce(base_command_processor.BaseCommandProcessor):
             else:
                 kwargs["gsi_storage_type"] = SchedCfgMsg.BUILD_STORAGE_TYPE_PAB
 
-            campaign_common = imp.load_source(
+            self.campaign_common = imp.load_source(
                 "campaign_common",
                 os.path.join(os.getcwd(), "host_controller", "campaigns",
                              "campaign_common.py"))
-            fetch_commands_result, gsi = campaign_common.EmitFetchCommands(
+            fetch_commands_result, gsi = self.campaign_common.EmitFetchCommands(
                 **kwargs)
             ret.extend(fetch_commands_result)
-            flash_commands_result = campaign_common.EmitFlashCommands(
+            flash_commands_result = self.campaign_common.EmitFlashCommands(
                 gsi, **kwargs)
             ret.extend(flash_commands_result)
 
