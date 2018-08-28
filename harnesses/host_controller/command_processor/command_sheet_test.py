@@ -30,7 +30,7 @@ from host_controller import common
 from host_controller.command_processor import command_sheet
 
 # Input
-_EXTRA_ROWS = ("logs,gs://a/b", "logs,gs://c/d")
+_EXTRA_ROWS = ("logs,gs://a/b", "logs,gs://c/{suite_plan}")
 
 _XML_HEAD = """\
 <?xml version='1.0' encoding='UTF-8' standalone='no' ?>
@@ -76,7 +76,7 @@ _XML_2 = _XML_HEAD + """\
 # Expected output
 _CSV_HEAD = """\
 logs,gs://a/b
-logs,gs://c/d
+logs,gs://c/vts
 suite_name,VTS
 suite_plan,vts
 suite_version,9.0_R1
@@ -182,7 +182,7 @@ class CommandSheetTest(unittest.TestCase):
         """Creates CommandSheet."""
         self._cmd = command_sheet.CommandSheet()
         mock_console = mock.Mock()
-        mock_console.FormatString = lambda x: x
+        mock_console.FormatString = lambda x: x.replace("{suite_plan}", "vts")
         self._cmd._SetUp(mock_console)
         self._temp_files = []
 
