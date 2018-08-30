@@ -20,5 +20,5 @@ vtslab_bin_packages := \
     fastboot \
     img2simg \
     mke2fs \
-    mkuserimg_mke2fs.sh \
+    mkuserimg_mke2fs \
     simg2img \
