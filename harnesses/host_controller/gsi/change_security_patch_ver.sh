@@ -107,7 +107,7 @@ REQUIRED_BINARIES_LIST=(
   "simg2img"
 )
 if [ ! -z "${FILE_CONTEXTS_BIN}" ]; then
-  REQUIRED_BINARIES_LIST+=("mkuserimg_mke2fs.sh")
+  REQUIRED_BINARIES_LIST+=("mkuserimg_mke2fs")
 fi
 
 # number of binaries to find.
@@ -251,14 +251,14 @@ if [ "$OUTPUT_SYSTEM_IMG" != "" ]; then
     echo "Writing ${OUTPUT_SYSTEM_IMG}..."
 
     (cd $ANDROID_BUILD_TOP
-     if [[ "$(whereis mkuserimg_mke2fs.sh | wc -w)" < 2 ]]; then
-       make mkuserimg_mke2fs.sh -j
+     if [[ "$(whereis mkuserimg_mke2fs | wc -w)" < 2 ]]; then
+       make mkuserimg_mke2fs -j
      fi
      NON_AB=$(expr "$BUILD_PROP_PATH" == "/build.prop")
      if [ $NON_AB -eq 1 ]; then
-       sudo /bin/bash -c "PATH=out/host/linux-x86/bin/:\$PATH mkuserimg_mke2fs.sh -s ${MOUNT_POINT} $OUTPUT_SYSTEM_IMG ext4 system $IMG_SIZE -D ${MOUNT_POINT} -L system $FILE_CONTEXTS_BIN"
+       sudo /bin/bash -c "PATH=out/host/linux-x86/bin/:\$PATH mkuserimg_mke2fs -s ${MOUNT_POINT} $OUTPUT_SYSTEM_IMG ext4 system $IMG_SIZE -D ${MOUNT_POINT} -L system $FILE_CONTEXTS_BIN"
      else
-       sudo /bin/bash -c "PATH=out/host/linux-x86/bin/:\$PATH mkuserimg_mke2fs.sh -s ${MOUNT_POINT} $OUTPUT_SYSTEM_IMG ext4 / $IMG_SIZE -D ${MOUNT_POINT}/system -L / $FILE_CONTEXTS_BIN"
+       sudo /bin/bash -c "PATH=out/host/linux-x86/bin/:\$PATH mkuserimg_mke2fs -s ${MOUNT_POINT} $OUTPUT_SYSTEM_IMG ext4 / $IMG_SIZE -D ${MOUNT_POINT}/system -L / $FILE_CONTEXTS_BIN"
      fi)
 
     unmount
