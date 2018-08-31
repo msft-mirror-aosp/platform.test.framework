@@ -355,10 +355,8 @@ def EmitCommonConsoleCommands(**kwargs):
     if (GetVersion(test_branch) >= 9.0 and
         (suite_name in ["cts", "gts", "sts"] or plan_name.startswith("cts"))):
         shard_option = "--shard-count"
-        retry_option = "--retry_plan=%s-retry" % plan_name
     else:
         shard_option = "--shards"
-        retry_option = ""
 
     if shards > 1:
         test_command = "test --suite %s --keep-result -- %s %s %d %s" % (
@@ -381,21 +379,9 @@ def EmitCommonConsoleCommands(**kwargs):
 
     if "retry_count" in kwargs:
         retry_count = int(kwargs["retry_count"])
-        retry_command = ("retry --suite %s --count %d %s" %
-                         (suite_name, retry_count, retry_option))
-        if shards > 1:
-            retry_command += " %s %d" % (shard_option, shards)
-            for shard_index in range(shards):
-                retry_command += " --serial %s" % serials[shard_index]
-        else:
-            retry_command += " --serial %s" % serials[0]
-        if suite_name in ["cts", "gts", "sts"] or plan_name.startswith("cts"):
-            if common.SDM845 in build_target:
-                # TODO(vtslab-dev): remove after b/77664643 is resolved
-                pass
-            else:
-                retry_command += " --cleanup_devices=True"
-        result.append(retry_command)
+        result.append(
+            GenerateRetryCommand(build_target, test_branch, suite_name,
+                                 plan_name, serials, retry_count))
 
     if HasAttr("test_build_id", **kwargs):
         test_build_id = kwargs["test_build_id"]
@@ -458,6 +444,54 @@ def EmitCommonConsoleCommands(**kwargs):
     result.append("device --update=stop")
 
     return result
+
+
+def GenerateRetryCommand(build_target,
+                         test_branch,
+                         suite_name,
+                         plan_name,
+                         serials,
+                         retry_count=None):
+    """Returns a retry command.
+
+    Args:
+        build_target: string, build target of the device images
+        test_branch: string, branch name from which the test suite is fetched
+        suite_name: string, the name of the test suite
+        plan_name: string, the name of the test plan that needs to be run
+        serials: list of strings, serial numbers of the DUTs
+        retry_count: int,
+
+    Returns:
+        a string, retry command of the console.
+    """
+    if (GetVersion(test_branch) >= 9.0 and
+        (suite_name in ["cts", "gts", "sts"] or plan_name.startswith("cts"))):
+        shard_option = "--shard-count"
+        retry_option = "--retry_plan=%s-retry" % plan_name
+    else:
+        shard_option = "--shards"
+        retry_option = ""
+
+    if retry_count is None:
+        retry_count = common.DEFAULT_RETRY_COUNT
+    retry_command = ("retry --suite %s --count %d %s" %
+                     (suite_name, retry_count, retry_option))
+    if serials:
+        if len(serials) > 1:
+            retry_command += " %s %d" % (shard_option, len(serials))
+            for shard_index in range(len(serials)):
+                retry_command += " --serial %s" % serials[shard_index]
+        else:
+            retry_command += " --serial %s" % serials[0]
+    if suite_name in ["cts", "gts", "sts"] or plan_name.startswith("cts"):
+        if common.SDM845 in build_target:
+            # TODO(vtslab-dev): remove after b/77664643 is resolved
+            pass
+        else:
+            retry_command += " --cleanup_devices=True"
+
+    return retry_command
 
 
 def GenerateSdm845SetupCommands(serial):
@@ -693,9 +727,8 @@ def GenerateUniversal9810GsiFlashingCommands(serial,
          "{device-image[full-zipfile-dir]}/vendor.img -- -S 300M" % serial),
     ]
     if gsi:
-        result.append(
-            ("fastboot --timeout=900 -s %s flash system "
-             "{device-image[system.img]} -- -S 512M" % serial))
+        result.append(("fastboot --timeout=900 -s %s flash system "
+                       "{device-image[system.img]} -- -S 512M" % serial))
     else:
         result.append((
             "fastboot --timeout=900 -s %s flash system "
