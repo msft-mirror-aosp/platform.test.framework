@@ -207,3 +207,6 @@ DEFAULT_DEVICE_TIMEOUT_SECS = 300
 
 # Maximum number of concurrent adb/fastboot processes.
 MAX_ADB_FASTBOOT_PROCESS = 2
+
+# Default number of the actual retry runs for the "retry" command.
+DEFAULT_RETRY_COUNT = 30
