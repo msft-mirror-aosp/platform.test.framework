@@ -91,8 +91,8 @@ expected_output = [
     ]],
     'test --suite {{test_suite}} --keep-result -- {{test_plan}} --shards 3  --serial my_serial1 --serial my_serial2 --serial my_serial3',
     'retry --suite {{test_suite}} --count 3 {{retry_plan}} --shards 3 --serial my_serial1 --serial my_serial2 --serial my_serial3{{cleanup_device}}',
-    'sheet --src {result_zip} --dest report_spreadsheet_id --extra_rows logs,report_bucket/{suite_plan}/{{test_plan}}/{branch}/{target}/my_build_target_{build_id}_{timestamp}/ --primary_abi_only',
-    'upload --src={result_full} --dest=report_bucket/{suite_plan}/{{test_plan}}/{branch}/{target}/my_build_target_{build_id}_{timestamp}/ --report_path=report_bucket/suite_result/{timestamp_year}/{timestamp_month}/{timestamp_day} --clear_results=True',
+    'upload --src={result_full} --dest=report_bucket/{suite_plan}/{{test_plan}}/{branch}/{target}/my_build_target_{build_id}_{timestamp}/ --report_path=report_bucket/suite_result/{timestamp_year}/{timestamp_month}/{timestamp_day}',
+    'sheet --src {result_zip} --dest report_spreadsheet_id --extra_rows logs,report_bucket/{suite_plan}/{{test_plan}}/{branch}/{target}/my_build_target_{build_id}_{timestamp}/ --primary_abi_only --client_secrets DATA/vtslab-gcs.json',
     'device --update=stop',
 ]
 
@@ -116,8 +116,11 @@ def GenerateOutputData(test_name):
         if (test_suite == "cts" or test_suite == "gts" or test_suite == "sts"
                 or test_plan.startswith("cts-")):
             line = line.replace('--shards', "--shard-count")
-            line = line.replace('{{retry_plan}}',
-                                '--retry_plan=%s-retry' % test_plan)
+            if test_suite == "vts":
+                line = line.replace('{{retry_plan}}',
+                                    '--retry_plan=%s-retry' % test_plan)
+            else:
+                line = line.replace('{{retry_plan}}', '--retry_plan=retry')
             line = line.replace('{{cleanup_device}}',
                                 ' --cleanup_devices=True')
         else:
