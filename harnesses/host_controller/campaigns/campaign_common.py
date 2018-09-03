@@ -465,10 +465,15 @@ def GenerateRetryCommand(build_target,
     Returns:
         a string, retry command of the console.
     """
-    if (GetVersion(test_branch) >= 9.0 and
-        (suite_name in ["cts", "gts", "sts"] or plan_name.startswith("cts"))):
+    if GetVersion(test_branch) >= 9.0:
+        retry_option = ""
         shard_option = "--shard-count"
-        retry_option = "--retry_plan=%s-retry" % plan_name
+        if suite_name in ["cts", "gts", "sts"]:
+            retry_option = "--retry_plan=retry"
+        elif plan_name.startswith("cts"):
+            retry_option = "--retry_plan=%s-retry" % plan_name
+        else:
+            shard_option = "--shards"
     else:
         shard_option = "--shards"
         retry_option = ""
