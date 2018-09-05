@@ -77,7 +77,7 @@ class VtiEndpointClient(object):
         Returns:
             True if successful, False otherwise.
         """
-        url = self._url + "build_info/v1/set"
+        url = self._url + "build/v1/set"
         fail = False
         for build in builds:
             response = requests.post(url, data=json.dumps(build),
@@ -100,7 +100,7 @@ class VtiEndpointClient(object):
         Returns:
             True if successful, False otherwise.
         """
-        url = self._url + "host_info/v1/set"
+        url = self._url + "host/v1/set"
         payload = {}
         payload["hostname"] = hostname
         payload["devices"] = []
@@ -136,7 +136,7 @@ class VtiEndpointClient(object):
         if pbs is None or len(pbs) == 0:
             return False
 
-        url = self._url + "schedule_info/v1/clear"
+        url = self._url + "schedule/v1/clear"
         succ = True
         if clear_schedule:
             response = requests.post(
@@ -149,7 +149,7 @@ class VtiEndpointClient(object):
         if not succ:
             return False
 
-        url = self._url + "schedule_info/v1/set"
+        url = self._url + "schedule/v1/set"
         for pb in pbs:
             schedule = {}
             succ = succ and pb2_utils.FillDictAndPost(
@@ -172,7 +172,7 @@ class VtiEndpointClient(object):
         if pbs is None or len(pbs) == 0:
             return
 
-        url = self._url + "lab_info/v1/clear"
+        url = self._url + "lab/v1/clear"
         succ = True
         if clear_labinfo:
             response = requests.post(url, data=json.dumps({"name": "na"}),
@@ -184,7 +184,7 @@ class VtiEndpointClient(object):
         if not succ:
             return False
 
-        url = self._url + "lab_info/v1/set"
+        url = self._url + "lab/v1/set"
         for pb in pbs:
             lab = {}
             lab["name"] = pb.name
@@ -234,7 +234,7 @@ class VtiEndpointClient(object):
         if not hostname:
             return None, {}
 
-        url = self._url + "job_queue/v1/get"
+        url = self._url + "job/v1/lease"
         response = requests.post(url, data=json.dumps({"hostname": hostname}),
                                  headers=self._headers)
         if response.status_code != requests.codes.ok:
@@ -289,7 +289,7 @@ class VtiEndpointClient(object):
         if self._job is None:
             return
 
-        url = self._url + "job_queue/v1/heartbeat"
+        url = self._url + "job/v1/heartbeat"
         self._job["status"] = JOB_STATUS_DICT[status]
 
         thread = threading.currentThread()
@@ -330,7 +330,7 @@ class VtiEndpointClient(object):
         if self._job is None:
             return
 
-        url = self._url + "job_queue/v1/heartbeat"
+        url = self._url + "job/v1/heartbeat"
         self.SetJobStatusFromLeasedTo(status)
         self._job["infra_log_url"] = infra_log_url
 
@@ -358,7 +358,7 @@ class VtiEndpointClient(object):
             hostname: string, the name of the host.
             vtslab_version: string, current version of vtslab package.
         """
-        url = self._url + "lab_info/v1/set_version"
+        url = self._url + "lab/v1/set_version"
         host = {}
         host["hostname"] = hostname
         host["vtslab_version"] = vtslab_version
