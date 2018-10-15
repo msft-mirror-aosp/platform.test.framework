@@ -30,7 +30,15 @@ usage()
 
 FABRIC_EXISTS=$(pip show fabric)
 if [ -z "$FABRIC_EXISTS" ]; then
-  sudo pip install fabric
+  INSTALL_FABRIC=true
+else
+  FABRIC_VERSION=$(fab -V | grep Fabric)
+  if [ "${FABRIC_VERSION:7:1}" -ne 1 ]; then
+    INSTALL_FABRIC=true
+  fi
+fi
+if [ "$INSTALL_FABRIC" == true ]; then
+  sudo pip install fabric==1.14.0 --force
 fi
 
 TASK=$1
