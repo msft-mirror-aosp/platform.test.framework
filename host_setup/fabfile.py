@@ -180,7 +180,7 @@ def SetupPackages(ip_address_file_path=None):
     sudo("apt-get install -y git-core gnupg flex bison gperf build-essential "
          "zip curl zlib1g-dev gcc-multilib g++-multilib x11proto-core-dev "
          "libx11-dev lib32z-dev ccache libgl1-mesa-dev libxml2-utils xsltproc "
-         "unzip liblz4-tool udev")
+         "unzip liblz4-tool udev screen")
 
     sudo("apt-get install -y android-tools-adb")
     sudo("usermod -aG plugdev $LOGNAME")
