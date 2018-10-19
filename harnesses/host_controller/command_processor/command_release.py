@@ -40,7 +40,7 @@ _REPACKAGE_ADDITIONAL_BIN_LIST = [
 _VERSION_INFO_FILE_PATH = "android-vtslab/testcases/version.txt"
 
 # List of strings for supported ak versions.
-AK_VERSIONS = ["8.0.0", "8.0.1", "8.1.0", "9", "O", "OMR1", "P"]
+AK_VERSIONS = ["8.0.0", "8.0.1", "8.1.0", "9", "O", "OMR1", "P", "Q"]
 
 for version in AK_VERSIONS:
     file_path = "android-vtslab/testcases/DATA/ak/.%s.ak" % version
