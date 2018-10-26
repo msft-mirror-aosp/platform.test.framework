@@ -625,6 +625,8 @@ def GenerateSdm845GsiFlashingCommands(serial, repacked_imageset=False):
     result.append("shell -- rm {tmp_dir}/%s -rf" % serial)
     result.append("adb -s %s reboot bootloader" % serial)
     result.append("sleep 5")
+    # TODO(vtslab-dev): remove after b/112171990 is resolved
+    result.append("fastboot -s %s erase userdata" % serial)
     # removed -w from below command
     result.append("fastboot -s %s  -- reboot" % serial)
     if not repacked_imageset:
