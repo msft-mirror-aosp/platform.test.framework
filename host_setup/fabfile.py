@@ -25,6 +25,7 @@ from fabric.api import run
 from fabric.api import settings
 from fabric.api import sudo
 from fabric.contrib.files import contains
+from fabric.contrib.files import exists
 from fabric.context_managers import cd
 
 _PIP_REQUIREMENTS_PATHS = [
@@ -71,8 +72,7 @@ def GetHosts(hosts_file_path, gce_instance_name=None, account=None):
         if not gce_instance_name or not account:
             print(
                 "Please specify gce_instance_name and account using -H option. "
-                "Example: -H <Google_Cloud_project>,<GCE_instance>,<account>"
-            )
+                "Example: -H <Google_Cloud_project>,<GCE_instance>,<account>")
             sys.exit(0)
         env.key_filename = "~/.ssh/google_compute_engine"
         gce_list_out = local(
@@ -159,6 +159,45 @@ def SetupADBVendorKeysEnvVar():
             "testcases/DATA/ak -name \".*.ak\" | tr \"\\n\" \":\")' "
             ">> ~/.bashrc" % _VTSLAB_PACKAGE_PATH_FILENAME)
         run("echo 'fi' >> ~/.bashrc")
+
+
+def _CheckADBVendorKeysEnvVar(vtslab_package_file_name=""):
+    """Checks if there is a change in ADB_VENDOR_KEYS env variable.
+
+    if there is, then the adbd needs to be restarted in the screen context
+    before running the HC.
+
+    Args:
+        vtslab_package_file_name: string, the HC package file name that is about
+                                  to be deployed.
+
+    Returns:
+        True if the list of the adb vendor key files have changed,
+        False otherwise.
+    """
+    former_key_set = set()
+    current_key_set = set()
+    set_keyfile_set = lambda set, path_list: map(set.add, map(os.path.basename,
+                                                              path_list))
+    vtslab_package_path_filepath = "~/%s" % _VTSLAB_PACKAGE_PATH_FILENAME
+
+    if exists(vtslab_package_path_filepath):
+        former_HC_package_path = run("cat %s" % vtslab_package_path_filepath)
+        former_HC_package_adbkey_path = os.path.join(
+            former_HC_package_path, "android-vtslab/testcases/DATA/ak")
+        if exists(former_HC_package_adbkey_path):
+            adb_vendor_keys_list = run("find %s -name \".*.ak\"" %
+                                       former_HC_package_adbkey_path).split()
+            set_keyfile_set(former_key_set, adb_vendor_keys_list)
+
+    if exists("~/run/%s.dir/android-vtslab/testcases/DATA/ak" %
+              vtslab_package_file_name):
+        adb_vendor_keys_list = run(
+            "find ~/run/%s.dir/android-vtslab/testcases/DATA/ak -name \".*.ak\""
+            % vtslab_package_file_name).split()
+        set_keyfile_set(current_key_set, adb_vendor_keys_list)
+
+    return former_key_set != current_key_set
 
 
 def SetupPackages(ip_address_file_path=None):
@@ -271,14 +310,30 @@ def DeployVtslab(vtslab_package_gcs_url=None):
     vtslab_package_file_name = os.path.basename(vtslab_package_gcs_url)
     run("mkdir -p ~/run/%s.dir/" % vtslab_package_file_name)
     with cd("~/run/%s.dir" % vtslab_package_file_name):
-        run("pwd > ~/%s" % _VTSLAB_PACKAGE_PATH_FILENAME)
         run("gsutil cp %s ./" % vtslab_package_gcs_url)
         run("unzip -o %s" % vtslab_package_file_name)
+        adb_vendor_keys_changed = _CheckADBVendorKeysEnvVar(
+            vtslab_package_file_name)
+        run("pwd > ~/%s" % _VTSLAB_PACKAGE_PATH_FILENAME)
+
     with cd("~/run/%s.dir/android-vtslab/tools" % vtslab_package_file_name):
         new_screen_name = run("cat ../testcases/version.txt")
 
     with cd("~/run/%s.dir/android-vtslab/tools" % vtslab_package_file_name):
         run("./make_screen %s ; sleep 1" % new_screen_name)
+
+    if adb_vendor_keys_changed:
+        reset_adbd = ""
+        while reset_adbd.lower() not in ["y", "n"]:
+            if reset_adbd:
+                print("Please type 'y' or 'n'")
+            reset_adbd = raw_input(
+                "Reset adb server daemon on host %s (y/n)? " % env.host)
+        if reset_adbd.lower() == "y":
+            run("screen -S %s -X stuff \"adb kill-server^M\"" %
+                new_screen_name)
+            run("screen -S %s -X stuff \"adb start-server^M\"" %
+                new_screen_name)
     run("screen -S %s -X stuff \"./run --vti=%s\"" % (new_screen_name, vti))
     run("screen -S %s -X stuff \"^M\"" % new_screen_name)
     time.sleep(5)
