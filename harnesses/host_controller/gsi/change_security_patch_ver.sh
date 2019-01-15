@@ -107,7 +107,7 @@ REQUIRED_BINARIES_LIST=(
   "simg2img"
 )
 if [ ! -z "${FILE_CONTEXTS_BIN}" ]; then
-  REQUIRED_BINARIES_LIST+=("mkuserimg_mke2fs.sh")
+  REQUIRED_BINARIES_LIST+=("mkuserimg_mke2fs")
 fi
 
 # number of binaries to find.
@@ -185,7 +185,6 @@ BUILD_PROP_PATH_LIST=(
 )
 BUILD_PROP_MOUNT_PATH=""
 BUILD_PROP_PATH=""
-PROP_DEFAULT_PATH="/system/etc/prop.default"
 
 echo "Finding build.prop..."
 for path in ${BUILD_PROP_PATH_LIST[@]}; do
@@ -196,6 +195,11 @@ for path in ${BUILD_PROP_PATH_LIST[@]}; do
     break
   fi
 done
+
+PROP_DEFAULT_PATH_LIST=(
+  "/system/etc/prop.default"  # layout of A/B support
+  "/etc/prop.default"         # layout of non-A/B support
+)
 
 if [ "$BUILD_PROP_MOUNT_PATH" != "" ]; then
   if [ "$OUTPUT_SYSTEM_IMG" != "" ]; then
@@ -229,7 +233,16 @@ if [ "$BUILD_PROP_MOUNT_PATH" != "" ]; then
 
     if [[ "$VENDOR_VERSION" == "8.1.0" ]]; then
       # add ro.vndk.version for O-MR1
-      if [ -f "${MOUNT_POINT}${PROP_DEFAULT_PATH}" ]; then
+      echo "Finding prop.default..."
+      for path in ${PROP_DEFAULT_PATH_LIST[@]}; do
+        if [ -f "${MOUNT_POINT}${path}" ]; then
+          PROP_DEFAULT_PATH=${path}
+          echo "  ${path}"
+          break
+        fi
+      done
+
+      if [[ "$PROP_DEFAULT_PATH" != "" ]]; then
         CURRENT_VNDK_VERSION=`sudo sed -n -r "s/^${VNDK_VERSION_PROPERTY}=(.*)$/\1/p" ${MOUNT_POINT}${PROP_DEFAULT_PATH}`
         if [[ "$CURRENT_VNDK_VERSION" != "" ]]; then
           echo "WARNING: ${VNDK_VERSION_PROPERTY} is already set to ${CURRENT_VNDK_VERSION} in ${PROP_DEFAULT_PATH}"
@@ -238,7 +251,7 @@ if [ "$BUILD_PROP_MOUNT_PATH" != "" ]; then
           sudo sed -i -e "\$a\#\n\# FOR O-MR1 DEVICES\n\#\n${VNDK_VERSION_PROPERTY_OMR1}" ${MOUNT_POINT}${PROP_DEFAULT_PATH}
         fi
       else
-        echo "ERROR: Cannot find $(basename ${PROP_DEFAULT_PATH})"
+        echo "ERROR: Cannot find prop.default."
       fi
     fi
   fi
@@ -251,14 +264,14 @@ if [ "$OUTPUT_SYSTEM_IMG" != "" ]; then
     echo "Writing ${OUTPUT_SYSTEM_IMG}..."
 
     (cd $ANDROID_BUILD_TOP
-     if [[ "$(whereis mkuserimg_mke2fs.sh | wc -w)" < 2 ]]; then
-       make mkuserimg_mke2fs.sh -j
+     if [[ "$(whereis mkuserimg_mke2fs | wc -w)" < 2 ]]; then
+       make mkuserimg_mke2fs -j
      fi
      NON_AB=$(expr "$BUILD_PROP_PATH" == "/build.prop")
      if [ $NON_AB -eq 1 ]; then
-       sudo /bin/bash -c "PATH=out/host/linux-x86/bin/:\$PATH mkuserimg_mke2fs.sh -s ${MOUNT_POINT} $OUTPUT_SYSTEM_IMG ext4 system $IMG_SIZE -D ${MOUNT_POINT} -L system $FILE_CONTEXTS_BIN"
+       sudo /bin/bash -c "PATH=out/host/linux-x86/bin/:\$PATH mkuserimg_mke2fs -s ${MOUNT_POINT} $OUTPUT_SYSTEM_IMG ext4 system $IMG_SIZE -D ${MOUNT_POINT} -L system $FILE_CONTEXTS_BIN"
      else
-       sudo /bin/bash -c "PATH=out/host/linux-x86/bin/:\$PATH mkuserimg_mke2fs.sh -s ${MOUNT_POINT} $OUTPUT_SYSTEM_IMG ext4 / $IMG_SIZE -D ${MOUNT_POINT}/system -L / $FILE_CONTEXTS_BIN"
+       sudo /bin/bash -c "PATH=out/host/linux-x86/bin/:\$PATH mkuserimg_mke2fs -s ${MOUNT_POINT} $OUTPUT_SYSTEM_IMG ext4 / $IMG_SIZE -D ${MOUNT_POINT}/system -L / $FILE_CONTEXTS_BIN"
      fi)
 
     unmount

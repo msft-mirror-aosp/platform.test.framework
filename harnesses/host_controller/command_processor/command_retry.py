@@ -119,8 +119,9 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
         self.arg_parser.add_argument(
             "--count",
             type=int,
-            default=30,
-            help="Retry count. Default retry count is 30.")
+            default=common.DEFAULT_RETRY_COUNT,
+            help="Retry count. Default retry count is %s." %
+            common.DEFAULT_RETRY_COUNT)
         self.arg_parser.add_argument(
             "--force-count",
             type=int,
@@ -264,6 +265,8 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
                         logging.error(
                             "Factory reset failed on the devices %s. "
                             "Skipping retry run(s)", serial)
+                        self.console.device_status[
+                            serial] = common._DEVICE_STATUS_DICT["use"]
                         return
 
             self.console.onecmd(retry_test_command)
@@ -275,3 +278,24 @@ class CommandRetry(base_command_processor.BaseCommandProcessor):
                         and result not in former_results):
                     former_results.append(result)
                     break
+
+            summary_after_retry = xml_utils.GetAttributes(
+                os.path.join(results_path, former_results[-1],
+                             common._TEST_RESULT_XML), common._SUMMARY_TAG,
+                [
+                    common._FAILED_ATTR_KEY, common._MODULES_TOTAL_ATTR_KEY,
+                    common._MODULES_DONE_ATTR_KEY
+                ])
+            fail_count_after_retry = int(
+                summary_after_retry[common._FAILED_ATTR_KEY])
+            skip_count_after_retry = int(
+                summary_after_retry[common._MODULES_TOTAL_ATTR_KEY]) - int(
+                    summary_after_retry[common._MODULES_DONE_ATTR_KEY])
+            if (result_index >= force_retry_count
+                    and fail_count_after_retry == result_fail_count
+                    and skip_count_after_retry == result_skip_count):
+                logging.warning(
+                    "Same result as the former test run from the retry run. "
+                    "Skipping remaining %d retry runs.",
+                    (retry_count - result_index))
+                break

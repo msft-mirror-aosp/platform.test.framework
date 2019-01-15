@@ -15,6 +15,8 @@
 #
 
 LOCAL_PATH := $(call my-dir)
+VTF_MK := $(LOCAL_PATH)/vtf.mk
+VTF_PACKAGE_MK := test/vts/tools/build/tasks/framework/vtf_package.mk
 
 include $(CLEAR_VARS)
 include $(LOCAL_PATH)/tasks/list/vtslab_apk_package_list.mk
@@ -130,8 +132,21 @@ vtslab_copy_pairs := \
   $(call copy-many-files,$(host_hc_bin_lib_copy_pairs)) \
   $(host_vti_extra_copy_pairs) \
 
-$(compatibility_zip): $(vtslab_copy_pairs) vtslab_package_version
+$(compatibility_zip): $(vtslab_copy_pairs) $(VTSLAB_TESTCASES_OUT)/version.txt
 
-vtslab_package_version:
-	@rm -f $(VTSLAB_TESTCASES_OUT)/version.txt
-	@echo $(VTSLAB_VERSION) > $(VTSLAB_TESTCASES_OUT)/version.txt
+$(VTSLAB_TESTCASES_OUT)/version.txt:
+	@rm -f $@
+	@echo $(VTSLAB_VERSION) > $@
+
+# for VTF (Vendor Test Framework)
+VTF_OUT_ROOT := $(HOST_OUT)/vtf
+VTF_TESTCASES_OUT := $(VTF_OUT_ROOT)/android-vtf/testcases
+VTF_TOOLS_OUT := $(VTF_OUT_ROOT)/android-vtf/tools
+VTF_EXTRA_SCRIPTS := vtf
+
+include $(VTF_PACKAGE_MK)
+include $(VTF_MK)
+
+# clears local vars
+VTF_MK :=
+VTF_PACKAGE_MK :=
