@@ -43,6 +43,9 @@ SCHEDULE_INFO_PB2_ATTR_FILTERS = {
     "name": "build_target",
 }
 
+# timeout seconds for requests
+REQUESTS_TIMEOUT_SECONDS = 60
+
 
 class VtiEndpointClient(object):
     """VTI (Vendor Test Infrastructure) endpoint client.
@@ -80,10 +83,15 @@ class VtiEndpointClient(object):
         url = self._url + "build/v1/set"
         fail = False
         for build in builds:
-            response = requests.post(url, data=json.dumps(build),
-                                     headers=self._headers)
-            if response.status_code != requests.codes.ok:
-                logging.error("UploadBuildInfo error: %s", response)
+            try:
+                response = requests.post(url, data=json.dumps(build),
+                                         headers=self._headers,
+                                         timeout=REQUESTS_TIMEOUT_SECONDS)
+                if response.status_code != requests.codes.ok:
+                    logging.error("UploadBuildInfo error: %s", response)
+                    fail = True
+            except requests.exceptions.Timeout as e:
+                logging.exception(e)
                 fail = True
         if fail:
             return False
@@ -113,8 +121,10 @@ class VtiEndpointClient(object):
 
         try:
             response = requests.post(url, data=json.dumps(payload),
-                                     headers=self._headers)
-        except requests.exceptions.ConnectionError as e:
+                                     headers=self._headers,
+                                     timeout=REQUESTS_TIMEOUT_SECONDS)
+        except (requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout) as e:
             logging.exception(e)
             return False
         if response.status_code != requests.codes.ok:
@@ -139,9 +149,13 @@ class VtiEndpointClient(object):
         url = self._url + "schedule/v1/clear"
         succ = True
         if clear_schedule:
-            response = requests.post(
-                url, data=json.dumps({"manifest_branch": "na"}),
-                headers=self._headers)
+            try:
+                response = requests.post(
+                    url, data=json.dumps({"manifest_branch": "na"}),
+                    headers=self._headers, timeout=REQUESTS_TIMEOUT_SECONDS)
+            except requests.exceptions.Timeout as e:
+                logging.exception(e)
+                return False
             if response.status_code != requests.codes.ok:
                 logging.error("UploadScheduleInfo error: %s", response)
                 succ = False
@@ -175,8 +189,13 @@ class VtiEndpointClient(object):
         url = self._url + "lab/v1/clear"
         succ = True
         if clear_labinfo:
-            response = requests.post(url, data=json.dumps({"name": "na"}),
-                                     headers=self._headers)
+            try:
+                response = requests.post(url, data=json.dumps({"name": "na"}),
+                                         headers=self._headers,
+                                         timeout=REQUESTS_TIMEOUT_SECONDS)
+            except requests.exceptions.Timeout as e:
+                logging.exception(e)
+                return False
             if response.status_code != requests.codes.ok:
                 logging.error("UploadLabInfo error: %s", response)
                 succ = False
@@ -212,10 +231,15 @@ class VtiEndpointClient(object):
                                 device.device_equipment)
                         new_host["device"].append(new_device)
                 lab["host"].append(new_host)
-            response = requests.post(url, data=json.dumps(lab),
-                                     headers=self._headers)
-            if response.status_code != requests.codes.ok:
-                logging.error("UploadLabInfo error: %s", response)
+            try:
+                response = requests.post(url, data=json.dumps(lab),
+                                         headers=self._headers,
+                                         timeout=REQUESTS_TIMEOUT_SECONDS)
+                if response.status_code != requests.codes.ok:
+                    logging.error("UploadLabInfo error: %s", response)
+                    succ = False
+            except requests.exceptions.Timeout as e:
+                logging.exception(e)
                 succ = False
         return succ
 
@@ -235,8 +259,14 @@ class VtiEndpointClient(object):
             return None, {}
 
         url = self._url + "job/v1/lease"
-        response = requests.post(url, data=json.dumps({"hostname": hostname}),
-                                 headers=self._headers)
+        try:
+            response = requests.post(url, data=json.dumps({"hostname": hostname}),
+                                     headers=self._headers,
+                                     timeout=REQUESTS_TIMEOUT_SECONDS)
+        except requests.exceptions.Timeout as e:
+            logging.exception(e)
+            return None, {}
+
         if response.status_code != requests.codes.ok:
             logging.error("LeaseJob error: %s", response.status_code)
             return None, {}
@@ -294,10 +324,14 @@ class VtiEndpointClient(object):
 
         thread = threading.currentThread()
         while getattr(thread, 'keep_running', True):
-            response = requests.post(url, data=json.dumps(self._job),
-                                     headers=self._headers)
-            if response.status_code != requests.codes.ok:
-                logging.error("UpdateLeasedJobStatus error: %s", response)
+            try:
+                response = requests.post(url, data=json.dumps(self._job),
+                                         headers=self._headers,
+                                         timeout=REQUESTS_TIMEOUT_SECONDS)
+                if response.status_code != requests.codes.ok:
+                    logging.error("UpdateLeasedJobStatus error: %s", response)
+            except requests.exceptions.Timeout as e:
+                logging.exception(e)
             time.sleep(update_interval)
 
     def StartHeartbeat(self, status="leased", update_interval=60):
@@ -334,10 +368,14 @@ class VtiEndpointClient(object):
         self.SetJobStatusFromLeasedTo(status)
         self._job["infra_log_url"] = infra_log_url
 
-        response = requests.post(
-            url, data=json.dumps(self._job), headers=self._headers)
-        if response.status_code != requests.codes.ok:
-            logging.error("StopHeartbeat error: %s", response)
+        try:
+            response = requests.post(url, data=json.dumps(self._job),
+                                     headers=self._headers,
+                                     timeout=REQUESTS_TIMEOUT_SECONDS)
+            if response.status_code != requests.codes.ok:
+                logging.error("StopHeartbeat error: %s", response)
+        except requests.exceptions.Timeout as e:
+            logging.exception(e)
 
         self._job = None
 
@@ -365,8 +403,10 @@ class VtiEndpointClient(object):
 
         try:
             response = requests.post(url, data=json.dumps(host),
-                                    headers=self._headers)
-        except requests.exceptions.ConnectionError as e:
+                                     headers=self._headers,
+                                     timeout=REQUESTS_TIMEOUT_SECONDS)
+        except (requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout) as e:
             logging.exception(e)
             return
         if response.status_code != requests.codes.ok:

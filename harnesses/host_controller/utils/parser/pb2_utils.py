@@ -18,6 +18,9 @@ import json
 import logging
 import requests
 
+# timeout seconds for requests
+REQUESTS_TIMEOUT_SECONDS = 60
+
 
 def FillDictAndPost(msg,
                     dict_to_fill,
@@ -64,8 +67,13 @@ def FillDictAndPost(msg,
                                       filters, caller_name)
 
     if terminal:
-        response = requests.post(
-            url, data=json.dumps(dict_to_fill), headers=headers)
+        try:
+            response = requests.post(url, data=json.dumps(dict_to_fill),
+                                     headers=headers,
+                                     timeout=REQUESTS_TIMEOUT_SECONDS)
+        except requests.exceptions.Timeout as e:
+            logging.exception(e)
+            return False
         if response.status_code != requests.codes.ok:
             logging.error("%s error: %s", caller_name, response)
             ret = ret and False
