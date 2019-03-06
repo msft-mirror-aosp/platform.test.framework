@@ -44,6 +44,9 @@ from host_controller.build import build_provider
 GET = 'GET'
 POST = 'POST'
 
+# timeout seconds for requests
+REQUESTS_TIMEOUT_SECONDS = 60
+
 
 class BuildProviderPAB(build_provider.BuildProvider):
     """Client that manages Partner Android Build downloading.
@@ -233,7 +236,12 @@ class BuildProviderPAB(build_provider.BuildProvider):
         headers['Content-Type'] = 'application/json'
         headers['x-alkali-account'] = account_id
 
-        response = requests.post(self.SVC_URL, data=data, headers=headers)
+        try:
+            response = requests.post(self.SVC_URL, data=data, headers=headers,
+                                     timeout=REQUESTS_TIMEOUT_SECONDS)
+        except requests.exceptions.Timeout as e:
+            logging.exception(e)
+            raise ValueError("Request timeout.")
 
         responseJSON = {}
 
@@ -310,11 +318,14 @@ class BuildProviderPAB(build_provider.BuildProvider):
             url = path_urljoin(self.BASE_URL, 'build', 'builds', action,
                                branch, target, dummy,
                                dummy) + '?a=' + str(account_id)
-
-            response = requests.get(url, headers=headers)
             try:
+                response = requests.get(url, headers=headers,
+                                        timeout=REQUESTS_TIMEOUT_SECONDS)
                 responseJSON = response.json()
                 builds = responseJSON['build']
+            except requests.exceptions.Timeout as e:
+                logging.exception(e)
+                raise ValueError("Request timeout.")
             except ValueError as e:
                 logging.exception(e)
                 raise ValueError("Backend error -- check your account ID")
@@ -340,6 +351,10 @@ class BuildProviderPAB(build_provider.BuildProvider):
                         build["signed"] = True
                     except requests.HTTPError:
                         logging.debug("The build is not signed.")
+                        build["signed"] = False
+                    except requests.exceptions.Timeout as e:
+                        logging.debug("Server is not responding.")
+                        logging.exception(e)
                         build["signed"] = False
             return builds
 
@@ -466,10 +481,14 @@ class BuildProviderPAB(build_provider.BuildProvider):
                                    branch, target, build_id,
                                    artifact_name) + '?a=' + str(account_id)
 
-            response = requests.get(get_url, headers=headers)
             try:
+                response = requests.get(get_url, headers=headers,
+                                        timeout=REQUESTS_TIMEOUT_SECONDS)
                 responseJSON = response.json()
                 return responseJSON['url']
+            except requests.exceptions.Timeout as e:
+                logging.exception(e)
+                raise ValueError("Request timeout.")
             except ValueError:
                 raise ValueError("Backend error -- check your account ID")
 
@@ -485,10 +504,9 @@ class BuildProviderPAB(build_provider.BuildProvider):
         """
         try:
             response = self.GetResponseWithURL(download_url)
-        except requests.HTTPError as httpError:
-            logging.exception(httpError)
+        except (requests.HTTPError, requests.exceptions.Timeout) as error:
+            logging.exception(error)
             return False
-
         logging.info('%s now downloading...', download_url)
         with open(filename, 'wb') as handle:
             for block in response.iter_content(self.DEFAULT_CHUNK_SIZE):
@@ -661,11 +679,15 @@ class BuildProviderPAB(build_provider.BuildProvider):
 
         Returns:
             A Response object received from the server.
+
+        Raises:
+            requests.HTTPError if response.status_code is not 200.
+            requests.exceptions.Timeout if the server does not respond.
         """
         headers = {}
         self._credentials.apply(headers)
-
-        response = requests.get(url, headers=headers, stream=True)
+        response = requests.get(url, headers=headers, stream=True,
+                                timeout=REQUESTS_TIMEOUT_SECONDS)
         response.raise_for_status()
 
         return response
