@@ -154,6 +154,9 @@ class BuildProviderPAB(build_provider.BuildProvider):
 
         Returns:
             boolean, whether the token was accessed and stored
+
+        Raises:
+            ValueError if login fails or userinfo file is malformed.
         """
         if self._userinfo_file is not None:
             with open(self._userinfo_file, 'r') as handle:
@@ -215,6 +218,9 @@ class BuildProviderPAB(build_provider.BuildProvider):
 
         Returns:
             dict, result from RPC call
+
+        Raises:
+            ValueError if RPC call returns an error or an unknown response.
         """
         if self._xsrf is None:
             self.GetXSRFToken()
@@ -271,6 +277,9 @@ class BuildProviderPAB(build_provider.BuildProvider):
 
         Returns:
             list of dicts representing the builds, descending in time
+
+        Raises:
+            ValueError if build request returns an error or builds not found.
         """
         if method == POST:
             params = {
@@ -344,6 +353,9 @@ class BuildProviderPAB(build_provider.BuildProvider):
 
         Returns:
             string, most recent build id
+
+        Raises:
+            ValueError if complete builds are not found.
         """
         # TODO: support pagination, maybe?
         build_list = self.GetBuildList(account_id=account_id,
@@ -384,6 +396,10 @@ class BuildProviderPAB(build_provider.BuildProvider):
 
         Returns:
             list of build artifact objects
+
+        Raises:
+            NotImplementedError if method is 'GET', which is not supported yet.
+            ValueError if build artifacts are not found.
         """
         if method == GET:
             raise NotImplementedError(
@@ -418,6 +434,9 @@ class BuildProviderPAB(build_provider.BuildProvider):
 
         Returns:
             string, The URL for the resource specified by the parameters
+
+        Raises:
+            ValueError if given parameters are incorrect or resource not found.
         """
         if method == POST:
             params = {
@@ -502,6 +521,9 @@ class BuildProviderPAB(build_provider.BuildProvider):
             a dict containing the test suite package info.
             a dict containing the artifact info.
             a dict containing the global config info.
+
+        Raises:
+            ValueError if artifacts are not found.
         """
         artifact_info = {}
         if build_id == 'latest':
@@ -582,14 +604,18 @@ class BuildProviderPAB(build_provider.BuildProvider):
         """
         artifact_info = {}
         build_ids = []
+        artifact_path = ""
         if build_id == 'latest':
-            build_list = self.GetBuildList(
-                account_id=account_id,
-                branch=branch,
-                target=target,
-                method=method)
-            for build in build_list:
-                build_ids.append(build["build_id"])
+            try:
+                build_list = self.GetBuildList(
+                    account_id=account_id,
+                    branch=branch,
+                    target=target,
+                    method=method)
+                for build in build_list:
+                    build_ids.append(build["build_id"])
+            except ValueError as e:
+                logging.exception(e)
         else:
             build_ids.append(build_id)
 
@@ -598,14 +624,18 @@ class BuildProviderPAB(build_provider.BuildProvider):
             if "build_id" in _artifact_name:
                 _artifact_name = _artifact_name.format(build_id=build_id)
             _artifact_name = "signed%2Fsigned-" + _artifact_name
-            url = self.GetArtifactURL(
-                account_id=account_id,
-                build_id=build_id,
-                target=target,
-                artifact_name=_artifact_name,
-                branch=branch,
-                internal=False,
-                method=method)
+            try:
+                url = self.GetArtifactURL(
+                    account_id=account_id,
+                    build_id=build_id,
+                    target=target,
+                    artifact_name=_artifact_name,
+                    branch=branch,
+                    internal=False,
+                    method=method)
+            except ValueError as e:
+                logging.exception(e)
+                continue
 
             if self.tmp_dirpath:
                 artifact_path = os.path.join(self.tmp_dirpath, _artifact_name)
@@ -631,9 +661,6 @@ class BuildProviderPAB(build_provider.BuildProvider):
 
         Returns:
             A Response object received from the server.
-
-        Raises:
-            requests.HTTPError if response.status_code is not 200.
         """
         headers = {}
         self._credentials.apply(headers)
@@ -654,22 +681,26 @@ class BuildProviderPAB(build_provider.BuildProvider):
         Returns:
             path to the fetched file. None if the fetching has failed.
         """
-        listed_builds = self.GetBuildList(
-            account_id=account_id,
-            branch=branch,
-            target=target,
-            page_token="",
-            max_results=1,
-            method="GET")
-        if listed_builds and len(listed_builds) > 0:
-            for listed_build in listed_builds:
-                if listed_build["successful"]:
-                    self.GetArtifact(
-                        account_id=account_id,
-                        branch=branch,
-                        target=target,
-                        artifact_name="android-vtslab.zip",
-                        build_id=listed_build["build_id"],
-                        method="GET")
+        try:
+            listed_builds = self.GetBuildList(
+                account_id=account_id,
+                branch=branch,
+                target=target,
+                page_token="",
+                max_results=1,
+                method="GET")
 
-                    return self.GetHostControllerPackage("vtslab")
+            if listed_builds and len(listed_builds) > 0:
+                for listed_build in listed_builds:
+                    if listed_build["successful"]:
+                        self.GetArtifact(
+                            account_id=account_id,
+                            branch=branch,
+                            target=target,
+                            artifact_name="android-vtslab.zip",
+                            build_id=listed_build["build_id"],
+                            method="GET")
+
+                        return self.GetHostControllerPackage("vtslab")
+        except ValueError as e:
+            logging.exception(e)
