@@ -26,6 +26,7 @@ vtf_tradefed_modules := \
   host-libprotobuf-java-full \
   loganalysis \
   tradefed \
+  vts-core-tradefed \
   vts-tradefed \
   vts-tradefed-tests \
 
