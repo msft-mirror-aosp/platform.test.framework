@@ -22,7 +22,6 @@ vtf_tradefed_modules := \
   compatibility-host-util \
   compatibility-host-util-tests \
   compatibility-tradefed-tests \
-  hosttestlib \
   host-libprotobuf-java-full \
   loganalysis \
   tradefed \
